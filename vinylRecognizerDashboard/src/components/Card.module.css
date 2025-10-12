@@ -111,6 +111,16 @@
   color: #333;
 }
 
+.cardTitleLink {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cardTitleLink:hover {
+  color: inherit;
+}
+
 .cardBy {
   font-size: 12px;
   font-family: 'Raleway', sans-serif;

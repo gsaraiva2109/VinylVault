@@ -1,48 +1,45 @@
-import './App.css'
-import Card from './components/Card'
-
-const cardsData = [
-  {
-    title: 'Dark Side of the Moon',
-    image: 'https://m.media-amazon.com/images/I/61hw9WloObL._UF1000,1000_QL80_.jpg',
-    category: 'Rock',
-    author: 'Pink Floyd',
-    time: '15 min',
-  },
-  {
-    title: 'Discover the sea',
-    image: 'https://images.pexels.com/photos/307008/pexels-photo-307008.jpeg?auto=compress&cs=tinysrgb&h=750&w=1260',
-    category: 'Travel',
-    author: 'John Doe',
-    time: '5 min',
-  },
-  {
-    title: 'Vinyl Recognizer Dashboard',
-    image: 'https://images.pexels.com/photos/3944454/pexels-photo-3944454.jpeg?auto=compress&cs=tinysrgb&h=750&w=1260',
-    category: 'Music',
-    author: 'Gabriel',
-    time: '10 min',
-  },
-]
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import ManualVinylEntry from '../frontend/src/components/ManualVinylEntry';
+import VinylList from '../frontend/src/components/VinylList';
+import DeletedVinyls from '../frontend/src/components/DeletedVinyls';
+import DarkModeToggle from './components/DarkModeToggle';
+import ScrollToTop from './components/ScrollToTop';
+import ToastContainer from './components/ToastContainer';
+import { useToast } from './hooks/useToast';
+import './App.css';
 
 function App() {
+  const { toasts, removeToast } = useToast();
+
   return (
-    <div className="app-container">
-      <h1>Vinyl Analyzer</h1>
-      <section className="cards-container">
-        {cardsData.map((card, index) => (
-          <Card
-            key={index}
-            title={card.title}
-            image={card.image}
-            category={card.category}
-            author={card.author}
-            time={card.time}
-          />
-        ))}
-      </section>
-    </div>
-  )
+    <Router>
+      <div className="App">
+        <nav className="navbar">
+          <div className="navbar-left">
+            <h1>Vinyl Collection Manager</h1>
+            <ul>
+              <li><Link to="/">Coleção</Link></li>
+              <li><Link to="/deleted">Lixeira</Link></li>
+            </ul>
+          </div>
+          <div className="navbar-right">
+            <DarkModeToggle />
+          </div>
+        </nav>
+
+        <div className="container">
+          <Routes>
+            <Route path="/" element={<VinylList />} />
+            <Route path="/add" element={<ManualVinylEntry />} />
+            <Route path="/deleted" element={<DeletedVinyls />} />
+          </Routes>
+        </div>
+
+        <ScrollToTop />
+        <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
+      </div>
+    </Router>
+  );
 }
 
-export default App
+export default App;

@@ -36,9 +36,11 @@ export default function Card({ title, image, category, author, time, link = '#' 
       
       <div className={styles.cardInfo}>
         <span className={styles.cardCategory}>{category}</span>
-        <h3 className={styles.cardTitle}>{title}</h3>
+        <h3 className={styles.cardTitle}>
+          <a href="https://www.discogs.com/pt_BR/master/10362-Pink-Floyd-The-Dark-Side-Of-The-Moon" className={styles.cardTitleLink}>{title}</a>
+        </h3>
         <span className={styles.cardBy}>
-          by <a href="#" className={styles.cardAuthor} title="author">{author}</a>
+          by <a href="https://www.discogs.com/pt_BR/artist/45467-Pink-Floyd" className={styles.cardAuthor} title="author">{author}</a>
         </span>
       </div>
     </article>
