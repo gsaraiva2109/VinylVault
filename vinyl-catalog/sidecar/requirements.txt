@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+easyocr
+pillow
+numpy
+openai
+google-generativeai
+python-dotenv
+requests

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  vinyl-catalog-api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - vinyl-data:/data
+    environment:
+      - PORT=3001
+      - DB_PATH=/data/vinyl-catalog.db
+      - AUTH_ENABLED=true
+      - AUTHENTIK_JWKS_URL=${AUTHENTIK_JWKS_URL}
+      - AUTHENTIK_ISSUER=${AUTHENTIK_ISSUER}
+      - DISCOGS_TOKEN=${DISCOGS_TOKEN}
+    env_file:
+      - .env
+
+volumes:
+  vinyl-data:

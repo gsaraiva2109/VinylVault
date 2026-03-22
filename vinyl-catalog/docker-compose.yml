@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - vinyl-data:/data
+    environment:
+      NODE_ENV: production
+      DB_PATH: /data/vinyl-catalog.db
+      PORT: "3001"
+      # Auth — enable once Authentik is configured
+      AUTH_ENABLED: "true"
+      AUTHENTIK_JWKS_URL: https://auth.yourdomain.com/application/o/vinyl-catalog/jwks/
+      AUTHENTIK_ISSUER: https://auth.yourdomain.com/application/o/vinyl-catalog/
+      # Discogs — required for price caching and album search
+      DISCOGS_TOKEN: your_discogs_personal_access_token
+
+volumes:
+  vinyl-data:
+    # Persists the SQLite database file across container restarts/upgrades.
+    # On Dokploy, bind-mount /opt/vinyl-catalog/data here if you prefer a
+    # host path (easier to back up with rsync):
+    #   driver: local
+    #   driver_opts:
+    #     type: none
+    #     device: /opt/vinyl-catalog/data
+    #     o: bind

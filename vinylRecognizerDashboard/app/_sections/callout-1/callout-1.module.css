@@ -1,0 +1,68 @@
+@keyframes lineAnimation {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.line {
+  animation: lineAnimation 3s linear infinite;
+  transform-origin: right;
+  height: 1px;
+  transform: translateX(-100%);
+}
+
+.line::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+}
+
+.line:nth-child(1) {
+  animation-delay: 0.5s;
+}
+
+.line:nth-child(2) {
+  animation-delay: 1.2s;
+}
+
+.line:nth-child(3) {
+  animation-delay: 2.1s;
+}
+
+.line:nth-child(4) {
+  animation-delay: 3.3s;
+}
+
+.line:nth-child(5) {
+  animation-delay: 1.8s;
+}
+
+.line:nth-child(6) {
+  animation-delay: 2.7s;
+}
+
+.line:nth-child(7) {
+  animation-delay: 0.9s;
+}
+
+.line:nth-child(8) {
+  animation-delay: 4.2s;
+}
+
+.line:nth-child(9) {
+  animation-delay: 1.5s;
+}
+
+.line:nth-child(10) {
+  animation-delay: 3.6s;
+}

@@ -1,0 +1,95 @@
+.code-snippet {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-secondary);
+  border-radius: theme("borderRadius.xl");
+  margin: theme("spacing.4") 0px;
+  border: 1px solid var(--border);
+  width: 100%;
+  overflow: hidden;
+}
+
+.code-snippet .header {
+  padding-block: theme("spacing.2");
+  padding-inline: theme("spacing.4");
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.code-snippet .content {
+  overflow-x: auto;
+  background-color: var(--surface-secondary);
+  position: relative;
+}
+
+.code-snippet .content :global(pre) {
+  margin: 0 !important;
+  font-size: theme("fontSize.sm") !important;
+  word-wrap: break-word;
+  background-color: var(--surface-secondary) !important;
+  outline-color: var(--accent-500);
+}
+
+.code-snippet .content :global(pre) :global(span.line-indicator) {
+  display: inline-block;
+  pointer-events: none;
+  position: sticky;
+  left: 0;
+  background-color: var(--surface-secondary);
+  color: var(--text-tertiary);
+  user-select: none;
+  width: 44px !important;
+  text-align: end;
+  padding-right: 12px !important;
+}
+
+.code-snippet .content {
+  --shiki-color-text: var(--grayscale-950);
+  --shiki-background: var(--surface-secondary);
+  --shiki-token-constant: var(--accent-700);
+  --shiki-token-function: var(--grayscale-600);
+  --shiki-token-string-expression: var(--grayscale-500);
+  --shiki-token-string: var(--accent-400);
+  --shiki-token-comment: var(--grayscale-400);
+  --shiki-token-keyword: var(--accent-500);
+  --shiki-token-parameter: #d6deeb;
+  --shiki-token-punctuation: #c792e9;
+  --shiki-token-link: #79b8ff;
+}
+
+:global(.dark) .code-snippet {
+  background-color: var(--dark-surface-secondary);
+  border: 1px solid var(--dark-border);
+}
+
+:global(.dark) .code-snippet .header {
+  border-bottom: 1px solid var(--dark-border);
+}
+
+:global(.dark) .code-snippet .content {
+  background-color: var(--dark-surface-secondary);
+}
+
+:global(.dark) .code-snippet .content :global(pre) {
+  background-color: var(--dark-surface-secondary) !important;
+}
+
+:global(.dark) .code-snippet .content :global(pre) :global(span.line-indicator) {
+  color: var(--dark-text-tertiary);
+  background-color: var(--dark-surface-secondary);
+}
+
+:global(.dark) .code-snippet .content {
+  --shiki-color-text: var(--grayscale-950);
+  --shiki-background: var(--dark-surface-secondary);
+  --shiki-token-constant: var(--accent-200);
+  --shiki-token-function: var(--grayscale-400);
+  --shiki-token-string-expression: var(--grayscale-500);
+  --shiki-token-string: var(--accent-400);
+  --shiki-token-comment: var(--grayscale-600);
+  --shiki-token-keyword: var(--accent-500);
+  --shiki-token-parameter: #d6deeb;
+  --shiki-token-punctuation: #c792e9;
+}

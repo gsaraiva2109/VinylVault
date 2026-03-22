@@ -1,0 +1,47 @@
+{
+  "name": "vinyl-catalog",
+  "version": "0.1.0",
+  "description": "Vinyl record catalog — Electron desktop app",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.0.0",
+    "drizzle-orm": "^0.41.0",
+    "electron-updater": "^6.3.9",
+    "got": "^12.6.1",
+    "form-data": "^4.0.0",
+    "keytar": "^7.9.0",
+    "openid-client": "^5.7.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "electron", "esbuild", "keytar"]
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@tanstack/react-query": "^5.73.3",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/form-data": "^2.5.2",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "drizzle-kit": "^0.30.5",
+    "electron": "^35.1.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.3"
+  }
+}

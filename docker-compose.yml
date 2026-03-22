@@ -1,0 +1,69 @@
+services:
+  api:
+    build: ./vinyl-catalog/backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://vinyl:${POSTGRES_PASSWORD}@postgres:5432/vinyl
+      AUTH_ENABLED: "true"
+      AUTHENTIK_JWKS_URL: ${AUTHENTIK_JWKS_URL}
+      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
+      DISCOGS_TOKEN: ${DISCOGS_TOKEN}
+    networks:
+      - internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vinyl-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.vinyl-api.entrypoints=websecure"
+      - "traefik.http.routers.vinyl-api.tls=true"
+      - "traefik.http.services.vinyl-api.loadbalancer.server.port=3001"
+      - "traefik.docker.network=dokploy-network"
+
+  web:
+    build: ./vinylRecognizerDashboard
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://${DOMAIN}
+    networks:
+      - internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vinyl-web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.vinyl-web.entrypoints=websecure"
+      - "traefik.http.routers.vinyl-web.tls=true"
+      - "traefik.http.services.vinyl-web.loadbalancer.server.port=3000"
+      - "traefik.docker.network=dokploy-network"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vinyl
+      POSTGRES_USER: vinyl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vinyl -d vinyl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    # NO ports: — postgres is internal-only, never exposed
+
+networks:
+  internal:
+    driver: bridge
+  traefik:
+    external: true
+    name: dokploy-network  # Dokploy's Traefik network — adjust if yours differs
+
+volumes:
+  pgdata:
