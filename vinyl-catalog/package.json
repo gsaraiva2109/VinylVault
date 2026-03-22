@@ -26,7 +26,7 @@
     "onlyBuiltDependencies": ["better-sqlite3", "electron", "esbuild", "keytar"]
   },
   "devDependencies": {
-    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@tanstack/react-query": "^5.73.3",
     "@types/better-sqlite3": "^7.6.12",
