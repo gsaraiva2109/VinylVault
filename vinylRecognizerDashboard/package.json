@@ -5,7 +5,13 @@
     "build": "next build",
     "dev": "next dev --turbopack",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@radix-ui/react-icons": "latest",
@@ -25,7 +31,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.5",
+    "prettier": "^3.8.1",
     "tailwindcss-radix": "^3.0.5",
     "typescript": "^5"
   }
