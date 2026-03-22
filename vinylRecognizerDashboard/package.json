@@ -19,25 +19,25 @@
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "next-themes": "latest",
-    "react": "^19",
-    "react-dom": "^19",
-    "tailwind-merge": "^2.5.5",
-    "tailwindcss": "^3.4.17",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwind-merge": "^2.6.1",
+    "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.13",
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "autoprefixer": "^10.4.21",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^22.19.15",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.27",
     "eslint": "^8.57.1",
     "eslint-config-next": "15.2.4",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "postcss": "^8.5",
+    "postcss": "^8.5.8",
     "prettier": "^3.8.1",
     "tailwindcss-radix": "^3.0.5",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

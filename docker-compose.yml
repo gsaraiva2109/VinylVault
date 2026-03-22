@@ -15,14 +15,7 @@ services:
       DISCOGS_TOKEN: ${DISCOGS_TOKEN}
     networks:
       - internal
-      - traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vinyl-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.vinyl-api.entrypoints=websecure"
-      - "traefik.http.routers.vinyl-api.tls=true"
-      - "traefik.http.services.vinyl-api.loadbalancer.server.port=3001"
-      - "traefik.docker.network=dokploy-network"
+      - dokploy-network
 
   web:
     image: ghcr.io/gsaraiva2109/vinyl-catalog-web:latest
@@ -31,14 +24,7 @@ services:
       NEXT_PUBLIC_API_URL: https://${DOMAIN}
     networks:
       - internal
-      - traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vinyl-web.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.vinyl-web.entrypoints=websecure"
-      - "traefik.http.routers.vinyl-web.tls=true"
-      - "traefik.http.services.vinyl-web.loadbalancer.server.port=3000"
-      - "traefik.docker.network=dokploy-network"
+      - dokploy-network
 
   postgres:
     image: postgres:16-alpine
@@ -56,14 +42,12 @@ services:
       retries: 5
     networks:
       - internal
-    # NO ports: — postgres is internal-only, never exposed
 
 networks:
   internal:
     driver: bridge
-  traefik:
+  dokploy-network:
     external: true
-    name: dokploy-network  # Dokploy's Traefik network — adjust if yours differs
 
 volumes:
   pgdata:

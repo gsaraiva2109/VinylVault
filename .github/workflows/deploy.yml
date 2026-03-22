@@ -42,12 +42,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: vinyl-catalog/package-lock.json
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
       - name: Install Linux native deps
         run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
-      - run: npm ci
-      - run: npm run typecheck
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
 
   test-web:
     name: Web — lint
@@ -158,15 +159,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Dokploy webhook
-        run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}")
-          echo "Dokploy response: $response"
-          if [[ "$response" -lt 200 || "$response" -ge 300 ]]; then
-            echo "::error::Dokploy webhook failed with status $response"
-            exit 1
-          fi
+      - name: Trigger Dokploy Redeploy
+        run: curl -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
 
       - name: Deployment summary
         run: |

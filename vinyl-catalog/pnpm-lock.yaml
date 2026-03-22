@@ -9,16 +9,16 @@ importers:
   .:
     dependencies:
       better-sqlite3:
-        specifier: ^12.0.0
+        specifier: ^12.8.0
         version: 12.8.0
       drizzle-orm:
         specifier: ^0.41.0
         version: 0.41.0(@types/better-sqlite3@7.6.13)(better-sqlite3@12.8.0)(gel@2.2.0)
       electron-updater:
-        specifier: ^6.3.9
+        specifier: ^6.8.3
         version: 6.8.3
       form-data:
-        specifier: ^4.0.0
+        specifier: ^4.0.5
         version: 4.0.5
       got:
         specifier: ^12.6.1
@@ -37,49 +37,49 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0(electron@35.7.5)
       '@tanstack/react-query':
-        specifier: ^5.73.3
+        specifier: ^5.95.0
         version: 5.95.0(react@19.2.4)
       '@types/better-sqlite3':
-        specifier: ^7.6.12
+        specifier: ^7.6.13
         version: 7.6.13
       '@types/form-data':
         specifier: ^2.5.2
         version: 2.5.2
       '@types/node':
-        specifier: ^22.13.10
+        specifier: ^22.19.15
         version: 22.19.15
       '@types/react':
-        specifier: ^19.0.10
+        specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
-        specifier: ^19.0.4
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
       '@vitejs/plugin-react':
-        specifier: ^4.3.4
+        specifier: ^4.7.0
         version: 4.7.0(vite@6.4.1(@types/node@22.19.15))
       drizzle-kit:
-        specifier: ^0.30.5
+        specifier: ^0.30.6
         version: 0.30.6
       electron:
-        specifier: ^35.1.0
+        specifier: ^35.7.5
         version: 35.7.5
       electron-builder:
         specifier: ^25.1.8
         version: 25.1.8(electron-builder-squirrel-windows@25.1.8)
       electron-vite:
-        specifier: ^3.0.0
+        specifier: ^3.1.0
         version: 3.1.0(vite@6.4.1(@types/node@22.19.15))
       react:
-        specifier: ^19.0.0
+        specifier: ^19.2.4
         version: 19.2.4
       react-dom:
-        specifier: ^19.0.0
+        specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
       typescript:
-        specifier: ^5.7.3
+        specifier: ^5.9.3
         version: 5.9.3
       vite:
-        specifier: ^6.2.3
+        specifier: ^6.4.1
         version: 6.4.1(@types/node@22.19.15)
 
 packages:

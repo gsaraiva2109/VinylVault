@@ -23,8 +23,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: vinyl-catalog/package-lock.json
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
 
       - name: Install native dependencies (libsecret for keytar)
         run: |
@@ -36,10 +38,10 @@ jobs:
             libgtk-3-dev
 
       - name: Install Node dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build Linux installers
-        run: npm run build:linux
+        run: pnpm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -67,14 +69,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: vinyl-catalog/package-lock.json
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
 
       - name: Install Node dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build macOS installers
-        run: npm run build:mac
+        run: pnpm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
