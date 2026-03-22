@@ -11,7 +11,7 @@ Built as a personal project for two people sharing one collection across two mac
 - Collection stored in PostgreSQL on the homelab, accessible from any device
 - Available as a web app (browser) and a native desktop shell (Electron)
 
-The desktop app follows the Discord pattern: the Electron shell is a thin native wrapper that loads the hosted web frontend at `https://vinyl.yourdomain.com`. There is no bundled UI — both the browser and the Electron app hit the same deployment.
+The desktop app follows the Discord pattern: the Electron shell is a thin native wrapper that loads the hosted web frontend at `https://vinyl.gsaraiva.com.br`. There is no bundled UI — both the browser and the Electron app hit the same deployment.
 
 ## Architecture
 
@@ -35,14 +35,14 @@ docker-compose.yml    Single Dokploy deployment (api + web + postgres)
 ```
 Internet
   └─► Traefik (HTTPS, Dokploy)
-        ├─► web  (Next.js :3000)   vinyl.yourdomain.com
-        └─► api  (Express :3001)   vinyl.yourdomain.com/api
+        ├─► web  (Next.js :3000)   vinyl.gsaraiva.com.br
+        └─► api  (Express :3001)   vinyl.gsaraiva.com.br/api
 
 Docker internal network (never exposed)
   └─► postgres :5432
 
 Electron shell (desktop)
-  └─► loadURL('https://vinyl.yourdomain.com')
+  └─► loadURL('https://vinyl.gsaraiva.com.br')
       Same auth flow as browser — standard cookies / OIDC session
 ```
 
@@ -70,7 +70,7 @@ Electron shell (desktop)
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/vinyl-catalog.git
+git clone https://github.com/gsaraiva2109/vinyl-catalog.git
 cd vinyl-catalog
 ```
 
@@ -83,11 +83,11 @@ cp .env.example .env
 Fill in `.env`:
 
 ```env
-DOMAIN=vinyl.yourdomain.com
+DOMAIN=vinyl.gsaraiva.com.br
 POSTGRES_PASSWORD=your_strong_password
 
-AUTHENTIK_JWKS_URL=https://auth.yourdomain.com/application/o/vinyl-catalog/jwks/
-AUTHENTIK_ISSUER=https://auth.yourdomain.com/application/o/vinyl-catalog/
+AUTHENTIK_JWKS_URL=https://auth.gsaraiva.com.br/application/o/vinyl-catalog/jwks/
+AUTHENTIK_ISSUER=https://auth.gsaraiva.com.br/application/o/vinyl-catalog/
 
 DISCOGS_TOKEN=your_discogs_personal_access_token
 ```
@@ -98,7 +98,7 @@ Get your Discogs token at [discogs.com/settings/developers](https://www.discogs.
 
 Create a provider in Authentik (OAuth2/OIDC) and an application pointing at it:
 
-- **Redirect URIs:** `https://vinyl.yourdomain.com/api/auth/callback`
+- **Redirect URIs:** `https://vinyl.gsaraiva.com.br/api/auth/callback`
 - **Signing key:** use the default RS256 key
 - Copy the JWKS URL and issuer into `.env`
 
@@ -166,7 +166,7 @@ The Electron shell is intentionally minimal — it provides the native window, s
 
 ```bash
 # Development (loads http://localhost:3000)
-cd electron
+cd vinyl-catalog
 pnpm dev
 
 # Build
