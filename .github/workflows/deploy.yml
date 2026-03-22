@@ -45,7 +45,7 @@ jobs:
           cache: npm
           cache-dependency-path: vinyl-catalog/package-lock.json
       - name: Install Linux native deps
-        run: sudo apt-get install -y libsecret-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
       - run: npm ci
       - run: npm run typecheck
 

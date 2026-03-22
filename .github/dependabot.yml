@@ -8,6 +8,10 @@ updates:
     labels:
       - "dependencies"
       - "electron"
+    groups:
+      all:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/vinyl-catalog/backend"
@@ -17,6 +21,10 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    groups:
+      all:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/vinylRecognizerDashboard"
@@ -26,6 +34,10 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    groups:
+      all:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -35,6 +47,10 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      all:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -44,3 +60,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      all:
+        patterns:
+          - "*"
