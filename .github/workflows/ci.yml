@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend API ──────────────────────────────────────────────────────────
+  test-backend:
+    name: Backend — typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vinyl-catalog/backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vinyl-catalog/backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  # ── Electron desktop app ─────────────────────────────────────────────────
+  test-electron:
+    name: Electron — typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vinyl-catalog
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vinyl-catalog/package-lock.json
+
+      # keytar & better-sqlite3 require native build tools
+      - name: Install Linux native deps
+        run: sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  # ── Next.js web frontend ─────────────────────────────────────────────────
+  test-web:
+    name: Web — lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vinylRecognizerDashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('vinylRecognizerDashboard/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint

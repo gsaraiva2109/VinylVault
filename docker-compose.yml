@@ -1,6 +1,6 @@
 services:
   api:
-    build: ./vinyl-catalog/backend
+    image: ghcr.io/gsaraiva2109/vinyl-catalog-api:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -25,7 +25,7 @@ services:
       - "traefik.docker.network=dokploy-network"
 
   web:
-    build: ./vinylRecognizerDashboard
+    image: ghcr.io/gsaraiva2109/vinyl-catalog-web:latest
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: https://${DOMAIN}

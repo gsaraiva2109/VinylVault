@@ -32,7 +32,7 @@ const config: Configuration = {
   // Change owner/repo to match your GitHub repository before first release.
   publish: {
     provider: 'github',
-    owner: 'GITHUB_OWNER',
+    owner: 'gsaraiva2109',
     repo: 'vinyl-catalog',
     private: true
   }

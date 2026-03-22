@@ -1,0 +1,161 @@
+name: Electron Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write  # needed to create GitHub Releases
+
+jobs:
+  # ── Linux build ──────────────────────────────────────────────────────────
+  build-linux:
+    name: Build — Linux
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vinyl-catalog
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vinyl-catalog/package-lock.json
+
+      - name: Install native dependencies (libsecret for keytar)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            libsecret-1-dev \
+            libnss3-dev \
+            libgbm-dev \
+            libgtk-3-dev
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build Linux installers
+        run: npm run build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            vinyl-catalog/dist/*.AppImage
+            vinyl-catalog/dist/latest-linux.yml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ── macOS build ──────────────────────────────────────────────────────────
+  build-macos:
+    name: Build — macOS
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: vinyl-catalog
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vinyl-catalog/package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # Optional: import Apple Developer certificate for signed builds
+      # Set these secrets in your repository settings to enable code signing:
+      #   APPLE_CERTIFICATE          — base64-encoded .p12 certificate
+      #   APPLE_CERTIFICATE_PASSWORD — certificate password
+      #   APPLE_TEAM_ID              — 10-character Team ID
+      #   APPLE_ID                   — Apple ID email (for notarization)
+      #   APPLE_APP_SPECIFIC_PASSWORD — app-specific password (for notarization)
+      - name: Import Apple certificate
+        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Build macOS installers
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # CSC_LINK and CSC_KEY_PASSWORD are picked up by electron-builder for signing
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE != '' && format('{0}/certificate.p12', runner.temp) || '' }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            vinyl-catalog/dist/*.dmg
+            vinyl-catalog/dist/latest-mac.yml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ── GitHub Release ───────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-installers
+          path: dist/linux
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-installers
+          path: dist/macos
+
+      - name: List release assets
+        run: find dist/ -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Vinyl Catalog ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # treat v1.0.0-beta as pre-release
+          generate_release_notes: true
+          files: |
+            dist/linux/*.AppImage
+            dist/linux/latest-linux.yml
+            dist/macos/*.dmg
+            dist/macos/latest-mac.yml
+          fail_on_unmatched_files: false

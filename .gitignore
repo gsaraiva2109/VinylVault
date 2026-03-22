@@ -41,3 +41,6 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Docs
+docs/
