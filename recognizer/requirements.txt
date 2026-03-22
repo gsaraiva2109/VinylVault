@@ -1,6 +1,0 @@
-python-dotenv
-opencv-python
-torch
-Pillow
-openai
-transformers

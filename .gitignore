@@ -2,6 +2,10 @@
 node_modules/
 .pnpm-store/
 
+# Docs
+docs/
+.claude/
+
 # Build output
 dist/
 build/
@@ -41,6 +45,3 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
-
-# Docs
-docs/

@@ -9,7 +9,6 @@ import {
   Database,
   Palette,
   Shield,
-  ChevronRight,
   Check,
   ExternalLink,
   Trash2,

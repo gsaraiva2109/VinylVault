@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { cn } from "@/lib/utils"
 import { mockRecords } from "../../data"
 import { ConditionBadge } from "../condition-badge"
 import {
