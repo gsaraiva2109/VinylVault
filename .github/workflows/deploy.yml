@@ -64,7 +64,7 @@ jobs:
         with:
           version: latest
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint || echo "Note: lint may not be configured"
+      - run: pnpm lint
 
   # ── Build & push Docker images to GHCR ───────────────────────────────────
   build-api:

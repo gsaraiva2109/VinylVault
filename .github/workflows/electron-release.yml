@@ -73,44 +73,10 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # Optional: import Apple Developer certificate for signed builds
-      # Set these secrets in your repository settings to enable code signing:
-      #   APPLE_CERTIFICATE          — base64-encoded .p12 certificate
-      #   APPLE_CERTIFICATE_PASSWORD — certificate password
-      #   APPLE_TEAM_ID              — 10-character Team ID
-      #   APPLE_ID                   — Apple ID email (for notarization)
-      #   APPLE_APP_SPECIFIC_PASSWORD — app-specific password (for notarization)
-      - name: Import Apple certificate
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
-          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$RUNNER_TEMP/certificate.p12" \
-            -k "$KEYCHAIN_PATH" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
       - name: Build macOS installers
         run: npm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # CSC_LINK and CSC_KEY_PASSWORD are picked up by electron-builder for signing
-          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE != '' && format('{0}/certificate.p12', runner.temp) || '' }}
-          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
