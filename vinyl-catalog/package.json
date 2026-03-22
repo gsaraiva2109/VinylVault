@@ -17,7 +17,7 @@
     "better-sqlite3": "^12.0.0",
     "drizzle-orm": "^0.41.0",
     "electron-updater": "^6.3.9",
-    "got": "^12.6.1",
+    "got": "^14.6.6",
     "form-data": "^4.0.0",
     "keytar": "^7.9.0",
     "openid-client": "^5.7.1"
