@@ -2,6 +2,8 @@
   "name": "vinyl-catalog",
   "version": "0.1.0",
   "description": "Vinyl record catalog — Electron desktop app",
+  "author": "gsaraiva2109",
+  "repository": "https://github.com/gsaraiva2109/vinylRecognizerDashboard",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
