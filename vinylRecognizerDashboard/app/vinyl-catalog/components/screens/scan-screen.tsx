@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { mockRecords } from "../../data"
+import { useState, useEffect } from "react"
+import { useVinylCatalog } from "../../context"
 import { ConditionBadge } from "../condition-badge"
 import {
   Camera,
@@ -13,11 +13,20 @@ import {
   Plus,
   ExternalLink,
   Sparkles,
+  MonitorDown,
 } from "lucide-react"
 import type { VinylRecord, ScanState } from "../../types"
 
 export function ScanScreen() {
+  const { records } = useVinylCatalog()
   const [scanState, setScanState] = useState<ScanState>({ status: "idle" })
+  const [isElectron, setIsElectron] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      setIsElectron(navigator.userAgent.toLowerCase().includes("electron"))
+    }
+  }, [])
 
   const simulateScan = () => {
     setScanState({ status: "scanning" })
@@ -25,8 +34,8 @@ export function ScanScreen() {
     // Simulate API delay
     setTimeout(() => {
       // 80% chance of success for demo
-      if (Math.random() > 0.2) {
-        const randomRecord = mockRecords[Math.floor(Math.random() * mockRecords.length)]
+      if (Math.random() > 0.2 && records.length > 0) {
+        const randomRecord = records[Math.floor(Math.random() * records.length)]
         setScanState({
           status: "success",
           scannedRecord: { ...randomRecord, id: `new-${Date.now()}` },
@@ -44,6 +53,14 @@ export function ScanScreen() {
     setScanState({ status: "idle" })
   }
 
+  if (isElectron === null) {
+    return null // Prevent hydration flash while checking userAgent
+  }
+
+  if (!isElectron) {
+    return <WebEmptyState />
+  }
+
   return (
     <div className="flex h-full flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
@@ -55,6 +72,37 @@ export function ScanScreen() {
         {scanState.status === "error" && (
           <ErrorState message={scanState.errorMessage} onRetry={simulateScan} onReset={reset} />
         )}
+      </div>
+    </div>
+  )
+}
+
+function WebEmptyState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+      <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-zinc-100 dark:bg-zinc-800/50">
+        <MonitorDown className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
+      </div>
+      
+      <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        Desktop App Required
+      </h2>
+      
+      <p className="mt-4 max-w-sm text-base text-zinc-500 dark:text-zinc-400">
+        The AI Vinyl Scanner relies on local CPU and GPU processing to run vision models for album art recognition. 
+        Because you are on the web version, this feature is disabled.
+      </p>
+
+      <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
+        <a 
+          href="https://github.com/gsaraiva2109/vinylRecognizerDashboard" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          <MonitorDown className="h-4 w-4" />
+          Download Desktop App
+        </a>
       </div>
     </div>
   )

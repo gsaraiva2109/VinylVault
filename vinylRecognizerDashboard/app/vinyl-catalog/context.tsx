@@ -1,8 +1,18 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react"
 import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, Condition } from "./types"
-import { mockRecords, filterRecords, sortRecords } from "./data"
+import { filterRecords, sortRecords } from "./data"
+import { api } from "@/lib/api"
+import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
+import { useSession } from "next-auth/react"
 
 interface VinylCatalogContextType {
   // Records
@@ -10,6 +20,10 @@ interface VinylCatalogContextType {
   filteredRecords: VinylRecord[]
   selectedRecord: VinylRecord | null
   setSelectedRecord: (record: VinylRecord | null) => void
+
+  // Loading state
+  isLoading: boolean
+  error: string | null
 
   // View
   viewMode: ViewMode
@@ -37,7 +51,9 @@ interface VinylCatalogContextType {
 const VinylCatalogContext = createContext<VinylCatalogContextType | undefined>(undefined)
 
 export function VinylCatalogProvider({ children }: { children: ReactNode }) {
-  const [records] = useState<VinylRecord[]>(mockRecords)
+  const [records, setRecords] = useState<VinylRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<VinylRecord | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [filters, setFiltersState] = useState<FilterOptions>({})
@@ -45,6 +61,35 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [activeScreen, setActiveScreen] = useState<"collection" | "scan" | "stats" | "settings">("collection")
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  const { data: session, status } = useSession()
+
+  useEffect(() => {
+    if (status === "loading") return // Wait for session
+
+    let cancelled = false
+    setIsLoading(true)
+    setError(null)
+
+    const token = (session as { accessToken?: string })?.accessToken
+
+    api.vinyls.getAll(token)
+      .then((data: BackendVinyl[]) => {
+        if (!cancelled) {
+          setRecords(data.map(mapBackendVinyl))
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load collection")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [session, status])
 
   const setFilters = useCallback((newFilters: FilterOptions) => {
     setFiltersState(newFilters)
@@ -59,7 +104,6 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     setSortDirection(newDirection)
   }, [])
 
-  // Apply filters and sorting
   const filteredRecords = sortRecords(
     filterRecords(records, {
       genre: filters.genre,
@@ -79,6 +123,8 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         filteredRecords,
         selectedRecord,
         setSelectedRecord,
+        isLoading,
+        error,
         viewMode,
         setViewMode,
         filters,
