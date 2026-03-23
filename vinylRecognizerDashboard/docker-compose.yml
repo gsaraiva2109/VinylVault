@@ -5,6 +5,11 @@ services:
     restart: unless-stopped
     environment:
       HOSTNAME: "0.0.0.0"
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
+      AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
+      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
     networks:
       - dokploy-network
 
