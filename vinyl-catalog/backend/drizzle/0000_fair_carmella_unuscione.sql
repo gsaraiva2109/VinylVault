@@ -1,0 +1,23 @@
+CREATE TABLE "vinyls" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"discogs_id" text,
+	"title" text NOT NULL,
+	"artist" text NOT NULL,
+	"year" integer,
+	"label" text,
+	"genre" text,
+	"format" text,
+	"condition" text,
+	"condition_notes" text,
+	"cover_image_url" text,
+	"discogs_url" text,
+	"spotify_url" text,
+	"notes" text,
+	"current_value" double precision,
+	"value_updated_at" bigint,
+	"is_deleted" boolean DEFAULT false NOT NULL,
+	"deleted_at" bigint,
+	"created_at" bigint NOT NULL,
+	"updated_at" bigint NOT NULL,
+	CONSTRAINT "vinyls_discogs_id_unique" UNIQUE("discogs_id")
+);
