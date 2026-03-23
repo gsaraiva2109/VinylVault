@@ -4,12 +4,33 @@ import { useVinylCatalog } from "../../context"
 import { RecordCard } from "../record-card"
 import { RecordListItem } from "../record-list-item"
 import { FilterBar } from "../filter-bar"
-import { Disc3 } from "lucide-react"
+import { Disc3, Loader2, AlertCircle } from "lucide-react"
 
 export function CollectionScreen() {
-  const { filteredRecords, viewMode, filters } = useVinylCatalog()
+  const { filteredRecords, viewMode, filters, isLoading, error } = useVinylCatalog()
 
   const hasActiveFilters = filters.genre || filters.decade || filters.condition || filters.artist || filters.searchQuery
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-400">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="text-sm">Loading your collection...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+        </div>
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Failed to load collection</h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{error}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col">
