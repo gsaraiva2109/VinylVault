@@ -8,6 +8,7 @@ on:
     workflows: ["Auto Tag on CI Success"]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
