@@ -31,7 +31,18 @@ function validateCondition(condition: unknown): string | null {
   return null
 }
 
-// GET /api/vinyls
+/**
+ * @swagger
+ * /api/vinyls:
+ *   get:
+ *     summary: Retrieve all active vinyls
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of vinyls
+ */
 router.get('/', async (_req, res) => {
   try {
     const rows = await db
@@ -44,7 +55,26 @@ router.get('/', async (_req, res) => {
   }
 })
 
-// GET /api/vinyls/:id
+/**
+ * @swagger
+ * /api/vinyls/{id}:
+ *   get:
+ *     summary: Get a vinyl by ID
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: The vinyl object
+ *       404:
+ *         description: Vinyl not found
+ */
 router.get('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id)
@@ -60,7 +90,36 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// POST /api/vinyls
+/**
+ * @swagger
+ * /api/vinyls:
+ *   post:
+ *     summary: Create a new vinyl
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - artist
+ *             properties:
+ *               title:
+ *                 type: string
+ *               artist:
+ *                 type: string
+ *               year:
+ *                 type: integer
+ *               condition:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Created vinyl
+ */
 router.post('/', async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>
@@ -86,7 +145,32 @@ router.post('/', async (req, res) => {
   }
 })
 
-// PATCH /api/vinyls/:id
+/**
+ * @swagger
+ * /api/vinyls/{id}:
+ *   patch:
+ *     summary: Update an existing vinyl
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Updated vinyl
+ *       404:
+ *         description: Vinyl not found
+ */
 router.patch('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id)
@@ -114,7 +198,24 @@ router.patch('/:id', async (req, res) => {
   }
 })
 
-// DELETE /api/vinyls/:id — soft delete
+/**
+ * @swagger
+ * /api/vinyls/{id}:
+ *   delete:
+ *     summary: Delete a vinyl (soft delete)
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Deleted successfully
+ */
 router.delete('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id)
