@@ -137,6 +137,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.vinyl.gsaraiva.com.br
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
@@ -148,8 +150,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Dokploy Redeploy
-        run: curl -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
+      - name: Trigger Dokploy Redeploy API
+        if: ${{ needs.build-api.result == 'success' }}
+        run: curl -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL_API }}"
+
+      - name: Trigger Dokploy Redeploy Web
+        if: ${{ needs.build-web.result == 'success' }}
+        run: curl -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL_WEB }}"
 
       - name: Deployment summary
         run: |

@@ -1,22 +1,44 @@
-version: '3.8'
-
 services:
-  vinyl-catalog-api:
-    build: .
+  api:
+    image: ghcr.io/gsaraiva2109/vinyl-catalog-api:latest
     restart: unless-stopped
-    ports:
-      - "3001:3001"
-    volumes:
-      - vinyl-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      - PORT=3001
-      - DB_PATH=/data/vinyl-catalog.db
-      - AUTH_ENABLED=true
-      - AUTHENTIK_JWKS_URL=${AUTHENTIK_JWKS_URL}
-      - AUTHENTIK_ISSUER=${AUTHENTIK_ISSUER}
-      - DISCOGS_TOKEN=${DISCOGS_TOKEN}
-    env_file:
-      - .env
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://vinyl:${POSTGRES_PASSWORD}@postgres:5432/vinyl
+      AUTH_ENABLED: "true"
+      AUTHENTIK_JWKS_URL: ${AUTHENTIK_JWKS_URL}
+      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
+      DISCOGS_TOKEN: ${DISCOGS_TOKEN}
+    networks:
+      - internal
+      - dokploy-network
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vinyl
+      POSTGRES_USER: vinyl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vinyl -d vinyl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+  dokploy-network:
+    external: true
 
 volumes:
-  vinyl-data:
+  pgdata:
