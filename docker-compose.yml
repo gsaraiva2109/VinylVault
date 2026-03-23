@@ -22,6 +22,7 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: https://${DOMAIN}
+      HOSTNAME: "0.0.0.0"
     networks:
       - internal
       - dokploy-network
