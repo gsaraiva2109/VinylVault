@@ -15,6 +15,7 @@ app.use(cors())
 app.use(express.json())
 
 // Health check (no auth)
+app.get('/', (_req, res) => res.json({ service: 'vinyl-catalog-api', status: 'ok' }))
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // Auth-protected API routes
