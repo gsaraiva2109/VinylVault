@@ -5,6 +5,7 @@ node_modules/
 # Docs
 docs/
 .claude/
+.agents/
 
 # Build output
 dist/

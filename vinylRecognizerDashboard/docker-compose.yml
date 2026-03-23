@@ -1,0 +1,12 @@
+services:
+  web:
+    image: ghcr.io/gsaraiva2109/vinyl-catalog-web:latest
+    restart: unless-stopped
+    environment:
+      HOSTNAME: "0.0.0.0"
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
