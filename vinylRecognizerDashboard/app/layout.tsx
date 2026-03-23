@@ -35,6 +35,8 @@ export const metadata = {
   description: "Manage and explore your vinyl record collection with ease",
 }
 
+import { AuthProvider } from "./auth-provider"
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html suppressHydrationWarning lang="en">
@@ -47,7 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

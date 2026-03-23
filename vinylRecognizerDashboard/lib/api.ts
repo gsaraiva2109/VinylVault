@@ -1,10 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-export async function fetchApi(path: string, options: RequestInit = {}) {
-  // Pass an empty token or a dummy token if auth middleware is enabled but frontend has no login
-  // The user relies on infrastructure auth forwardAuth.
+export async function fetchApi(path: string, options: RequestInit = {}, token?: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers as Record<string, string>,
   }
 
@@ -26,18 +25,18 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
 export const api = {
   vinyls: {
-    getAll: () => fetchApi('/api/vinyls'),
-    getById: (id: number) => fetchApi(`/api/vinyls/${id}`),
-    create: (data: any) => fetchApi('/api/vinyls', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: any) => fetchApi(`/api/vinyls/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: (id: number) => fetchApi(`/api/vinyls/${id}`, { method: 'DELETE' }),
+    getAll: (token?: string) => fetchApi('/api/vinyls', {}, token),
+    getById: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}`, {}, token),
+    create: (data: Record<string, unknown>, token?: string) => fetchApi('/api/vinyls', { method: 'POST', body: JSON.stringify(data) }, token),
+    update: (id: number, data: Record<string, unknown>, token?: string) => fetchApi(`/api/vinyls/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    delete: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}`, { method: 'DELETE' }, token),
   },
   collection: {
-    getStats: () => fetchApi('/api/collection/value'),
+    getStats: (token?: string) => fetchApi('/api/collection/value', {}, token),
   },
   discogs: {
-    search: (q: string) => fetchApi(`/api/discogs/search?q=${encodeURIComponent(q)}`),
-    getRelease: (id: number | string) => fetchApi(`/api/discogs/release/${id}`),
-    refreshPrices: () => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }),
+    search: (q: string, token?: string) => fetchApi(`/api/discogs/search?q=${encodeURIComponent(q)}`, {}, token),
+    getRelease: (id: number | string, token?: string) => fetchApi(`/api/discogs/release/${id}`, {}, token),
+    refreshPrices: (token?: string) => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }, token),
   }
 }
