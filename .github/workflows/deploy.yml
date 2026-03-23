@@ -153,12 +153,12 @@ jobs:
       - name: Trigger Dokploy Redeploy API
         if: ${{ needs.build-api.result == 'success' }}
         run: |
-          curl -X POST -H "Content-Type: application/json" -d '{ "ref": "refs/heads/main" }' "${{ secrets.DOKPLOY_WEBHOOK_URL_API }}"
+          curl -X POST -H "X-GitHub-Event: push" -H "X-GitHub-Delivery: dummy" -H "Content-Type: application/json" -d '{ "ref": "refs/heads/main" }' "${{ secrets.DOKPLOY_WEBHOOK_URL_API }}"
 
       - name: Trigger Dokploy Redeploy Web
         if: ${{ needs.build-web.result == 'success' }}
         run: |
-          curl -X POST -H "Content-Type: application/json" -d '{ "ref": "refs/heads/main" }' "${{ secrets.DOKPLOY_WEBHOOK_URL_WEB }}"
+          curl -X POST -H "X-GitHub-Event: push" -H "X-GitHub-Delivery: dummy" -H "Content-Type: application/json" -d '{ "ref": "refs/heads/main" }' "${{ secrets.DOKPLOY_WEBHOOK_URL_WEB }}"
 
       - name: Deployment summary
         run: |
