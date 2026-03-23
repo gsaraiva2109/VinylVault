@@ -32,22 +32,21 @@ jobs:
           fetch-depth: 2
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Check changed paths
+      - name: Detect changed paths
         id: changes
         run: |
-          # On v* tag pushes always build everything
+          # Tag pushes → always build everything
           if [ "${{ github.event_name }}" != "workflow_run" ]; then
             echo "api=true" >> $GITHUB_OUTPUT
             echo "web=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          git diff --name-only HEAD~1 HEAD > changed_files.txt
-          echo "Changed files:"
-          cat changed_files.txt
-
-          grep -q "^vinyl-catalog/backend/" changed_files.txt && echo "api=true" >> $GITHUB_OUTPUT || echo "api=false" >> $GITHUB_OUTPUT
-          grep -q "^vinylRecognizerDashboard/"  changed_files.txt && echo "web=true" >> $GITHUB_OUTPUT || echo "web=false" >> $GITHUB_OUTPUT
+          git diff --name-only HEAD~1 HEAD
+          git diff --name-only HEAD~1 HEAD | grep -q "^vinyl-catalog/backend/" \
+            && echo "api=true" >> $GITHUB_OUTPUT || echo "api=false" >> $GITHUB_OUTPUT
+          git diff --name-only HEAD~1 HEAD | grep -q "^vinylRecognizerDashboard/" \
+            && echo "web=true" >> $GITHUB_OUTPUT || echo "web=false" >> $GITHUB_OUTPUT
 
   # ── Build & push Docker images to GHCR ───────────────────────────────────
   build-api:
