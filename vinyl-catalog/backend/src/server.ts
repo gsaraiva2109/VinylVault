@@ -7,8 +7,10 @@ import vinylsRouter from './routes/vinyls'
 import collectionRouter from './routes/collection'
 import discogsRouter from './routes/discogs'
 import { refreshStalePrices } from './services/discogs'
+import { setupSwagger } from './swagger'
 
 const app = express()
+setupSwagger(app)
 const PORT = parseInt(process.env.PORT ?? '3001')
 
 app.use(cors())

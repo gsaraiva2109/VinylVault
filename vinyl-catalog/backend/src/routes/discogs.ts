@@ -3,7 +3,24 @@ import { discogsGet, refreshStalePrices } from '../services/discogs'
 
 const router = Router()
 
-// GET /api/discogs/search?q=
+/**
+ * @swagger
+ * /api/discogs/search:
+ *   get:
+ *     summary: Search Discogs releases
+ *     tags: [Discogs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Search results
+ */
 router.get('/search', async (req, res) => {
   const q = req.query.q as string
   if (!q) return res.status(400).json({ error: 'q parameter required' })
@@ -29,7 +46,24 @@ router.get('/search', async (req, res) => {
   }
 })
 
-// GET /api/discogs/release/:id
+/**
+ * @swagger
+ * /api/discogs/release/{id}:
+ *   get:
+ *     summary: Get Discogs release details
+ *     tags: [Discogs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Release details with pricing
+ */
 router.get('/release/:id', async (req, res) => {
   try {
     const [data, stats] = await Promise.all([
@@ -52,8 +86,27 @@ router.get('/release/:id', async (req, res) => {
   }
 })
 
-// POST /api/discogs/refresh-prices — manual trigger (also runs via nightly cron)
-// Body: { stalePeriodHours?: number }  default: 24
+/**
+ * @swagger
+ * /api/discogs/refresh-prices:
+ *   post:
+ *     summary: Manually trigger a stale price refresh
+ *     tags: [Discogs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stalePeriodHours:
+ *                 type: integer
+ *                 description: Hours until prices are considered stale (default 24)
+ *     responses:
+ *       200:
+ *         description: Refresh job started
+ */
 router.post('/refresh-prices', async (req, res) => {
   const hours = typeof req.body?.stalePeriodHours === 'number' ? req.body.stalePeriodHours : 24
   const stalePeriodMs = hours * 60 * 60 * 1000

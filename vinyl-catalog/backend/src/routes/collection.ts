@@ -4,7 +4,18 @@ import { db, schema } from '../db'
 
 const router = Router()
 
-// GET /api/collection/value
+/**
+ * @swagger
+ * /api/collection/value:
+ *   get:
+ *     summary: Get total collection value and stats
+ *     tags: [Collection]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Collection statistics including total value
+ */
 router.get('/value', async (_req, res) => {
   try {
     const vinyls = await db
