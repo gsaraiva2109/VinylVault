@@ -5,6 +5,7 @@ RUN npm install -g pnpm && pnpm install --frozen-lockfile
 COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXTAUTH_SECRET=fallback_secret_for_build_only
 RUN pnpm build
 
 FROM node:24-alpine AS production
