@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          make_latest: true
+          body: |
+            ## Docker Images
+
+            | Image | Tag |
+            |-------|-----|
+            | `ghcr.io/${{ github.repository_owner }}/vinyl-catalog-api` | `${{ github.ref_name }}` |
+            | `ghcr.io/${{ github.repository_owner }}/vinyl-catalog-web` | `${{ github.ref_name }}` |
