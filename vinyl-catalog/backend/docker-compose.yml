@@ -1,5 +1,5 @@
 services:
-  api:
+  vinyl-catalog-api:
     image: ghcr.io/gsaraiva2109/vinyl-catalog-api:latest
     restart: unless-stopped
     depends_on:
