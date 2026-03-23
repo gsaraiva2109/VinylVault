@@ -1,6 +1,7 @@
 services:
-  web:
+  vinyl-catalog-web:
     image: ghcr.io/gsaraiva2109/vinyl-catalog-web:latest
+    pull_policy: always
     restart: unless-stopped
     environment:
       HOSTNAME: "0.0.0.0"
