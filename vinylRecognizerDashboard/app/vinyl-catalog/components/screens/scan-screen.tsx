@@ -33,7 +33,7 @@ export function ScanScreen() {
 
   // Start camera on mount if in Electron
   useEffect(() => {
-    if (isElectron === false) return
+    if (!isElectron) return
 
     let active = true
     let activeStream: MediaStream | null = null
