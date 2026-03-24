@@ -6,6 +6,7 @@ node_modules/
 docs/
 .claude/
 .agents/
+.serena/
 
 # Build output
 dist/
