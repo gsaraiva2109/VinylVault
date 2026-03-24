@@ -46,6 +46,9 @@ interface VinylCatalogContextType {
   // Detail modal
   isDetailOpen: boolean
   setIsDetailOpen: (open: boolean) => void
+
+  // Actions
+  refreshCollection: () => void
 }
 
 const VinylCatalogContext = createContext<VinylCatalogContextType | undefined>(undefined)
@@ -61,8 +64,13 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [activeScreen, setActiveScreen] = useState<"collection" | "scan" | "stats" | "settings">("collection")
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
 
   const { data: session, status } = useSession()
+
+  const refreshCollection = useCallback(() => {
+    setRefreshTick((prev) => prev + 1)
+  }, [])
 
   useEffect(() => {
     if (status === "loading") return // Wait for session
@@ -89,7 +97,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       })
 
     return () => { cancelled = true }
-  }, [session, status])
+  }, [session, status, refreshTick])
 
   const setFilters = useCallback((newFilters: FilterOptions) => {
     setFiltersState(newFilters)
@@ -137,6 +145,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         setActiveScreen,
         isDetailOpen,
         setIsDetailOpen,
+        refreshCollection,
       }}
     >
       {children}
