@@ -137,7 +137,13 @@ router.post('/', async (req, res) => {
     const [created] = await db
       .insert(schema.vinyls)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .values({ ...fields, createdAt: now, updatedAt: now } as any)
+      .values({ 
+        ...fields, 
+        createdAt: now, 
+        updatedAt: now,
+        addedBy: req.user?.name,
+        addedByAvatar: req.user?.picture
+      } as any)
       .returning()
     res.status(201).json(created)
   } catch (err) {
