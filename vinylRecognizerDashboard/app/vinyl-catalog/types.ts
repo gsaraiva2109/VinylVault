@@ -12,6 +12,8 @@ export interface VinylRecord {
   coverUrl: string
   notes?: string
   dateAdded: string
+  addedBy?: string
+  addedByAvatar?: string
   discogs?: {
     releaseId: string
     value?: number

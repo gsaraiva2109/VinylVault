@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useVinylCatalog } from "../../context"
+import { useRecognition } from "../../../../hooks/use-recognition"
 import { ConditionBadge } from "../condition-badge"
+import { useSession } from "next-auth/react"
+import { api } from "@/lib/api"
 import {
   Camera,
-  Upload,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -15,12 +17,13 @@ import {
   Sparkles,
   MonitorDown,
 } from "lucide-react"
-import type { VinylRecord, ScanState } from "../../types"
+import type { VinylRecord } from "../../types"
 
 export function ScanScreen() {
-  const { records } = useVinylCatalog()
-  const [scanState, setScanState] = useState<ScanState>({ status: "idle" })
+  const { state: scanState, captureAndRecognize, reset } = useRecognition()
   const [isElectron, setIsElectron] = useState<boolean | null>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (typeof navigator !== "undefined") {
@@ -28,30 +31,43 @@ export function ScanScreen() {
     }
   }, [])
 
-  const simulateScan = () => {
-    setScanState({ status: "scanning" })
+  // Start camera on mount if in Electron
+  useEffect(() => {
+    if (isElectron === false) return
 
-    // Simulate API delay
-    setTimeout(() => {
-      // 80% chance of success for demo
-      if (Math.random() > 0.2 && records.length > 0) {
-        const randomRecord = records[Math.floor(Math.random() * records.length)]
-        setScanState({
-          status: "success",
-          scannedRecord: { ...randomRecord, id: `new-${Date.now()}` },
-        })
-      } else {
-        setScanState({
-          status: "error",
-          errorMessage: "Could not identify record. Try adjusting lighting or angle.",
-        })
+    let active = true
+    let activeStream: MediaStream | null = null
+
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: "environment" } })
+      .then((s) => {
+        if (!active) {
+          s.getTracks().forEach((t) => t.stop())
+          return
+        }
+        activeStream = s
+        setStream(s)
+        if (videoRef.current) {
+          videoRef.current.srcObject = s
+        }
+      })
+      .catch((err) => {
+        console.error("Camera access error:", err)
+      })
+
+    return () => {
+      active = false
+      if (activeStream) {
+        activeStream.getTracks().forEach((t) => t.stop())
       }
-    }, 2500)
-  }
+    }
+  }, [isElectron])
 
-  const reset = () => {
-    setScanState({ status: "idle" })
-  }
+  const handleScan = useCallback(() => {
+    if (videoRef.current) {
+      captureAndRecognize(videoRef.current)
+    }
+  }, [captureAndRecognize])
 
   if (isElectron === null) {
     return null // Prevent hydration flash while checking userAgent
@@ -64,13 +80,15 @@ export function ScanScreen() {
   return (
     <div className="flex h-full flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
-        {scanState.status === "idle" && <IdleState onScan={simulateScan} />}
+        {scanState.status === "idle" && (
+          <IdleState onScan={handleScan} videoRef={videoRef} hasStream={!!stream} />
+        )}
         {scanState.status === "scanning" && <ScanningState />}
         {scanState.status === "success" && scanState.scannedRecord && (
           <SuccessState record={scanState.scannedRecord} onReset={reset} />
         )}
         {scanState.status === "error" && (
-          <ErrorState message={scanState.errorMessage} onRetry={simulateScan} onReset={reset} />
+          <ErrorState message={scanState.errorMessage} onRetry={handleScan} onReset={reset} />
         )}
       </div>
     </div>
@@ -95,7 +113,7 @@ function WebEmptyState() {
 
       <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
         <a 
-          href="https://github.com/gsaraiva2109/vinylRecognizerDashboard" 
+          href="https://github.com/gsaraiva2109/vinyl-catalog" 
           target="_blank" 
           rel="noopener noreferrer"
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
@@ -108,20 +126,37 @@ function WebEmptyState() {
   )
 }
 
-function IdleState({ onScan }: { onScan: () => void }) {
+function IdleState({
+  onScan,
+  videoRef,
+  hasStream,
+}: {
+  onScan: () => void
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  hasStream: boolean
+}) {
   return (
     <div className="flex flex-col items-center text-center">
       {/* Scan Area */}
       <div className="relative mb-8">
-        <div className="flex h-64 w-64 items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50">
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700">
-              <Camera className="h-8 w-8 text-zinc-500 dark:text-zinc-400" />
+        <div className="relative flex h-80 w-80 items-center justify-center overflow-hidden rounded-2xl border-2 border-zinc-900 bg-black dark:border-zinc-100">
+          {!hasStream && (
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <Camera className="h-8 w-8 text-zinc-500 dark:text-zinc-400" />
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Camera starting...
+              </p>
             </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Position vinyl cover here
-            </p>
-          </div>
+          )}
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`h-full w-full object-cover ${!hasStream ? "hidden" : ""}`}
+          />
         </div>
         {/* Corner brackets */}
         <div className="absolute -left-1 -top-1 h-6 w-6 border-l-2 border-t-2 border-zinc-900 dark:border-zinc-100" />
@@ -141,14 +176,11 @@ function IdleState({ onScan }: { onScan: () => void }) {
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <button
           onClick={onScan}
-          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          disabled={!hasStream}
+          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
-          <Camera className="h-4 w-4" />
+          <Camera className="h-5 w-5" />
           Take Photo
-        </button>
-        <button className="flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-6 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-          <Upload className="h-4 w-4" />
-          Upload Image
         </button>
       </div>
 
@@ -166,8 +198,7 @@ function ScanningState() {
     <div className="flex flex-col items-center text-center">
       {/* Animated Scanner */}
       <div className="relative mb-8">
-        <div className="flex h-64 w-64 items-center justify-center rounded-2xl border-2 border-zinc-900 bg-zinc-900/5 dark:border-zinc-100 dark:bg-zinc-100/5">
-          {/* Scan line animation */}
+        <div className="flex h-80 w-80 items-center justify-center overflow-hidden rounded-2xl border-2 border-zinc-900 bg-zinc-900/5 dark:border-zinc-100 dark:bg-zinc-100/5">
           <div className="absolute inset-x-4 h-0.5 animate-scan bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
           <Loader2 className="h-12 w-12 animate-spin text-zinc-400" />
         </div>
@@ -215,6 +246,36 @@ function ScanningState() {
 }
 
 function SuccessState({ record, onReset }: { record: VinylRecord; onReset: () => void }) {
+  const { refreshCollection, setActiveScreen } = useVinylCatalog()
+  const { data: session } = useSession()
+  const [isAdding, setIsAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleAdd = async () => {
+    setIsAdding(true)
+    setError(null)
+    try {
+      const token = (session as { accessToken?: string })?.accessToken
+      
+      await api.vinyls.create({
+        title: record.title,
+        artist: record.artist,
+        year: record.year,
+        genre: record.genre,
+        condition: record.condition,
+        coverImageUrl: record.coverUrl,
+        discogsId: record.discogs?.releaseId,
+      }, token)
+      
+      refreshCollection()
+      setActiveScreen("collection")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add record")
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center">
       {/* Success Icon */}
@@ -225,6 +286,12 @@ function SuccessState({ record, onReset }: { record: VinylRecord; onReset: () =>
       <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
         Record Identified!
       </h2>
+
+      {error && (
+        <div className="mt-4 w-full rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Record Card */}
       <div className="mt-6 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
@@ -251,27 +318,21 @@ function SuccessState({ record, onReset }: { record: VinylRecord; onReset: () =>
             </div>
           </div>
         </div>
-
-        {/* Discogs Info */}
-        {record.discogs && (
-          <div className="border-t border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-zinc-500 dark:text-zinc-400">
-                Estimated value
-              </span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                ${record.discogs.value}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Actions */}
       <div className="mt-6 flex w-full flex-col gap-3">
-        <button className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
-          <Plus className="h-4 w-4" />
-          Add to Collection
+        <button 
+          onClick={handleAdd}
+          disabled={isAdding}
+          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          {isAdding ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="h-4 w-4" />
+          )}
+          {isAdding ? "Adding..." : "Add to Collection"}
         </button>
         <div className="flex gap-3">
           <button
