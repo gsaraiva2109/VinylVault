@@ -1,11 +1,29 @@
 http:
+  middlewares:
+    vinyl-api-cors:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "PATCH"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowHeaders:
+          - "Authorization"
+          - "Content-Type"
+        accessControlAllowOriginList:
+          - "https://vinyl.gsaraiva.com.br"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
   routers:
     # 1. Frontend Router (Protected by Authentik Shield)
     vinyl-frontend-router:
       rule: "Host(`vinyl.gsaraiva.com.br`)"
       entryPoints: ["web"]
       # Order matters: fix headers FIRST, then auth
-      middlewares: 
+      middlewares:
         - "authentik-proto-fix@file"
         - "authentik-forward-auth@file"
       service: "vinyl-frontend-service"
@@ -14,10 +32,12 @@ http:
     vinyl-api-router:
       rule: "Host(`api-vinyl.gsaraiva.com.br`)"
       entryPoints: ["web"]
-      # We ONLY apply the proto-fix here so Authentik/CORS checks pass.
-      # We do NOT apply forward-auth because the API uses Bearer tokens.
+      # Higher priority beats Dokploy's auto-generated router for the same host
+      priority: 100
+      # proto-fix so JWT validation works; cors middleware handles preflight
       middlewares:
         - "authentik-proto-fix@file"
+        - "vinyl-api-cors@file"
       service: "vinyl-api-service"
 
   services:
