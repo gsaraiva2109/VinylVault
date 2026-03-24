@@ -8,7 +8,8 @@ import type { JWT } from "next-auth/jwt"
  */
 async function refreshAccessToken(token: JWT) {
   try {
-    const url = `${process.env.AUTHENTIK_ISSUER}/protocol/openid/token`
+    const issuer = process.env.AUTHENTIK_ISSUER!.replace(/\/$/, '')
+    const url = `${issuer}/token/`
     const response = await fetch(url, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       method: "POST",
@@ -64,7 +65,7 @@ export const authOptions: NextAuthOptions = {
       if (account && user) {
         return {
           accessToken: account.access_token,
-          accessTokenExpires: Date.now() + (account.expires_at ?? 0) * 1000,
+          accessTokenExpires: (account.expires_at ?? 0) * 1000,
           refreshToken: account.refresh_token,
           user,
         }
