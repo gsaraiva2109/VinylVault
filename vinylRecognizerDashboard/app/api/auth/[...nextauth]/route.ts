@@ -1,11 +1,12 @@
 import NextAuth, { type NextAuthOptions } from "next-auth"
 import AuthentikProvider from "next-auth/providers/authentik"
+import type { JWT } from "next-auth/jwt"
 
 /**
  * Takes a token, and returns a new token with updated
  * `accessToken` and `accessTokenExpires`.
  */
-async function refreshAccessToken(token: any) {
+async function refreshAccessToken(token: JWT) {
   try {
     const url = `${process.env.AUTHENTIK_ISSUER}/protocol/openid/token`
     const response = await fetch(url, {
@@ -15,7 +16,7 @@ async function refreshAccessToken(token: any) {
         client_id: process.env.AUTHENTIK_CLIENT_ID!,
         client_secret: process.env.AUTHENTIK_CLIENT_SECRET!,
         grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
+        refresh_token: token.refreshToken as string,
       }),
     })
 
@@ -80,7 +81,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       return {
         ...session,
-        user: token.user as any,
+        user: token.user as typeof session.user,
         accessToken: token.accessToken as string | undefined,
         error: token.error,
       }

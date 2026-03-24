@@ -69,12 +69,26 @@ export function RecordCard({ record, className }: RecordCardProps) {
             </span>
           )}
         </div>
+        
+        {/* Added By Footer */}
+        <div className="mt-3 flex items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          <div 
+            className="h-5 w-5 rounded-full bg-zinc-200 bg-cover bg-center dark:bg-zinc-700"
+            style={{ 
+              backgroundImage: record.addedByAvatar ? `url(${record.addedByAvatar})` : undefined,
+              backgroundColor: !record.addedByAvatar ? getPlaceholderColor(record.addedBy || "anon") : undefined
+            }}
+          />
+          <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+            Added by {record.addedBy || "System"}
+          </span>
+        </div>
       </div>
     </button>
   )
 }
 
-// Generate a consistent placeholder color based on record ID
+// Generate a consistent placeholder color based on a string ID
 function getPlaceholderColor(id: string): string {
   const colors = [
     "#1a1a2e",
@@ -86,6 +100,11 @@ function getPlaceholderColor(id: string): string {
     "#1e3a5f",
     "#2d4059",
   ]
-  const index = parseInt(id, 10) % colors.length
+  // Simple hash for any string
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % colors.length
   return colors[index]
 }

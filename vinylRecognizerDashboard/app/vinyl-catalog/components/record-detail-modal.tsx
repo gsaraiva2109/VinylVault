@@ -199,14 +199,36 @@ export function RecordDetailModal() {
               )}
             </div>
 
-            {/* Date Added */}
-            <p className="mt-6 text-xs text-zinc-400 dark:text-zinc-500">
-              Added on {new Date(selectedRecord.dateAdded).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </p>
+            {/* Added By Metadata */}
+            <div className="mt-8 flex items-center gap-3 border-t border-zinc-100 pt-6 dark:border-zinc-800">
+              <div 
+                className="h-10 w-10 rounded-full bg-zinc-200 bg-cover bg-center shadow-inner dark:bg-zinc-800"
+                style={{ 
+                  backgroundImage: selectedRecord.addedByAvatar ? `url(${selectedRecord.addedByAvatar})` : undefined,
+                  backgroundColor: !selectedRecord.addedByAvatar ? getPlaceholderColor(selectedRecord.addedBy || "anon") : undefined
+                }}
+              />
+              <div>
+                <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">
+                  Added by
+                </p>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {selectedRecord.addedBy || "System"}
+                </p>
+              </div>
+              <div className="ml-auto text-right">
+                <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">
+                  Added on
+                </p>
+                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  {new Date(selectedRecord.dateAdded).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

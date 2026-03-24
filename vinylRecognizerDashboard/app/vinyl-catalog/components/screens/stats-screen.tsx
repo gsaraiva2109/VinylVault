@@ -3,6 +3,9 @@
 import { useVinylCatalog } from "../../context"
 import { getCollectionStats } from "../../data"
 import { ConditionBadge } from "../condition-badge"
+import { useSession } from "next-auth/react"
+import { useState } from "react"
+import { api } from "@/lib/api"
 import {
   Disc3,
   DollarSign,
@@ -10,16 +13,69 @@ import {
   Calendar,
   Music,
   Star,
+  RefreshCw,
+  Loader2,
 } from "lucide-react"
 import type { Condition } from "../../types"
 
 export function StatsScreen() {
-  const { records } = useVinylCatalog()
+  const { records, refreshCollection } = useVinylCatalog()
   const stats = getCollectionStats(records)
+  const { data: session } = useSession()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const handleRefreshPrices = async () => {
+    setIsRefreshing(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const token = (session as { accessToken?: string })?.accessToken
+      await api.discogs.refreshPrices(token)
+      setSuccess("Price refresh started in background. It may take a few minutes.")
+      refreshCollection()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh prices")
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-6xl">
+        {/* Header with Refresh */}
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            Collection Insights
+          </h2>
+          <button
+            onClick={handleRefreshPrices}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {isRefreshing ? "Refreshing..." : "Update Prices"}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+            {success}
+          </div>
+        )}
+
         {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard

@@ -15,6 +15,8 @@ export interface BackendVinyl {
   currentValue: number | null
   wantlistCount: number | null
   spotifyUrl: string | null
+  addedBy: string | null
+  addedByAvatar: string | null
 }
 
 const CONDITION_MAP: Record<string, Condition> = {
@@ -49,6 +51,8 @@ export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
     dateAdded: raw.createdAt
       ? raw.createdAt.split("T")[0]
       : new Date().toISOString().split("T")[0],
+    addedBy: raw.addedBy ?? undefined,
+    addedByAvatar: raw.addedByAvatar ?? undefined,
     discogs: raw.discogsId
       ? {
           releaseId: String(raw.discogsId),
