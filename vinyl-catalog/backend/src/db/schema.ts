@@ -21,6 +21,8 @@ export const vinyls = pgTable('vinyls', {
   deletedAt:      bigint('deleted_at', { mode: 'number' }),
   createdAt:      bigint('created_at', { mode: 'number' }).notNull().$defaultFn(() => Date.now()),
   updatedAt:      bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(() => Date.now()),
+  addedBy:        text('added_by'),           // Authentik display name
+  addedByAvatar:  text('added_by_avatar'),    // Authentik profile picture URL
 })
 
 export type Vinyl = typeof vinyls.$inferSelect
