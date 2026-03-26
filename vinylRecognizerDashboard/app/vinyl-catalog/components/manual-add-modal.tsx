@@ -107,7 +107,7 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
     setIsSubmitting(true)
     try {
       const token = (session as { accessToken?: string })?.accessToken
-      const payload = {
+      const payload: Record<string, unknown> = {
         title: form.title.trim(),
         artist: form.artist.trim(),
         year: parseInt(form.year) || new Date().getFullYear(),
@@ -119,15 +119,20 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
         spotifyUrl: form.spotifyId ? `https://open.spotify.com/album/${form.spotifyId}` : null,
       }
       
-      console.log("Creating vinyl with payload:", payload)
       await api.vinyls.create(payload, token)
       toast.success(`"${form.title}" added to your collection`)
       refreshCollection()
       setActiveScreen("collection")
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Add record error:", err)
-      toast.error(err?.message || "Failed to add record")
+      const msg = err instanceof Error ? err.message : String(err)
+      
+      if (msg.includes("unique constraint") && msg.includes("discogs_id")) {
+        toast.error("This record already exists in your collection (it might be in the trash).")
+      } else {
+        toast.error(msg)
+      }
     } finally {
       setIsSubmitting(false)
     }
