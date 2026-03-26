@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Search, Clock, Plus, ScanLine, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useVinylCatalog } from "../context"
@@ -50,19 +50,20 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
     }
   }, [open])
 
-  const filteredRecords: VinylRecord[] =
-    query.length >= 2
-      ? records
-          .filter((r) => {
-            const q = query.toLowerCase()
-            return (
-              r.title.toLowerCase().includes(q) ||
-              r.artist.toLowerCase().includes(q) ||
-              r.genre.toLowerCase().includes(q)
-            )
-          })
-          .slice(0, 8)
-      : []
+  const filteredRecords: VinylRecord[] = useMemo(() => {
+    if (query.length < 2) return []
+
+    const q = query.toLowerCase()
+    return records
+      .filter((r) => {
+        return (
+          r.title.toLowerCase().includes(q) ||
+          r.artist.toLowerCase().includes(q) ||
+          r.genre.toLowerCase().includes(q)
+        )
+      })
+      .slice(0, 8)
+  }, [query, records])
 
   const handleSelectRecord = useCallback(
     (record: VinylRecord) => {

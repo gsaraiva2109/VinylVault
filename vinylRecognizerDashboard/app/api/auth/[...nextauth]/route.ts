@@ -65,7 +65,7 @@ const devProvider =
       ]
     : []
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   providers: [
     ...devProvider,
     AuthentikProvider({
