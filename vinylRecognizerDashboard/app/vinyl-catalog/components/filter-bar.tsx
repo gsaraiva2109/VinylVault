@@ -23,7 +23,7 @@ export function FilterBar() {
   const genres = Object.keys(stats.byGenre).sort()
   const decades = Object.keys(stats.byDecade).sort()
   const artists = [...new Set(records.map((r) => r.artist))].sort()
-  const conditions = ["mint", "excellent", "good", "fair"] as const
+  const conditions = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"] as const
 
   const activeFilterCount = [
     filters.genre, filters.decade, filters.condition, filters.artist,

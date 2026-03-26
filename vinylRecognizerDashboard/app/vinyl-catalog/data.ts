@@ -1,9 +1,9 @@
-import type { VinylRecord, CollectionStats } from "./types"
+import type { VinylRecord, CollectionStats, Condition } from "./types"
 
 export function getCollectionStats(records: VinylRecord[]): CollectionStats {
   const byDecade: Record<string, number> = {}
   const byGenre: Record<string, number> = {}
-  const byCondition: Record<string, number> = { mint: 0, excellent: 0, good: 0, fair: 0 }
+  const byCondition: Record<string, number> = { M: 0, NM: 0, "VG+": 0, VG: 0, "G+": 0, G: 0, F: 0, P: 0 }
   let totalValue = 0
 
   records.forEach((record) => {
@@ -33,7 +33,7 @@ export function getCollectionStats(records: VinylRecord[]): CollectionStats {
     totalValue,
     byDecade,
     byGenre,
-    byCondition: byCondition as Record<"mint" | "excellent" | "good" | "fair", number>,
+    byCondition: byCondition as Record<Condition, number>,
     recentlyAdded,
   }
 }
@@ -87,7 +87,7 @@ export function sortRecords(
         comparison = new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
         break
       case "condition":
-        const conditionOrder = { mint: 4, excellent: 3, good: 2, fair: 1 }
+        const conditionOrder: Record<string, number> = { M: 8, NM: 7, "VG+": 6, VG: 5, "G+": 4, G: 3, F: 2, P: 1 }
         comparison = conditionOrder[a.condition] - conditionOrder[b.condition]
         break
     }
