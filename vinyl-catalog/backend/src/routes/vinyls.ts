@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { eq, and } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { broadcast } from '../sse/broadcaster'
 
 const router = Router()
 
@@ -12,8 +13,6 @@ const MUTABLE_FIELDS = [
   'condition', 'conditionNotes', 'coverImageUrl', 'discogsUrl', 'spotifyUrl',
   'notes', 'currentValue', 'valueUpdatedAt'
 ] as const
-
-type MutableField = typeof MUTABLE_FIELDS[number]
 
 function pickMutable(body: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -49,6 +48,31 @@ router.get('/', async (_req, res) => {
       .select()
       .from(schema.vinyls)
       .where(eq(schema.vinyls.isDeleted, false))
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+/**
+ * @swagger
+ * /api/vinyls/trash:
+ *   get:
+ *     summary: Retrieve all soft-deleted (trashed) vinyls
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of trashed vinyls
+ */
+// NOTE: must be registered before /:id to prevent 'trash' being parsed as an ID
+router.get('/trash', async (_req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(schema.vinyls)
+      .where(eq(schema.vinyls.isDeleted, true))
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -137,14 +161,15 @@ router.post('/', async (req, res) => {
     const [created] = await db
       .insert(schema.vinyls)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .values({ 
-        ...fields, 
-        createdAt: now, 
+      .values({
+        ...fields,
+        createdAt: now,
         updatedAt: now,
         addedBy: req.user?.name,
         addedByAvatar: req.user?.picture
       } as any)
       .returning()
+    broadcast('vinyl.created', created)
     res.status(201).json(created)
   } catch (err) {
     res.status(400).json({ error: String(err) })
@@ -198,6 +223,7 @@ router.patch('/:id', async (req, res) => {
       .where(and(eq(schema.vinyls.id, id), eq(schema.vinyls.isDeleted, false)))
       .returning()
     if (!updated) return res.status(404).json({ error: 'Not found' })
+    broadcast('vinyl.updated', updated)
     res.json(updated)
   } catch (err) {
     res.status(400).json({ error: String(err) })
@@ -208,7 +234,80 @@ router.patch('/:id', async (req, res) => {
  * @swagger
  * /api/vinyls/{id}:
  *   delete:
- *     summary: Delete a vinyl (soft delete)
+ *     summary: Soft-delete a vinyl (move to trash)
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Soft-deleted vinyl
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+    const now = Date.now()
+    const [updated] = await db
+      .update(schema.vinyls)
+      .set({ isDeleted: true, deletedAt: now, updatedAt: now })
+      .where(and(eq(schema.vinyls.id, id), eq(schema.vinyls.isDeleted, false)))
+      .returning()
+    if (!updated) return res.status(404).json({ error: 'Not found or already deleted' })
+    broadcast('vinyl.deleted', updated)
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+/**
+ * @swagger
+ * /api/vinyls/{id}/recover:
+ *   post:
+ *     summary: Recover a soft-deleted vinyl from trash
+ *     tags: [Vinyls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Recovered vinyl
+ *       404:
+ *         description: Vinyl not found in trash
+ */
+router.post('/:id/recover', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+    const [recovered] = await db
+      .update(schema.vinyls)
+      .set({ isDeleted: false, deletedAt: null, updatedAt: Date.now() })
+      .where(and(eq(schema.vinyls.id, id), eq(schema.vinyls.isDeleted, true)))
+      .returning()
+    if (!recovered) return res.status(404).json({ error: 'Not found in trash' })
+    broadcast('vinyl.recovered', recovered)
+    res.json(recovered)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+/**
+ * @swagger
+ * /api/vinyls/{id}/permanent:
+ *   delete:
+ *     summary: Permanently delete a vinyl (cannot be undone)
  *     tags: [Vinyls]
  *     security:
  *       - bearerAuth: []
@@ -220,16 +319,16 @@ router.patch('/:id', async (req, res) => {
  *           type: integer
  *     responses:
  *       204:
- *         description: Deleted successfully
+ *         description: Permanently deleted
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id/permanent', async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
     await db
-      .update(schema.vinyls)
-      .set({ isDeleted: true, deletedAt: Date.now(), updatedAt: Date.now() })
+      .delete(schema.vinyls)
       .where(eq(schema.vinyls.id, id))
+    broadcast('vinyl.permanentlyDeleted', { id })
     res.status(204).end()
   } catch (err) {
     res.status(500).json({ error: String(err) })

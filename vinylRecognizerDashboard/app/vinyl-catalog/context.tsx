@@ -17,10 +17,12 @@ import { MOCK_RECORDS } from "./mock-data"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
 interface VinylCatalogContextType {
   // Records
   records: VinylRecord[]
+  activeRecords: VinylRecord[]
   filteredRecords: VinylRecord[]
   selectedRecord: VinylRecord | null
   setSelectedRecord: (record: VinylRecord | null) => void
@@ -54,12 +56,20 @@ interface VinylCatalogContextType {
   // Actions
   refreshCollection: () => void
   updateRecord: (id: string, patch: Partial<VinylRecord>) => Promise<void>
+  deleteRecord: (id: string) => Promise<void>
+  recoverRecord: (id: string) => Promise<void>
+  permanentlyDeleteRecord: (id: string) => Promise<void>
+  isDeleting: boolean
+
+  // Trash
+  trashedRecords: VinylRecord[]
 }
 
 const VinylCatalogContext = createContext<VinylCatalogContextType | undefined>(undefined)
 
 export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [records, setRecords] = useState<VinylRecord[]>([])
+  const [trashedRecords, setTrashedRecords] = useState<VinylRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<VinylRecord | null>(null)
@@ -71,6 +81,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [activeScreen, setActiveScreen] = useState<Screen>("collection")
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const { data: session, status } = useSession()
 
@@ -79,7 +90,6 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateRecord = useCallback(async (id: string, patch: Partial<VinylRecord>): Promise<void> => {
-    // Capture original for rollback, then apply optimistic update
     let original: VinylRecord | undefined
     setRecords((prev) => {
       original = prev.find((r) => r.id === id)
@@ -92,7 +102,6 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         try {
           await api.vinyls.update(numId, patch as Record<string, unknown>, token)
         } catch (err) {
-          // Roll back optimistic update
           if (original) {
             const orig = original
             setRecords((prev) => prev.map((r) => (r.id === id ? orig : r)))
@@ -109,15 +118,16 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
+  // Fetch active + trashed records
   useEffect(() => {
-    // In development, skip the API and use local mock data IF explicitly enabled
     if (IS_DEV && USE_MOCK_DATA) {
       setRecords(MOCK_RECORDS)
+      setTrashedRecords([])
       setIsLoading(false)
       return
     }
 
-    if (status === "loading") return // Wait for session
+    if (status === "loading") return
 
     let cancelled = false
     setIsLoading(true)
@@ -125,10 +135,14 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
 
     const token = (session as { accessToken?: string })?.accessToken
 
-    api.vinyls.getAll(token)
-      .then((data: BackendVinyl[]) => {
+    Promise.all([
+      api.vinyls.getAll(token),
+      api.vinyls.getTrash(token),
+    ])
+      .then(([active, trashed]: [BackendVinyl[], BackendVinyl[]]) => {
         if (!cancelled) {
-          setRecords(data.map(mapBackendVinyl))
+          setRecords(active.map(mapBackendVinyl))
+          setTrashedRecords(trashed.map(mapBackendVinyl))
         }
       })
       .catch((err: unknown) => {
@@ -148,6 +162,147 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [session, status, refreshTick])
 
+  // SSE connection for real-time sync across tabs/devices
+  useEffect(() => {
+    if (IS_DEV && USE_MOCK_DATA) return
+
+    const token = (session as { accessToken?: string })?.accessToken
+    if (!token || status !== "authenticated") return
+
+    const url = `${API_URL}/api/events?token=${encodeURIComponent(token)}`
+    const es = new EventSource(url)
+
+    es.addEventListener("vinyl.created", (e) => {
+      const vinyl = mapBackendVinyl(JSON.parse(e.data) as BackendVinyl)
+      setRecords((prev) => {
+        if (prev.some((r) => r.id === vinyl.id)) return prev
+        return [vinyl, ...prev]
+      })
+    })
+
+    es.addEventListener("vinyl.updated", (e) => {
+      const vinyl = mapBackendVinyl(JSON.parse(e.data) as BackendVinyl)
+      setRecords((prev) => prev.map((r) => (r.id === vinyl.id ? vinyl : r)))
+    })
+
+    es.addEventListener("vinyl.deleted", (e) => {
+      const vinyl = mapBackendVinyl(JSON.parse(e.data) as BackendVinyl)
+      setRecords((prev) => prev.filter((r) => r.id !== vinyl.id))
+      setTrashedRecords((prev) => {
+        if (prev.some((r) => r.id === vinyl.id)) return prev
+        return [vinyl, ...prev]
+      })
+    })
+
+    es.addEventListener("vinyl.recovered", (e) => {
+      const vinyl = mapBackendVinyl(JSON.parse(e.data) as BackendVinyl)
+      setTrashedRecords((prev) => prev.filter((r) => r.id !== vinyl.id))
+      setRecords((prev) => {
+        if (prev.some((r) => r.id === vinyl.id)) return prev
+        return [vinyl, ...prev]
+      })
+    })
+
+    es.addEventListener("vinyl.permanentlyDeleted", (e) => {
+      const { id } = JSON.parse(e.data) as { id: number }
+      const strId = String(id)
+      setTrashedRecords((prev) => prev.filter((r) => r.id !== strId))
+    })
+
+    es.onerror = () => {
+      // EventSource auto-reconnects; no action needed
+    }
+
+    return () => es.close()
+  }, [session, status])
+
+  // Soft-delete: moves to trash via API
+  const deleteRecord = useCallback(async (id: string): Promise<void> => {
+    const numId = parseInt(id, 10)
+    if (isNaN(numId)) return
+
+    // Optimistic update
+    const record = records.find((r) => r.id === id)
+    setRecords((prev) => prev.filter((r) => r.id !== id))
+    if (record) {
+      setTrashedRecords((prev) => [{ ...record, deletedAt: Date.now() }, ...prev])
+    }
+
+    if (!(IS_DEV && USE_MOCK_DATA)) {
+      try {
+        const token = (session as { accessToken?: string })?.accessToken
+        const updated = await api.vinyls.delete(numId, token) as BackendVinyl
+        // Sync with server response (has accurate deletedAt)
+        if (updated) {
+          setTrashedRecords((prev) =>
+            prev.map((r) => r.id === id ? mapBackendVinyl(updated) : r)
+          )
+        }
+      } catch (err) {
+        // Rollback
+        if (record) {
+          setRecords((prev) => [record, ...prev])
+          setTrashedRecords((prev) => prev.filter((r) => r.id !== id))
+        }
+        throw err
+      }
+    }
+  }, [records, session])
+
+  // Recover from trash via API
+  const recoverRecord = useCallback(async (id: string): Promise<void> => {
+    const numId = parseInt(id, 10)
+    if (isNaN(numId)) return
+
+    // Optimistic update
+    const record = trashedRecords.find((r) => r.id === id)
+    setTrashedRecords((prev) => prev.filter((r) => r.id !== id))
+    if (record) {
+      setRecords((prev) => [{ ...record, deletedAt: null }, ...prev])
+    }
+
+    if (!(IS_DEV && USE_MOCK_DATA)) {
+      try {
+        const token = (session as { accessToken?: string })?.accessToken
+        const recovered = await api.vinyls.recover(numId, token) as BackendVinyl
+        if (recovered) {
+          setRecords((prev) =>
+            prev.map((r) => r.id === id ? mapBackendVinyl(recovered) : r)
+          )
+        }
+      } catch (err) {
+        // Rollback
+        if (record) {
+          setTrashedRecords((prev) => [record, ...prev])
+          setRecords((prev) => prev.filter((r) => r.id !== id))
+        }
+        throw err
+      }
+    }
+  }, [trashedRecords, session])
+
+  // Permanent delete via API — removes the DB row entirely
+  const permanentlyDeleteRecord = useCallback(async (id: string): Promise<void> => {
+    setIsDeleting(true)
+    const numId = parseInt(id, 10)
+
+    // Optimistic update
+    setTrashedRecords((prev) => prev.filter((r) => r.id !== id))
+
+    if (!(IS_DEV && USE_MOCK_DATA) && !isNaN(numId)) {
+      try {
+        const token = (session as { accessToken?: string })?.accessToken
+        await api.vinyls.permanentlyDelete(numId, token)
+      } catch (err) {
+        setIsDeleting(false)
+        // Rollback
+        refreshCollection()
+        throw err
+      }
+    }
+    setIsDeleting(false)
+  }, [session, refreshCollection])
+
   const setFilters = useCallback((newFilters: FilterOptions) => {
     setFiltersState(newFilters)
   }, [])
@@ -161,8 +316,11 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     setSortDirection(newDirection)
   }, [])
 
+  // activeRecords = records (backend already filters isDeleted=false)
+  const activeRecords = records
+
   const filteredRecords = sortRecords(
-    filterRecords(records, {
+    filterRecords(activeRecords, {
       genre: filters.genre,
       decade: filters.decade,
       condition: filters.condition as Condition | undefined,
@@ -177,6 +335,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     <VinylCatalogContext.Provider
       value={{
         records,
+        activeRecords,
         filteredRecords,
         selectedRecord,
         setSelectedRecord,
@@ -196,6 +355,11 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         setIsDetailOpen,
         refreshCollection,
         updateRecord,
+        deleteRecord,
+        recoverRecord,
+        permanentlyDeleteRecord,
+        isDeleting,
+        trashedRecords,
       }}
     >
       {children}

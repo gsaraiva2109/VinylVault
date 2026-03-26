@@ -13,7 +13,7 @@ export function CollectionScreen() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-white/30">
+      <div className="flex h-full flex-col items-center justify-center gap-3" style={{ color: "var(--app-text-3)" }}>
         <Loader2 className="h-8 w-8 animate-spin" />
         <p className="text-sm">Loading your collection...</p>
       </div>
@@ -29,14 +29,14 @@ export function CollectionScreen() {
         >
           <AlertCircle className="h-8 w-8" style={{ color: "#f52f12" }} />
         </div>
-        <h3 className="text-lg font-semibold text-white/85">Failed to load collection</h3>
-        <p className="max-w-md text-sm text-white/40">{error}</p>
+        <h3 className="text-lg font-semibold" style={{ color: "var(--app-text-1)" }}>Failed to load collection</h3>
+        <p className="max-w-md text-sm" style={{ color: "var(--app-text-2)" }}>{error}</p>
         <button
           onClick={refreshCollection}
-          className="mt-4 flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer text-white/70 hover:text-white"
-          style={{ border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+          className="mt-4 flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer"
+          style={{ border: "1px solid var(--app-border-md)", background: "var(--app-surface-3)", color: "var(--app-text-2)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--app-hover)"; e.currentTarget.style.color = "var(--app-text-1)" }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--app-surface-3)"; e.currentTarget.style.color = "var(--app-text-2)" }}
         >
           <RefreshCw className="h-4 w-4" />
           Try Again
@@ -53,13 +53,13 @@ export function CollectionScreen() {
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-full"
-            style={{ background: "rgba(255,255,255,0.05)" }}
+            style={{ background: "var(--app-surface-3)" }}
           >
-            <Disc3 className="h-8 w-8 text-white/25" />
+            <Disc3 className="h-8 w-8" style={{ color: "var(--app-text-3)" }} />
           </div>
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-white/85">No records found</h3>
-            <p className="mt-1 text-sm text-white/40">
+            <h3 className="text-lg font-semibold" style={{ color: "var(--app-text-1)" }}>No records found</h3>
+            <p className="mt-1 text-sm" style={{ color: "var(--app-text-2)" }}>
               {hasActiveFilters
                 ? "Try adjusting your filters to find more records"
                 : "Start building your collection by scanning a record"}
