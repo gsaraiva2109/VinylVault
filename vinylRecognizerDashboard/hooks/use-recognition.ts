@@ -76,7 +76,7 @@ export function useRecognition() {
           artist: bestMatch.artist || bestMatch.title.split(" - ")[0] || "Unknown Artist",
           year: bestMatch.year || new Date().getFullYear(),
           genre: bestMatch.genre || "Unknown",
-          condition: "good", // Default for new scans
+          condition: "VG", // Default for new scans
           coverUrl: bestMatch.coverImage || "",
           dateAdded: new Date().toISOString().split("T")[0],
           discogs: {

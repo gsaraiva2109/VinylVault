@@ -4,10 +4,10 @@ import { useVinylCatalog } from "../../context"
 import { RecordCard } from "../record-card"
 import { RecordListItem } from "../record-list-item"
 import { FilterBar } from "../filter-bar"
-import { Disc3, Loader2, AlertCircle } from "lucide-react"
+import { Disc3, Loader2, AlertCircle, RefreshCw, Plus } from "lucide-react"
 
 export function CollectionScreen() {
-  const { filteredRecords, viewMode, filters, isLoading, error } = useVinylCatalog()
+  const { filteredRecords, viewMode, filters, isLoading, error, setActiveScreen, refreshCollection } = useVinylCatalog()
 
   const hasActiveFilters = filters.genre || filters.decade || filters.condition || filters.artist || filters.searchQuery
 
@@ -30,7 +30,17 @@ export function CollectionScreen() {
           <AlertCircle className="h-8 w-8" style={{ color: "#f52f12" }} />
         </div>
         <h3 className="text-lg font-semibold text-white/85">Failed to load collection</h3>
-        <p className="text-sm text-white/40">{error}</p>
+        <p className="max-w-md text-sm text-white/40">{error}</p>
+        <button
+          onClick={refreshCollection}
+          className="mt-4 flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer text-white/70 hover:text-white"
+          style={{ border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Try Again
+        </button>
       </div>
     )
   }
@@ -54,6 +64,18 @@ export function CollectionScreen() {
                 ? "Try adjusting your filters to find more records"
                 : "Start building your collection by scanning a record"}
             </p>
+            {!hasActiveFilters && (
+              <button
+                onClick={() => setActiveScreen("scan")}
+                className="mx-auto mt-6 flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-colors cursor-pointer"
+                style={{ background: "#28d768", color: "#0a0a0a" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#22c55e")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#28d768")}
+              >
+                <Plus className="h-4 w-4" />
+                Scan Your First Record
+              </button>
+            )}
           </div>
         </div>
       ) : (

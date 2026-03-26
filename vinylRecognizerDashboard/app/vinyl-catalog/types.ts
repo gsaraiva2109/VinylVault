@@ -1,6 +1,6 @@
 // Vinyl Catalog Types
 
-export type Condition = "mint" | "excellent" | "good" | "fair"
+export type Condition = "M" | "NM" | "VG+" | "VG" | "G+" | "G" | "F" | "P"
 
 export interface VinylRecord {
   id: string

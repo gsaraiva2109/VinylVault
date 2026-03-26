@@ -17,7 +17,7 @@ function SpotifyIcon() {
   )
 }
 
-const conditions: Condition[] = ["mint", "excellent", "good", "fair"]
+const conditions: Condition[] = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"]
 
 export function RecordDetailModal() {
   const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord } =
@@ -30,7 +30,7 @@ export function RecordDetailModal() {
   const [editArtist, setEditArtist] = useState("")
   const [editYear, setEditYear] = useState("")
   const [editGenre, setEditGenre] = useState("")
-  const [editCondition, setEditCondition] = useState<Condition>("good")
+  const [editCondition, setEditCondition] = useState<Condition>("VG")
   const [editNotes, setEditNotes] = useState("")
 
   // Populate edit fields when opening

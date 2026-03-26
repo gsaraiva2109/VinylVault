@@ -19,16 +19,7 @@ export interface BackendVinyl {
   addedByAvatar: string | null
 }
 
-const CONDITION_MAP: Record<string, Condition> = {
-  mint: "mint",
-  excellent: "excellent",
-  good: "good",
-  fair: "fair",
-  nm: "mint",
-  vg: "good",
-  "vg+": "excellent",
-  g: "fair",
-}
+const VALID_CONDITIONS = new Set(["M", "NM", "VG+", "VG", "G+", "G", "F", "P"])
 
 function extractSpotifyAlbumId(url: string | null): string | undefined {
   if (!url) return undefined
@@ -37,7 +28,8 @@ function extractSpotifyAlbumId(url: string | null): string | undefined {
 }
 
 export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
-  const condition: Condition = CONDITION_MAP[raw.condition?.toLowerCase()] ?? "good"
+  const rawCond = raw.condition?.toUpperCase() || ""
+  const condition: Condition = VALID_CONDITIONS.has(rawCond) ? (rawCond as Condition) : "VG"
 
   return {
     id: String(raw.id),
@@ -48,8 +40,10 @@ export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
     condition,
     coverUrl: raw.coverImageUrl ?? "",
     notes: raw.notes ?? undefined,
-    dateAdded: raw.createdAt
-      ? raw.createdAt.split("T")[0]
+    dateAdded: raw.createdAt 
+      ? (typeof raw.createdAt === "string" 
+          ? raw.createdAt.split("T")[0] 
+          : new Date(raw.createdAt).toISOString().split("T")[0])
       : new Date().toISOString().split("T")[0],
     addedBy: raw.addedBy ?? undefined,
     addedByAvatar: raw.addedByAvatar ?? undefined,

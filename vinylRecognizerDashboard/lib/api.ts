@@ -13,6 +13,9 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
   })
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      import("next-auth/react").then(({ signOut }) => signOut({ callbackUrl: '/' }))
+    }
     throw new Error(`API error: ${response.status} ${response.statusText}`)
   }
 
