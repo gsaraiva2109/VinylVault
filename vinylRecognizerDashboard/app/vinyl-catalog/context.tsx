@@ -13,6 +13,9 @@ import { filterRecords, sortRecords } from "./data"
 import { api } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
 import { useSession } from "next-auth/react"
+import { MOCK_RECORDS } from "./mock-data"
+
+const IS_DEV = process.env.NODE_ENV === "development"
 
 interface VinylCatalogContextType {
   // Records
@@ -40,8 +43,8 @@ interface VinylCatalogContextType {
   setSorting: (sortBy: SortOption, direction: SortDirection) => void
 
   // Navigation
-  activeScreen: "collection" | "scan" | "stats" | "settings"
-  setActiveScreen: (screen: "collection" | "scan" | "stats" | "settings") => void
+  activeScreen: "collection" | "scan" | "stats" | "settings" | "account"
+  setActiveScreen: (screen: "collection" | "scan" | "stats" | "settings" | "account") => void
 
   // Detail modal
   isDetailOpen: boolean
@@ -49,6 +52,7 @@ interface VinylCatalogContextType {
 
   // Actions
   refreshCollection: () => void
+  updateRecord: (id: string, patch: Partial<VinylRecord>) => Promise<void>
 }
 
 const VinylCatalogContext = createContext<VinylCatalogContextType | undefined>(undefined)
@@ -62,7 +66,8 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [filters, setFiltersState] = useState<FilterOptions>({})
   const [sortBy, setSortBy] = useState<SortOption>("dateAdded")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
-  const [activeScreen, setActiveScreen] = useState<"collection" | "scan" | "stats" | "settings">("collection")
+  type Screen = "collection" | "scan" | "stats" | "settings" | "account"
+  const [activeScreen, setActiveScreen] = useState<Screen>("collection")
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -72,7 +77,39 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     setRefreshTick((prev) => prev + 1)
   }, [])
 
+  const updateRecord = useCallback(async (id: string, patch: Partial<VinylRecord>): Promise<void> => {
+    // Capture original for rollback, then apply optimistic update
+    let original: VinylRecord | undefined
+    setRecords((prev) => {
+      original = prev.find((r) => r.id === id)
+      return prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+    })
+    if (!IS_DEV) {
+      const token = (session as { accessToken?: string })?.accessToken
+      const numId = parseInt(id, 10)
+      if (!isNaN(numId)) {
+        try {
+          await api.vinyls.update(numId, patch as Record<string, unknown>, token)
+        } catch (err) {
+          // Roll back optimistic update
+          if (original) {
+            const orig = original
+            setRecords((prev) => prev.map((r) => (r.id === id ? orig : r)))
+          }
+          throw err
+        }
+      }
+    }
+  }, [session])
+
   useEffect(() => {
+    // In development, skip the API and use local mock data
+    if (IS_DEV) {
+      setRecords(MOCK_RECORDS)
+      setIsLoading(false)
+      return
+    }
+
     if (status === "loading") return // Wait for session
 
     let cancelled = false
@@ -146,6 +183,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         isDetailOpen,
         setIsDetailOpen,
         refreshCollection,
+        updateRecord,
       }}
     >
       {children}

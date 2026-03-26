@@ -1,27 +1,13 @@
-import { cn } from "@/lib/utils"
 import type { Condition } from "../types"
 
-const conditionStyles: Record<Condition, { bg: string; text: string; label: string }> = {
-  mint: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-400",
-    label: "Mint",
-  },
-  excellent: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-700 dark:text-blue-400",
-    label: "Excellent",
-  },
-  good: {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-400",
-    label: "Good",
-  },
-  fair: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-400",
-    label: "Fair",
-  },
+const conditionConfig: Record<
+  Condition,
+  { color: string; bg: string; border: string; label: string }
+> = {
+  mint:      { color: "#28d768", bg: "rgba(40,215,104,0.10)",  border: "rgba(40,215,104,0.22)",  label: "Mint" },
+  excellent: { color: "#5bc8ff", bg: "rgba(91,200,255,0.10)",  border: "rgba(91,200,255,0.22)",  label: "Excellent" },
+  good:      { color: "#f5c842", bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.22)",  label: "Good" },
+  fair:      { color: "#f5612f", bg: "rgba(245,97,47,0.10)",   border: "rgba(245,97,47,0.22)",   label: "Fair" },
 }
 
 interface ConditionBadgeProps {
@@ -30,20 +16,26 @@ interface ConditionBadgeProps {
   className?: string
 }
 
-export function ConditionBadge({ condition, size = "sm", className }: ConditionBadgeProps) {
-  const style = conditionStyles[condition]
-
+export function ConditionBadge({ condition }: ConditionBadgeProps) {
+  const cfg = conditionConfig[condition]
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full font-medium",
-        style.bg,
-        style.text,
-        size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm",
-        className
-      )}
+      style={{
+        color: cfg.color,
+        background: cfg.bg,
+        border: `1px solid ${cfg.border}`,
+        padding: "2px 7px",
+        borderRadius: "9999px",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.05em",
+        display: "inline-flex",
+        alignItems: "center",
+        lineHeight: 1.5,
+        whiteSpace: "nowrap",
+      }}
     >
-      {style.label}
+      {cfg.label}
     </span>
   )
 }

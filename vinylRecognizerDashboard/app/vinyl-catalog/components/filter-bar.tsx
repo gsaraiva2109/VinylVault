@@ -1,9 +1,8 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import { useVinylCatalog } from "../context"
 import { getCollectionStats } from "../data"
-import { ChevronDown, ArrowUpDown, Search, X } from "lucide-react"
+import { ChevronDown, ArrowUpDown, Grid3X3, List, X } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import type { SortOption } from "../types"
 
@@ -16,6 +15,8 @@ export function FilterBar() {
     sortDirection,
     setSorting,
     clearFilters,
+    viewMode,
+    setViewMode,
   } = useVinylCatalog()
 
   const stats = getCollectionStats(records)
@@ -24,82 +25,111 @@ export function FilterBar() {
   const artists = [...new Set(records.map((r) => r.artist))].sort()
   const conditions = ["mint", "excellent", "good", "fair"] as const
 
-  const hasActiveFilters = filters.genre || filters.decade || filters.condition || filters.artist || filters.searchQuery
+  const activeFilterCount = [
+    filters.genre, filters.decade, filters.condition, filters.artist,
+  ].filter(Boolean).length
 
   return (
-    <div className="border-b border-zinc-200 bg-zinc-50/50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-      {/* Search bar */}
-      <div className="mb-3 flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Search records or artists..."
-            value={filters.searchQuery || ""}
-            onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
-            className="h-9 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-500 outline-none transition-colors focus:border-zinc-400 focus:bg-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400 dark:focus:border-zinc-600"
-          />
-        </div>
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
-            <X className="h-3.5 w-3.5" />
-            Clear
-          </button>
-        )}
-      </div>
+    <div
+      className="flex flex-wrap items-center gap-2 px-5 py-2.5"
+      style={{ borderBottom: "1px solid var(--app-border)" }}
+    >
+      {/* Filter chips */}
+      <FilterChip
+        label="Genre"
+        value={filters.genre}
+        options={genres}
+        onChange={(v) => setFilters({ ...filters, genre: v })}
+      />
+      <FilterChip
+        label="Artist"
+        value={filters.artist}
+        options={artists}
+        onChange={(v) => setFilters({ ...filters, artist: v })}
+      />
+      <FilterChip
+        label="Decade"
+        value={filters.decade}
+        options={decades}
+        onChange={(v) => setFilters({ ...filters, decade: v })}
+      />
+      <FilterChip
+        label="Condition"
+        value={filters.condition}
+        options={[...conditions]}
+        onChange={(v) => setFilters({ ...filters, condition: v as typeof conditions[number] })}
+        formatOption={(o) => o.charAt(0).toUpperCase() + o.slice(1)}
+      />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Genre Filter */}
-        <FilterDropdown
-          label="Genre"
-          value={filters.genre}
-          options={genres}
-          onChange={(value) => setFilters({ ...filters, genre: value })}
-        />
+      {/* Clear all */}
+      {activeFilterCount > 0 && (
+        <button
+          onClick={clearFilters}
+          className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors cursor-pointer"
+          style={{ color: "var(--app-text-3)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--app-text-1)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-3)")}
+        >
+          <X className="h-3 w-3" />
+          {activeFilterCount > 1 ? `Clear ${activeFilterCount}` : "Clear"}
+        </button>
+      )}
 
-        {/* Artist/Band Filter */}
-        <FilterDropdown
-          label="Band"
-          value={filters.artist}
-          options={artists}
-          onChange={(value) => setFilters({ ...filters, artist: value })}
-        />
+      <div className="flex-1" />
 
-        {/* Decade Filter */}
-        <FilterDropdown
-          label="Decade"
-          value={filters.decade}
-          options={decades}
-          onChange={(value) => setFilters({ ...filters, decade: value })}
-        />
+      {/* Sort */}
+      <SortChip sortBy={sortBy} direction={sortDirection} onChange={setSorting} />
 
-        {/* Condition Filter */}
-        <FilterDropdown
-          label="Condition"
-          value={filters.condition}
-          options={[...conditions]}
-          onChange={(value) => setFilters({ ...filters, condition: value as typeof conditions[number] })}
-          formatOption={(opt) => opt.charAt(0).toUpperCase() + opt.slice(1)}
-        />
+      {/* Divider */}
+      <div className="h-4 w-px" style={{ background: "var(--app-border)" }} />
 
-        <div className="mx-2 h-6 w-px bg-zinc-200 dark:bg-zinc-700" />
-
-        {/* Sort */}
-        <SortDropdown
-          sortBy={sortBy}
-          direction={sortDirection}
-          onChange={setSorting}
-        />
+      {/* View toggle */}
+      <div
+        className="flex rounded-lg p-0.5"
+        style={{
+          background: "var(--app-surface-3)",
+          border: "1px solid var(--app-border)",
+        }}
+      >
+        <ViewBtn active={viewMode === "grid"} onClick={() => setViewMode("grid")} title="Grid view">
+          <Grid3X3 className="h-3.5 w-3.5" />
+        </ViewBtn>
+        <ViewBtn active={viewMode === "list"} onClick={() => setViewMode("list")} title="List view">
+          <List className="h-3.5 w-3.5" />
+        </ViewBtn>
       </div>
     </div>
   )
 }
 
-interface FilterDropdownProps {
+function ViewBtn({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex h-6 w-6 items-center justify-center rounded-md transition-all cursor-pointer"
+      style={{
+        background: active ? "var(--app-surface)" : "transparent",
+        color: active ? "var(--app-text-1)" : "var(--app-text-3)",
+        boxShadow: active ? "var(--app-shadow)" : "none",
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+interface FilterChipProps {
   label: string
   value?: string
   options: string[]
@@ -107,81 +137,80 @@ interface FilterDropdownProps {
   formatOption?: (option: string) => string
 }
 
-function FilterDropdown({
+function FilterChip({
   label,
   value,
   options,
   onChange,
-  formatOption = (opt) => opt,
-}: FilterDropdownProps) {
+  formatOption = (o) => o,
+}: FilterChipProps) {
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
+    function handleOut(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false)
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener("mousedown", handleOut)
+    return () => document.removeEventListener("mousedown", handleOut)
   }, [])
+
+  const isActive = !!value
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          "flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
-          value
-            ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600"
-        )}
+        className="flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition-all cursor-pointer"
+        style={{
+          background: isActive ? "var(--app-green-bg)" : "var(--app-surface-3)",
+          border: isActive
+            ? "1px solid var(--app-green-border)"
+            : "1px solid var(--app-border)",
+          color: isActive ? "var(--app-green)" : "var(--app-text-2)",
+        }}
       >
         {value ? formatOption(value) : label}
-        <ChevronDown className="h-3.5 w-3.5" />
+        <ChevronDown
+          className="h-3 w-3 transition-transform"
+          style={{ transform: isOpen ? "rotate(180deg)" : "none" }}
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+        <div
+          className="glass-dropdown absolute left-0 top-full z-50 mt-1.5 min-w-[140px] overflow-hidden rounded-xl py-1"
+        >
           {value && (
             <button
-              onClick={() => {
-                onChange(undefined)
-                setIsOpen(false)
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              onClick={() => { onChange(undefined); setIsOpen(false) }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors cursor-pointer"
+              style={{ color: "var(--app-text-3)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--app-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              Clear
+              <X className="h-3 w-3" /> Clear
             </button>
           )}
-          {options.map((option) => (
+          {options.map((opt) => (
             <button
-              key={option}
-              onClick={() => {
-                onChange(option)
-                setIsOpen(false)
+              key={opt}
+              onClick={() => { onChange(opt); setIsOpen(false) }}
+              className="block w-full px-3 py-1.5 text-left text-xs transition-colors cursor-pointer"
+              style={{
+                color: value === opt ? "var(--app-green)" : "var(--app-text-2)",
+                fontWeight: value === opt ? 600 : 400,
               }}
-              className={cn(
-                "block w-full px-3 py-2 text-left text-sm transition-colors",
-                value === option
-                  ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
-                  : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              )}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--app-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              {formatOption(option)}
+              {formatOption(opt)}
             </button>
           ))}
         </div>
       )}
     </div>
   )
-}
-
-interface SortDropdownProps {
-  sortBy: SortOption
-  direction: "asc" | "desc"
-  onChange: (sortBy: SortOption, direction: "asc" | "desc") => void
 }
 
 const sortOptions: { value: SortOption; label: string }[] = [
@@ -192,58 +221,67 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: "condition", label: "Condition" },
 ]
 
-function SortDropdown({ sortBy, direction, onChange }: SortDropdownProps) {
+function SortChip({
+  sortBy,
+  direction,
+  onChange,
+}: {
+  sortBy: SortOption
+  direction: "asc" | "desc"
+  onChange: (s: SortOption, d: "asc" | "desc") => void
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
+    function handleOut(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false)
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener("mousedown", handleOut)
+    return () => document.removeEventListener("mousedown", handleOut)
   }, [])
 
-  const currentLabel = sortOptions.find((opt) => opt.value === sortBy)?.label
+  const label = sortOptions.find((o) => o.value === sortBy)?.label
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600"
+        className="flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all cursor-pointer"
+        style={{
+          background: "var(--app-surface-3)",
+          border: "1px solid var(--app-border)",
+          color: "var(--app-text-2)",
+        }}
       >
-        <ArrowUpDown className="h-3.5 w-3.5" />
-        {currentLabel}
-        <span className="text-zinc-400">{direction === "asc" ? "↑" : "↓"}</span>
+        <ArrowUpDown className="h-3 w-3" />
+        {label}
+        <span style={{ color: "var(--app-text-3)", fontSize: "10px" }}>
+          {direction === "asc" ? "↑" : "↓"}
+        </span>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-          {sortOptions.map((option) => (
+        <div className="glass-dropdown absolute right-0 top-full z-50 mt-1.5 min-w-[160px] overflow-hidden rounded-xl py-1">
+          {sortOptions.map((opt) => (
             <button
-              key={option.value}
+              key={opt.value}
               onClick={() => {
-                const newDirection =
-                  sortBy === option.value
-                    ? direction === "asc"
-                      ? "desc"
-                      : "asc"
-                    : "desc"
-                onChange(option.value, newDirection)
+                const d = sortBy === opt.value ? (direction === "asc" ? "desc" : "asc") : "desc"
+                onChange(opt.value, d)
                 setIsOpen(false)
               }}
-              className={cn(
-                "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
-                sortBy === option.value
-                  ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
-                  : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              )}
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors cursor-pointer"
+              style={{
+                color: sortBy === opt.value ? "var(--app-green)" : "var(--app-text-2)",
+                fontWeight: sortBy === opt.value ? 600 : 400,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--app-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              {option.label}
-              {sortBy === option.value && (
-                <span className="text-zinc-400">
+              {opt.label}
+              {sortBy === opt.value && (
+                <span style={{ color: "var(--app-text-3)", fontSize: "11px" }}>
                   {direction === "asc" ? "↑" : "↓"}
                 </span>
               )}

@@ -1,5 +1,6 @@
 import NextAuth, { type NextAuthOptions } from "next-auth"
 import AuthentikProvider from "next-auth/providers/authentik"
+import CredentialsProvider from "next-auth/providers/credentials"
 import type { JWT } from "next-auth/jwt"
 
 /**
@@ -42,15 +43,38 @@ async function refreshAccessToken(token: JWT) {
   }
 }
 
+const devProvider =
+  process.env.NODE_ENV === "development"
+    ? [
+        CredentialsProvider({
+          id: "dev-bypass",
+          name: "Dev Login",
+          credentials: {
+            name: { label: "Name", type: "text", placeholder: "Your name" },
+          },
+          async authorize(credentials) {
+            // Any submission is accepted in dev — no password needed
+            return {
+              id: "dev-user",
+              name: credentials?.name || "Dev User",
+              email: "dev@localhost",
+              image: null,
+            }
+          },
+        }),
+      ]
+    : []
+
 export const authOptions: NextAuthOptions = {
   providers: [
+    ...devProvider,
     AuthentikProvider({
       clientId: process.env.AUTHENTIK_CLIENT_ID!,
       clientSecret: process.env.AUTHENTIK_CLIENT_SECRET!,
       issuer: process.env.AUTHENTIK_ISSUER!,
       authorization: {
         params: {
-          scope: "openid email profile offline_access", // 'offline_access' is required for refresh tokens
+          scope: "openid email profile offline_access",
         },
       },
     }),
