@@ -10,13 +10,15 @@ export interface BackendVinyl {
   condition: string
   coverImageUrl: string | null
   notes: string | null
-  createdAt: string
+  createdAt: string | number
   discogsId: string | null
   currentValue: number | null
   wantlistCount: number | null
   spotifyUrl: string | null
   addedBy: string | null
   addedByAvatar: string | null
+  deletedAt?: number | null
+  isDeleted?: boolean
 }
 
 const VALID_CONDITIONS = new Set(["M", "NM", "VG+", "VG", "G+", "G", "F", "P"])
@@ -40,11 +42,12 @@ export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
     condition,
     coverUrl: raw.coverImageUrl ?? "",
     notes: raw.notes ?? undefined,
-    dateAdded: raw.createdAt 
-      ? (typeof raw.createdAt === "string" 
-          ? raw.createdAt.split("T")[0] 
+    dateAdded: raw.createdAt
+      ? (typeof raw.createdAt === "string"
+          ? raw.createdAt.split("T")[0]
           : new Date(raw.createdAt).toISOString().split("T")[0])
       : new Date().toISOString().split("T")[0],
+    deletedAt: raw.deletedAt ?? null,
     addedBy: raw.addedBy ?? undefined,
     addedByAvatar: raw.addedByAvatar ?? undefined,
     discogs: raw.discogsId

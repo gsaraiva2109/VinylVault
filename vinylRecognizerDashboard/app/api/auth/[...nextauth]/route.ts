@@ -10,7 +10,9 @@ import type { JWT } from "next-auth/jwt"
 async function refreshAccessToken(token: JWT) {
   try {
     const issuer = process.env.AUTHENTIK_ISSUER!.replace(/\/$/, '')
-    const url = `${issuer}/token/`
+    // Dynamically fetch the official token endpoint from Authentik's OIDC discovery so we never hit a 404/405
+    const oidcConfig = await fetch(`${issuer}/.well-known/openid-configuration`).then(r => r.json())
+    const url = oidcConfig.token_endpoint
     const response = await fetch(url, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       method: "POST",
@@ -22,11 +24,11 @@ async function refreshAccessToken(token: JWT) {
       }),
     })
 
-    const refreshedTokens = await response.json()
-
+    const responseText = await response.text()
     if (!response.ok) {
-      throw refreshedTokens
+      throw new Error(`Authentik token error: ${response.status} - ${responseText}`)
     }
+    const refreshedTokens = JSON.parse(responseText)
 
     return {
       ...token,
@@ -87,9 +89,19 @@ const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       // Initial sign in
       if (account && user) {
+        // Fallback robustly: sometimes OIDC returns expires_in instead of expires_at
+        const expiresAt = account.expires_at 
+          ? account.expires_at * 1000 
+          : account.expires_in 
+            ? Date.now() + (account.expires_in as number) * 1000
+            : Date.now() + 60 * 60 * 1000 // Safely default to 1 hour if unspecified
+
+        console.log("INITIAL SIGN IN - account payload:", JSON.stringify(account))
+        console.log("Computed expiresAt (ms):", expiresAt, "vs Current Date.now():", Date.now())
+
         return {
           accessToken: account.access_token,
-          accessTokenExpires: (account.expires_at ?? 0) * 1000,
+          accessTokenExpires: expiresAt,
           refreshToken: account.refresh_token,
           user,
         }

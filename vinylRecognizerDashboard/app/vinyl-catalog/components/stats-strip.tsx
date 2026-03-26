@@ -11,24 +11,24 @@ interface StatsStripProps {
 }
 
 export function StatsStrip({ onSearchOpen }: StatsStripProps) {
-  const { records, activeScreen, filters, setFilters, setActiveScreen } = useVinylCatalog()
+  const { activeRecords, activeScreen, filters, setFilters, setActiveScreen } = useVinylCatalog()
   const { data: session } = useSession()
   const inputRef = useRef<HTMLInputElement>(null)
 
   const stats = useMemo(() => {
-    const totalRecords = records.length
-    const totalValue = records.reduce((sum, r) => sum + (r.discogs?.value ?? 0), 0)
-    const genreCounts = records.reduce<Record<string, number>>((acc, r) => {
+    const totalRecords = activeRecords.length
+    const totalValue = activeRecords.reduce((sum, r) => sum + (r.discogs?.value ?? 0), 0)
+    const genreCounts = activeRecords.reduce<Record<string, number>>((acc, r) => {
       if (r.genre) acc[r.genre] = (acc[r.genre] ?? 0) + 1
       return acc
     }, {})
     const topGenre = Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—"
-    const valuedRecords = records.filter((r) => r.discogs?.value)
+    const valuedRecords = activeRecords.filter((r) => r.discogs?.value)
     const avgValue = valuedRecords.length > 0
       ? Math.round(totalValue / valuedRecords.length)
       : 0
     return { totalRecords, totalValue, topGenre, avgValue }
-  }, [records])
+  }, [activeRecords])
 
   const fmtValue = (v: number) =>
     v > 0 ? `$${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"

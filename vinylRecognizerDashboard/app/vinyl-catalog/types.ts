@@ -12,6 +12,7 @@ export interface VinylRecord {
   coverUrl: string
   notes?: string
   dateAdded: string
+  deletedAt?: number | null  // unix ms — present only for trashed records
   addedBy?: string
   addedByAvatar?: string
   discogs?: {

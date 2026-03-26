@@ -6,6 +6,7 @@ import { ConditionBadge } from "../condition-badge"
 import { useSession } from "next-auth/react"
 import { useState } from "react"
 import { api } from "@/lib/api"
+import { toast } from "sonner"
 import {
   Disc3,
   DollarSign,
@@ -19,24 +20,20 @@ import {
 import type { Condition } from "../../types"
 
 export function StatsScreen() {
-  const { records, refreshCollection } = useVinylCatalog()
-  const stats = getCollectionStats(records)
+  const { activeRecords, refreshCollection } = useVinylCatalog()
+  const stats = getCollectionStats(activeRecords)
   const { data: session } = useSession()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   const handleRefreshPrices = async () => {
     setIsRefreshing(true)
-    setError(null)
-    setSuccess(null)
     try {
       const token = (session as { accessToken?: string })?.accessToken
       await api.discogs.refreshPrices(token)
-      setSuccess("Price refresh started in background. It may take a few minutes.")
+      toast.success("Price refresh started. Updates may take a few minutes.")
       refreshCollection()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to refresh prices")
+      toast.error(err instanceof Error ? err.message : "Failed to refresh prices")
     } finally {
       setIsRefreshing(false)
     }
@@ -45,15 +42,29 @@ export function StatsScreen() {
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-6xl">
-        {/* Header with Refresh */}
+
+        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+          <h2 className="text-xl font-bold" style={{ color: "var(--app-text-1)" }}>
             Collection Insights
           </h2>
           <button
             onClick={handleRefreshPrices}
             disabled={isRefreshing}
-            className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
+            style={{
+              border: "1px solid var(--app-border)",
+              background: "var(--app-surface-3)",
+              color: "var(--app-text-2)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--app-text-1)"
+              e.currentTarget.style.background = "var(--app-hover)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--app-text-2)"
+              e.currentTarget.style.background = "var(--app-surface-3)"
+            }}
           >
             {isRefreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -64,104 +75,96 @@ export function StatsScreen() {
           </button>
         </div>
 
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
-            {success}
-          </div>
-        )}
-
         {/* Summary Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             icon={Disc3}
             label="Total Records"
             value={stats.totalRecords.toString()}
-            description="In your collection"
+            sub="In your collection"
           />
           <StatCard
             icon={DollarSign}
             label="Collection Value"
             value={`$${stats.totalValue.toLocaleString()}`}
-            description="Estimated from Discogs"
+            sub="Estimated from Discogs"
             highlight
           />
           <StatCard
             icon={Music}
             label="Genres"
             value={Object.keys(stats.byGenre).length.toString()}
-            description="Different genres"
+            sub="Different genres"
           />
           <StatCard
             icon={Calendar}
-            label="Decades Span"
+            label="Decades"
             value={Object.keys(stats.byDecade).length.toString()}
-            description="Decades represented"
+            sub="Decades represented"
           />
         </div>
 
-        {/* Charts Row */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Genre + Decade */}
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+
           {/* Genre Distribution */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-rose-500 dark:text-rose-400">
-              <Music className="h-5 w-5" />
-              By Genre
-            </h3>
-            <div className="mt-4 space-y-3">
+          <Panel>
+            <PanelHeader icon={Music} label="By Genre" />
+            <div className="mt-4 space-y-2.5">
               {Object.entries(stats.byGenre)
                 .sort(([, a], [, b]) => b - a)
-                .map(([genre, count]) => (
-                  <div key={genre} className="flex items-center gap-3">
-                    <div className="w-24 shrink-0 text-sm text-zinc-600 dark:text-zinc-400">
-                      {genre}
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-6 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                .map(([genre, count]) => {
+                  const pct = (count / stats.totalRecords) * 100
+                  return (
+                    <div key={genre} className="flex items-center gap-3">
+                      <div className="w-20 shrink-0 truncate text-xs" style={{ color: "var(--app-text-3)" }}>
+                        {genre}
+                      </div>
+                      <div className="flex-1 overflow-hidden rounded-full" style={{ height: "5px", background: "var(--app-surface-3)" }}>
                         <div
-                          className="h-full rounded-full bg-zinc-900 dark:bg-zinc-100"
+                          className="h-full rounded-full"
                           style={{
-                            width: `${(count / stats.totalRecords) * 100}%`,
+                            width: `${pct}%`,
+                            background: "linear-gradient(90deg, var(--app-green) 0%, color-mix(in srgb, var(--app-green) 60%, transparent) 100%)",
                           }}
                         />
                       </div>
+                      <div className="w-6 shrink-0 text-right text-xs font-medium" style={{ color: "var(--app-text-1)" }}>
+                        {count}
+                      </div>
                     </div>
-                    <div className="w-8 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {count}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
             </div>
-          </div>
+          </Panel>
 
-          {/* Decade Distribution */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-purple-500 dark:text-purple-400">
-              <Calendar className="h-5 w-5" />
-              By Decade
-            </h3>
+          {/* Decade Bar Chart */}
+          <Panel>
+            <PanelHeader icon={Calendar} label="By Decade" />
             <div className="mt-4">
-              <div className="flex h-48 items-end gap-2">
+              <div className="flex h-44 items-end gap-2">
                 {Object.entries(stats.byDecade)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([decade, count]) => {
                     const maxCount = Math.max(...Object.values(stats.byDecade))
                     const height = (count / maxCount) * 100
                     return (
-                      <div key={decade} className="flex flex-1 flex-col items-center gap-1">
-                        <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                      <div key={decade} className="group flex flex-1 flex-col items-center gap-1">
+                        <span
+                          className="text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100"
+                          style={{ color: "var(--app-green)" }}
+                        >
                           {count}
                         </span>
                         <div
-                          className="w-full rounded-t-lg bg-zinc-900 transition-all dark:bg-zinc-100"
-                          style={{ height: `${height}%` }}
+                          className="w-full rounded-t-md transition-opacity"
+                          style={{
+                            height: `${height}%`,
+                            background: "linear-gradient(180deg, var(--app-green) 0%, color-mix(in srgb, var(--app-green) 50%, transparent) 100%)",
+                            opacity: 0.85,
+                          }}
                         />
-                        <span className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <span className="mt-1 text-[10px]" style={{ color: "var(--app-text-3)" }}>
                           {decade}
                         </span>
                       </div>
@@ -169,204 +172,212 @@ export function StatsScreen() {
                   })}
               </div>
             </div>
-          </div>
+          </Panel>
         </div>
 
-        {/* Condition & Recent */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Condition + Recently Added */}
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+
           {/* Condition Breakdown */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-amber-500 dark:text-amber-400">
-              <Star className="h-5 w-5" />
-              Condition Breakdown
-            </h3>
-            <div className="mt-4 grid grid-cols-2 gap-4">
+          <Panel>
+            <PanelHeader icon={Star} label="Condition Breakdown" />
+            <div className="mt-4 grid grid-cols-4 gap-2">
               {(["M", "NM", "VG+", "VG", "G+", "G", "F", "P"] as Condition[]).map((condition) => {
                 const count = stats.byCondition[condition]
-                const percentage = stats.totalRecords > 0 
-                  ? ((count / stats.totalRecords) * 100).toFixed(0)
+                const pct = stats.totalRecords > 0
+                  ? Math.round((count / stats.totalRecords) * 100)
                   : 0
                 return (
                   <div
                     key={condition}
-                    className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50"
+                    className="flex flex-col items-center gap-1.5 rounded-xl py-3"
+                    style={{
+                      background: count > 0 ? "var(--app-surface-3)" : "transparent",
+                      border: count > 0 ? "1px solid var(--app-border)" : "1px solid transparent",
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <ConditionBadge condition={condition} />
-                      <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                        {count}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                      {percentage}% of collection
-                    </p>
+                    <ConditionBadge condition={condition} />
+                    <span className="text-lg font-bold leading-none" style={{ color: "var(--app-text-1)" }}>
+                      {count}
+                    </span>
+                    <span className="text-[10px]" style={{ color: "var(--app-text-3)" }}>
+                      {pct}%
+                    </span>
                   </div>
                 )
               })}
             </div>
-          </div>
+          </Panel>
 
           {/* Recently Added */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-blue-500 dark:text-blue-400">
-              <TrendingUp className="h-5 w-5" />
-              Recently Added
-            </h3>
-            <div className="mt-4 space-y-3">
+          <Panel>
+            <PanelHeader icon={TrendingUp} label="Recently Added" />
+            <div className="mt-4 space-y-2">
               {stats.recentlyAdded.map((record) => (
                 <div
                   key={record.id}
-                  className="flex items-center gap-3 rounded-lg border border-zinc-100 p-3 dark:border-zinc-800"
+                  className="flex items-center gap-3 rounded-xl p-2.5"
+                  style={{ border: "1px solid var(--app-border)" }}
                 >
                   <div
-                    className="h-12 w-12 shrink-0 rounded-lg bg-cover bg-center"
+                    className="h-10 w-10 shrink-0 rounded-lg bg-cover bg-center"
                     style={{
-                      backgroundImage: `url(${record.coverUrl})`,
-                      backgroundColor: "#1a1a2e",
+                      backgroundImage: record.coverUrl ? `url(${record.coverUrl})` : undefined,
+                      background: record.coverUrl ? undefined : "var(--app-surface-3)",
                     }}
                   />
                   <div className="flex-1 overflow-hidden">
-                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
                       {record.title}
                     </p>
-                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    <p className="truncate text-xs" style={{ color: "var(--app-text-3)" }}>
                       {record.artist}
                     </p>
                   </div>
-                  <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                    style={{ background: "var(--app-surface-3)", color: "var(--app-text-3)" }}
+                  >
                     {formatDate(record.dateAdded)}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
+          </Panel>
         </div>
 
         {/* Most Valuable */}
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-            <DollarSign className="h-5 w-5" />
-            Most Valuable Records
-          </h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[...records]
-              .filter((r) => r.discogs?.value)
-              .sort((a, b) => (b.discogs?.value || 0) - (a.discogs?.value || 0))
-              .slice(0, 3)
-              .map((record, index) => (
-                <div
-                  key={record.id}
-                  className="flex items-center gap-4 rounded-lg border border-zinc-100 p-4 dark:border-zinc-800"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                    #{index + 1}
-                  </div>
+        <div className="mt-5">
+          <Panel>
+            <PanelHeader icon={DollarSign} label="Most Valuable Records" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[...activeRecords]
+                .filter((r) => r.discogs?.value)
+                .sort((a, b) => (b.discogs?.value || 0) - (a.discogs?.value || 0))
+                .slice(0, 3)
+                .map((record, index) => (
                   <div
-                    className="h-14 w-14 shrink-0 rounded-lg bg-cover bg-center"
-                    style={{
-                      backgroundImage: `url(${record.coverUrl})`,
-                      backgroundColor: "#1a1a2e",
-                    }}
-                  />
-                  <div className="flex-1 overflow-hidden">
-                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {record.title}
-                    </p>
-                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      {record.artist}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                      ${record.discogs?.value}
-                    </p>
+                    key={record.id}
+                    className="flex items-center gap-3 rounded-xl p-3"
+                    style={{ border: "1px solid var(--app-border)" }}
+                  >
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ background: "var(--app-green-bg)", color: "var(--app-green)" }}
+                    >
+                      #{index + 1}
+                    </div>
+                    <div
+                      className="h-12 w-12 shrink-0 rounded-lg bg-cover bg-center"
+                      style={{
+                        backgroundImage: record.coverUrl ? `url(${record.coverUrl})` : undefined,
+                        background: record.coverUrl ? undefined : "var(--app-surface-3)",
+                      }}
+                    />
+                    <div className="flex-1 overflow-hidden">
+                      <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
+                        {record.title}
+                      </p>
+                      <p className="truncate text-xs" style={{ color: "var(--app-text-3)" }}>
+                        {record.artist}
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--app-green)" }}>
+                        ${record.discogs?.value}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-          </div>
+                ))}
+            </div>
+          </Panel>
         </div>
+
       </div>
     </div>
   )
 }
+
+// ── Panel wrapper ─────────────────────────────────────────────────────────────
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-xl p-5"
+      style={{
+        background: "var(--app-surface-2, var(--app-surface-3))",
+        border: "1px solid var(--app-border)",
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function PanelHeader({ icon: Icon, label }: { icon: typeof Disc3; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="h-4 w-4" style={{ color: "var(--app-green)" }} />
+      <h3 className="text-sm font-semibold" style={{ color: "var(--app-text-1)" }}>
+        {label}
+      </h3>
+    </div>
+  )
+}
+
+// ── Stat Card ─────────────────────────────────────────────────────────────────
 
 function StatCard({
   icon: Icon,
   label,
   value,
-  description,
+  sub,
   highlight,
 }: {
   icon: typeof Disc3
   label: string
   value: string
-  description: string
+  sub: string
   highlight?: boolean
 }) {
   return (
     <div
-      className={cn(
-        "rounded-xl border p-6",
-        highlight
-          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20"
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
-      )}
+      className="rounded-xl p-5"
+      style={{
+        background: highlight ? "var(--app-green-bg)" : "var(--app-surface-2, var(--app-surface-3))",
+        border: highlight ? "1px solid var(--app-green-border)" : "1px solid var(--app-border)",
+      }}
     >
       <div
-        className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-lg",
-          highlight
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
-            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-        )}
+        className="flex h-9 w-9 items-center justify-center rounded-lg"
+        style={{
+          background: highlight ? "color-mix(in srgb, var(--app-green) 15%, transparent)" : "var(--app-surface-3)",
+          color: highlight ? "var(--app-green)" : "var(--app-text-2)",
+        }}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-4.5 w-4.5" />
       </div>
-      <p
-        className={cn(
-          "mt-4 text-sm font-medium",
-          highlight
-            ? "text-emerald-700 dark:text-emerald-400"
-            : "text-zinc-500 dark:text-zinc-400"
-        )}
-      >
+      <p className="mt-3 text-xs font-medium" style={{ color: highlight ? "var(--app-green)" : "var(--app-text-3)" }}>
         {label}
       </p>
-      <p
-        className={cn(
-          "mt-1 text-2xl font-bold",
-          highlight
-            ? "text-emerald-700 dark:text-emerald-400"
-            : "text-zinc-900 dark:text-zinc-100"
-        )}
-      >
+      <p className="mt-0.5 text-2xl font-bold" style={{ color: highlight ? "var(--app-green)" : "var(--app-text-1)" }}>
         {value}
       </p>
-      <p
-        className={cn(
-          "mt-1 text-xs",
-          highlight
-            ? "text-emerald-600 dark:text-emerald-500"
-            : "text-zinc-400 dark:text-zinc-500"
-        )}
-      >
-        {description}
+      <p className="mt-0.5 text-xs" style={{ color: highlight ? "color-mix(in srgb, var(--app-green) 70%, transparent)" : "var(--app-text-3)" }}>
+        {sub}
       </p>
     </div>
   )
 }
 
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ")
-}
+// ── Utils ─────────────────────────────────────────────────────────────────────
 
 function formatDate(dateString: string) {
   const date = new Date(dateString)
   const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const days = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
 
   if (days === 0) return "Today"
   if (days === 1) return "Yesterday"
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }

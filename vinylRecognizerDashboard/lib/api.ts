@@ -13,10 +13,11 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
   })
 
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined') {
-      import("next-auth/react").then(({ signOut }) => signOut({ callbackUrl: '/' }))
+    const errorText = await response.text()
+    if (response.status === 401 && typeof window !== "undefined") {
+      import("next-auth/react").then(({ signOut }) => signOut({ callbackUrl: "/" }))
     }
-    throw new Error(`API error: ${response.status} ${response.statusText}`)
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`)
   }
 
   if (response.status === 204) {
@@ -29,10 +30,13 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
 export const api = {
   vinyls: {
     getAll: (token?: string) => fetchApi('/api/vinyls', {}, token),
+    getTrash: (token?: string) => fetchApi('/api/vinyls/trash', {}, token),
     getById: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}`, {}, token),
     create: (data: Record<string, unknown>, token?: string) => fetchApi('/api/vinyls', { method: 'POST', body: JSON.stringify(data) }, token),
     update: (id: number, data: Record<string, unknown>, token?: string) => fetchApi(`/api/vinyls/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
     delete: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}`, { method: 'DELETE' }, token),
+    recover: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}/recover`, { method: 'POST' }, token),
+    permanentlyDelete: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}/permanent`, { method: 'DELETE' }, token),
   },
   collection: {
     getStats: (token?: string) => fetchApi('/api/collection/value', {}, token),
@@ -40,6 +44,11 @@ export const api = {
   discogs: {
     search: (q: string, token?: string) => fetchApi(`/api/discogs/search?q=${encodeURIComponent(q)}`, {}, token),
     getRelease: (id: number | string, token?: string) => fetchApi(`/api/discogs/release/${id}`, {}, token),
+    getMaster: async (id: number | string) => {
+      const res = await fetch(`/api/discogs/master/${id}`)
+      if (!res.ok) throw new Error("Failed to fetch Master release from Discogs")
+      return res.json()
+    },
     refreshPrices: (token?: string) => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }, token),
   }
 }
