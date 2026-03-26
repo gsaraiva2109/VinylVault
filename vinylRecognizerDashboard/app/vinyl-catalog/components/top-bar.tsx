@@ -9,6 +9,7 @@ const screenTitles = {
   scan: "Scan Record",
   stats: "Statistics",
   settings: "Settings",
+  account: "Account",
 }
 
 export function TopBar() {

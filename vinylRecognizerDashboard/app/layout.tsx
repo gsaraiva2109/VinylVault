@@ -41,12 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html suppressHydrationWarning lang="en">
       <body
-        className={`min-h-svh max-w-[100vw] bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 ${geistMono.variable} ${geist.variable} font-sans`}
+        className={`min-h-svh max-w-[100vw] bg-background text-foreground ${geistMono.variable} ${geist.variable} font-sans`}
       >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
-          enableSystem
+          enableSystem={true}
           disableTransitionOnChange
         >
           <AuthProvider>

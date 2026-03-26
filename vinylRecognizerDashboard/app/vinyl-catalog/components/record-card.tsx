@@ -1,10 +1,9 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import type { VinylRecord } from "../types"
 import { ConditionBadge } from "./condition-badge"
 import { useVinylCatalog } from "../context"
-import { Play, DollarSign } from "lucide-react"
+import { Play } from "lucide-react"
 
 interface RecordCardProps {
   record: VinylRecord
@@ -22,89 +21,94 @@ export function RecordCard({ record, className }: RecordCardProps) {
   return (
     <button
       onClick={handleClick}
-      className={cn(
-        "group relative flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white text-left transition-all hover:border-zinc-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700",
-        className
-      )}
+      className={`vinyl-card group relative flex flex-col overflow-hidden rounded-xl text-left cursor-pointer ${className ?? ""}`}
     >
       {/* Cover Image */}
-      <div className="relative aspect-square overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-        <div
-          className="h-full w-full bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
-          style={{
-            backgroundImage: `url(${record.coverUrl})`,
-            backgroundColor: getPlaceholderColor(record.id),
-          }}
-        />
-        {/* Spotify Play Overlay */}
+      <div
+        className="relative overflow-hidden"
+        style={{ aspectRatio: "1 / 1", backgroundColor: getPlaceholderColor(record.id) }}
+      >
+        {record.coverUrl && (
+          <div
+            className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+            style={{ backgroundImage: `url(${record.coverUrl})` }}
+          />
+        )}
+
+        {/* Spotify play overlay */}
         {record.spotify && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1DB954] text-white shadow-lg">
-              <Play className="h-5 w-5 fill-current" />
+          <div className="absolute inset-0 flex items-end justify-end p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full shadow-lg"
+              style={{ background: "#1DB954" }}
+            >
+              <Play className="h-4 w-4 fill-white text-white" style={{ marginLeft: "1px" }} />
             </div>
           </div>
         )}
-        {/* Condition Badge */}
-        <div className="absolute right-2 top-2">
+
+        {/* Condition badge */}
+        <div className="absolute left-2 top-2">
           <ConditionBadge condition={record.condition} />
         </div>
       </div>
 
       {/* Info */}
-      <div className="flex flex-1 flex-col p-4">
-        <h3 className="line-clamp-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+      <div className="flex flex-col gap-1 p-3">
+        <h3
+          className="line-clamp-1 text-sm font-semibold leading-tight"
+          style={{ color: "var(--app-text-1)" }}
+        >
           {record.title}
         </h3>
-        <p className="mt-0.5 line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="line-clamp-1 text-xs" style={{ color: "var(--app-text-2)" }}>
           {record.artist}
         </p>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            {record.year} · {record.genre}
-          </span>
-          {record.discogs?.value && (
-            <span className="flex items-center gap-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              <DollarSign className="h-3 w-3" />
-              {record.discogs.value}
+
+        {/* Meta row */}
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+              style={{
+                background: "var(--app-surface-3)",
+                color: "var(--app-text-3)",
+              }}
+            >
+              {record.year}
+            </span>
+            {record.genre && (
+              <span
+                className="truncate rounded px-1.5 py-0.5 text-[10px] font-medium"
+                style={{
+                  background: "var(--app-surface-3)",
+                  color: "var(--app-text-3)",
+                }}
+              >
+                {record.genre}
+              </span>
+            )}
+          </div>
+
+          {record.discogs?.value != null && (
+            <span
+              className="shrink-0 font-mono text-xs font-semibold"
+              style={{ color: "var(--app-green)" }}
+            >
+              ${record.discogs.value}
             </span>
           )}
-        </div>
-        
-        {/* Added By Footer */}
-        <div className="mt-3 flex items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-          <div 
-            className="h-5 w-5 rounded-full bg-zinc-200 bg-cover bg-center dark:bg-zinc-700"
-            style={{ 
-              backgroundImage: record.addedByAvatar ? `url(${record.addedByAvatar})` : undefined,
-              backgroundColor: !record.addedByAvatar ? getPlaceholderColor(record.addedBy || "anon") : undefined
-            }}
-          />
-          <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
-            Added by {record.addedBy || "System"}
-          </span>
         </div>
       </div>
     </button>
   )
 }
 
-// Generate a consistent placeholder color based on a string ID
 function getPlaceholderColor(id: string): string {
-  const colors = [
-    "#1a1a2e",
-    "#16213e",
-    "#0f3460",
-    "#533483",
-    "#4a0e4e",
-    "#2c3e50",
-    "#1e3a5f",
-    "#2d4059",
-  ]
-  // Simple hash for any string
+  const colors = ["#1a1a2e", "#16213e", "#0f3460", "#533483", "#4a0e4e", "#2c3e50", "#1e3a5f", "#2d4059"]
   let hash = 0
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const index = Math.abs(hash) % colors.length
-  return colors[index]
+  return colors[Math.abs(hash) % colors.length]
 }
