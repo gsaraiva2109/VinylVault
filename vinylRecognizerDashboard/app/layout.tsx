@@ -36,6 +36,7 @@ export const metadata = {
 }
 
 import { AuthProvider } from "./auth-provider"
+import { Toaster } from "sonner"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             {children}
           </AuthProvider>
+          <Toaster position="top-right" richColors />
         </ThemeProvider>
       </body>
     </html>

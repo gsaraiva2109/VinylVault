@@ -4,10 +4,11 @@ import { useVinylCatalog } from "../context"
 import { ConditionBadge } from "./condition-badge"
 import {
   X, Calendar, Music, StickyNote, ExternalLink, Play,
-  DollarSign, Edit3, Check, ChevronDown, Loader2,
+  DollarSign, Edit3, Check, ChevronDown, Loader2, Trash2,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import type { Condition } from "../types"
+import { DeleteConfirmModal } from "./delete-confirm-modal"
 
 function SpotifyIcon() {
   return (
@@ -20,11 +21,12 @@ function SpotifyIcon() {
 const conditions: Condition[] = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"]
 
 export function RecordDetailModal() {
-  const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord } =
+  const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord, deleteRecord, isDeleting } =
     useVinylCatalog()
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editArtist, setEditArtist] = useState("")
@@ -66,6 +68,13 @@ export function RecordDetailModal() {
 
   if (!isDetailOpen || !selectedRecord) return null
 
+  const handleDelete = () => {
+    deleteRecord(selectedRecord.id)
+    setShowDeleteConfirm(false)
+    setIsDetailOpen(false)
+    setSelectedRecord(null)
+  }
+
   const handleClose = () => {
     setIsDetailOpen(false)
     setSelectedRecord(null)
@@ -104,6 +113,7 @@ export function RecordDetailModal() {
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
@@ -379,24 +389,49 @@ export function RecordDetailModal() {
             </>
           ) : (
             <>
+              {/* Delete button — full red, matches danger zone style */}
               <button
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer"
+                style={{ background: "#f52f12" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#d92a10")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#f52f12")}
               >
-                <Edit3 className="h-4 w-4" />
-                Edit Record
+                <Trash2 className="h-4 w-4" />
+                Delete Record
               </button>
-              <button
-                onClick={handleClose}
-                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 cursor-pointer"
-              >
-                Close
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Edit Record
+                </button>
+                <button
+                  onClick={handleClose}
+                  className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </>
           )}
         </div>
       </div>
     </div>
+
+
+    {showDeleteConfirm && (
+      <DeleteConfirmModal
+        record={selectedRecord!}
+        isDeleting={isDeleting}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+    )}
+    </>
   )
 }
 
