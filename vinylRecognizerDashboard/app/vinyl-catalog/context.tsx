@@ -12,10 +12,11 @@ import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, C
 import { filterRecords, sortRecords } from "./data"
 import { api } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { MOCK_RECORDS } from "./mock-data"
 
 const IS_DEV = process.env.NODE_ENV === "development"
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
 
 interface VinylCatalogContextType {
   // Records
@@ -103,8 +104,14 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   }, [session])
 
   useEffect(() => {
-    // In development, skip the API and use local mock data
-    if (IS_DEV) {
+    if ((session as { error?: string })?.error === "RefreshAccessTokenError") {
+      signOut({ callbackUrl: "/" })
+    }
+  }, [session])
+
+  useEffect(() => {
+    // In development, skip the API and use local mock data IF explicitly enabled
+    if (IS_DEV && USE_MOCK_DATA) {
       setRecords(MOCK_RECORDS)
       setIsLoading(false)
       return
@@ -126,7 +133,12 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load collection")
+          const errorMessage = err instanceof Error ? err.message : "Failed to load collection"
+          if (errorMessage.includes("401 Unauthorized")) {
+            signOut({ callbackUrl: "/" })
+          } else {
+            setError(errorMessage)
+          }
         }
       })
       .finally(() => {

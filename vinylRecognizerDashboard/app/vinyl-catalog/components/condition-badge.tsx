@@ -1,13 +1,22 @@
 import type { Condition } from "../types"
 
+const mintStyle = { color: "#28d768", bg: "rgba(40,215,104,0.10)",  border: "rgba(40,215,104,0.22)" }
+const excelStyle = { color: "#5bc8ff", bg: "rgba(91,200,255,0.10)",  border: "rgba(91,200,255,0.22)" }
+const goodStyle = { color: "#f5c842", bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.22)" }
+const fairStyle = { color: "#f5612f", bg: "rgba(245,97,47,0.10)",   border: "rgba(245,97,47,0.22)" }
+
 const conditionConfig: Record<
   Condition,
   { color: string; bg: string; border: string; label: string }
 > = {
-  mint:      { color: "#28d768", bg: "rgba(40,215,104,0.10)",  border: "rgba(40,215,104,0.22)",  label: "Mint" },
-  excellent: { color: "#5bc8ff", bg: "rgba(91,200,255,0.10)",  border: "rgba(91,200,255,0.22)",  label: "Excellent" },
-  good:      { color: "#f5c842", bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.22)",  label: "Good" },
-  fair:      { color: "#f5612f", bg: "rgba(245,97,47,0.10)",   border: "rgba(245,97,47,0.22)",   label: "Fair" },
+  "M":   { ...mintStyle, label: "Mint (M)" },
+  "NM":  { ...mintStyle, label: "Near Mint (NM)" },
+  "VG+": { ...excelStyle, label: "Very Good Plus (VG+)" },
+  "VG":  { ...goodStyle, label: "Very Good (VG)" },
+  "G+":  { ...goodStyle, label: "Good Plus (G+)" },
+  "G":   { ...fairStyle, label: "Good (G)" },
+  "F":   { ...fairStyle, label: "Fair (F)" },
+  "P":   { ...fairStyle, label: "Poor (P)" },
 }
 
 interface ConditionBadgeProps {

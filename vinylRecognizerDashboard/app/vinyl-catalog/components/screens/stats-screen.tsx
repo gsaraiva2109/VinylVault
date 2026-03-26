@@ -181,7 +181,7 @@ export function StatsScreen() {
               Condition Breakdown
             </h3>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              {(["mint", "excellent", "good", "fair"] as Condition[]).map((condition) => {
+              {(["M", "NM", "VG+", "VG", "G+", "G", "F", "P"] as Condition[]).map((condition) => {
                 const count = stats.byCondition[condition]
                 const percentage = stats.totalRecords > 0 
                   ? ((count / stats.totalRecords) * 100).toFixed(0)
