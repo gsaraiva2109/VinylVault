@@ -4,7 +4,6 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { Half2Icon, MoonIcon, SunIcon } from "@radix-ui/react-icons";
 import clsx from "clsx";
-import { Button } from "../common/button";
 
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
@@ -41,8 +40,8 @@ function SwitchButton({
   children?: React.ReactNode;
 }) {
   return (
-    <Button
-      unstyled
+    <button
+      type="button"
       aria-label={`${theme} theme`}
       className={clsx(
         "!flex !size-6 items-center justify-center rounded-full !p-[3px] text-[--text-secondary] dark:text-[--dark-text-secondary]",
@@ -53,6 +52,6 @@ function SwitchButton({
       onClick={() => setTheme(theme)}
     >
       {children}
-    </Button>
+    </button>
   );
 }
