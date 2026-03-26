@@ -47,7 +47,7 @@ export function StatsScreen() {
       <div className="mx-auto max-w-6xl">
         {/* Header with Refresh */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
             Collection Insights
           </h2>
           <button
@@ -109,7 +109,7 @@ export function StatsScreen() {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           {/* Genre Distribution */}
           <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-rose-500 dark:text-rose-400">
               <Music className="h-5 w-5" />
               By Genre
             </h3>
@@ -141,7 +141,7 @@ export function StatsScreen() {
 
           {/* Decade Distribution */}
           <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-purple-500 dark:text-purple-400">
               <Calendar className="h-5 w-5" />
               By Decade
             </h3>
@@ -176,7 +176,7 @@ export function StatsScreen() {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           {/* Condition Breakdown */}
           <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-amber-500 dark:text-amber-400">
               <Star className="h-5 w-5" />
               Condition Breakdown
             </h3>
@@ -208,7 +208,7 @@ export function StatsScreen() {
 
           {/* Recently Added */}
           <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-blue-500 dark:text-blue-400">
               <TrendingUp className="h-5 w-5" />
               Recently Added
             </h3>
@@ -244,7 +244,7 @@ export function StatsScreen() {
 
         {/* Most Valuable */}
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
             <DollarSign className="h-5 w-5" />
             Most Valuable Records
           </h3>
