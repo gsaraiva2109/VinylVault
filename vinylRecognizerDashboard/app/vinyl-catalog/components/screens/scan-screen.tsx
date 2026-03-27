@@ -5,7 +5,7 @@ import { useVinylCatalog } from "../../context"
 import { useRecognition } from "../../../../hooks/use-recognition"
 import { ConditionBadge } from "../condition-badge"
 import { ManualAddModal } from "../manual-add-modal"
-import { useSession } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 import { api } from "@/lib/api"
 import {
   Camera,
@@ -35,15 +35,14 @@ export function ScanScreen() {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    const isElectron =
-      typeof navigator !== "undefined" &&
-      navigator.userAgent.toLowerCase().includes("electron")
+    // Camera is available when running inside Tauri or in local dev
+    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
     const isLocalDev =
       typeof window !== "undefined" &&
       (window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname.startsWith("192.168."))
-    setCanUseCamera(isElectron || isLocalDev)
+    setCanUseCamera(isTauri || isLocalDev)
   }, [])
 
   useEffect(() => {
@@ -434,7 +433,7 @@ function SuccessPanel({
   onCloudAI: () => void
 }) {
   const { refreshCollection, setActiveScreen } = useVinylCatalog()
-  const { data: session } = useSession()
+  const { accessToken: token } = useTauriAuth()
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -442,7 +441,6 @@ function SuccessPanel({
     setIsAdding(true)
     setError(null)
     try {
-      const token = (session as { accessToken?: string })?.accessToken
       const payload = {
         title: record.title,
         artist: record.artist,
@@ -455,7 +453,7 @@ function SuccessPanel({
         spotifyUrl: record.spotify?.albumId ? `https://open.spotify.com/album/${record.spotify.albumId}` : null,
       }
       console.log("Confirming vinyl with payload:", payload)
-      await api.vinyls.create(payload, token)
+      await api.vinyls.create(payload, token ?? undefined)
       refreshCollection()
       setActiveScreen("collection")
     } catch (err) {

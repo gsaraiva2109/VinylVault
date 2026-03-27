@@ -1,16 +1,16 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import { useSession, signOut } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 import { User, LogOut, Mail, Shield, Camera } from "lucide-react"
 
 export function AccountScreen() {
-  const { data: session } = useSession()
+  const { user, signOut } = useTauriAuth()
   const [isEditingProfile, setIsEditingProfile] = useState(false)
 
-  const userName = session?.user?.name ?? "Unknown"
-  const userEmail = session?.user?.email ?? ""
-  const userAvatar = session?.user?.image
+  const userName = user?.name ?? "Unknown"
+  const userEmail = user?.email ?? ""
+  const userAvatar = user?.image
   const userInitial = userName.charAt(0).toUpperCase()
 
   const [displayName, setDisplayName] = useState(userName)
@@ -129,7 +129,7 @@ export function AccountScreen() {
 
         {/* Sign out */}
         <button
-          onClick={() => signOut()}
+          onClick={() => void signOut()}
           className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors cursor-pointer"
           style={{
             background: "rgba(245, 47, 18, 0.10)",

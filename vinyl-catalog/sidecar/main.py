@@ -13,6 +13,7 @@ from pathlib import Path
 
 from typing import Optional
 
+import uvicorn
 from fastapi import FastAPI, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -103,3 +104,7 @@ def ollama_models():
         return {"models": [], "error": "ollama timeout"}
     except Exception as e:
         return {"models": [], "error": str(e)}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning")

@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from "react"
 import { useVinylCatalog } from "../context"
-import { useSession } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
 import { X, Plus, Loader2, Music2, Link2, Sparkles, CheckCircle2 } from "lucide-react"
@@ -29,7 +29,7 @@ function parseDiscogsUrl(url: string): { id: string; type: "release" | "master" 
 
 export function ManualAddModal({ onClose }: ManualAddModalProps) {
   const { refreshCollection, setActiveScreen } = useVinylCatalog()
-  const { data: session } = useSession()
+  const { accessToken: token } = useTauriAuth()
 
   const [discogsUrl, setDiscogsUrl] = useState("")
   const [isFetching, setIsFetching] = useState(false)
@@ -58,10 +58,9 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
     }
     setIsFetching(true)
     try {
-      const token = (session as { accessToken?: string })?.accessToken
-      const data = (parsed.type === "master" 
-        ? await api.discogs.getMaster(parsed.id) 
-        : await api.discogs.getRelease(parsed.id, token)) as {
+      const data = (parsed.type === "master"
+        ? await api.discogs.getMaster(parsed.id)
+        : await api.discogs.getRelease(parsed.id, token ?? undefined)) as {
         id: string
         title: string
         artist: string
@@ -81,15 +80,13 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
       setFetchedDiscogsId(parsed.id)
       toast.success("Record info imported from Discogs")
 
-      // NEW: Automatically try to match with Spotify
+      // Automatically try to match with Spotify via Tauri command
       try {
+        const { invoke } = await import("@tauri-apps/api/core")
         const query = `${data.artist} - ${data.title}`
-        const spotRes = await fetch(`/api/spotify/search?q=${encodeURIComponent(query)}`)
-        if (spotRes.ok) {
-          const spotData = await spotRes.json()
-          setForm(prev => ({ ...prev, spotifyId: spotData.albumId }))
-          toast.success("Spotify match found!", { duration: 2000 })
-        }
+        const spotData = await invoke<{ albumId: string }>("spotify_search", { q: query })
+        setForm((prev) => ({ ...prev, spotifyId: spotData.albumId }))
+        toast.success("Spotify match found!", { duration: 2000 })
       } catch (spotErr) {
         console.warn("Spotify match failed (likely missing API keys)", spotErr)
       }
@@ -106,7 +103,6 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
     setIsSubmitting(true)
     try {
-      const token = (session as { accessToken?: string })?.accessToken
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
         artist: form.artist.trim(),
@@ -120,7 +116,7 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
         spotifyUrl: form.spotifyId ? `https://open.spotify.com/album/${form.spotifyId}` : null,
       }
       
-      await api.vinyls.create(payload, token)
+      await api.vinyls.create(payload, token ?? undefined)
       toast.success(`"${form.title}" added to your collection`)
       refreshCollection()
       setActiveScreen("collection")
