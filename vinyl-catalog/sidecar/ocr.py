@@ -1,23 +1,18 @@
 """
-OCR pipeline using EasyOCR.
-No camera access — operates on raw image bytes received from Electron renderer.
+OCR pipeline using RapidOCR (ONNX Runtime backend — no PyTorch).
+Models are downloaded on first run to ~/.cache/rapidocr/ (~15 MB).
 """
 
-import io
-import numpy as np
-from PIL import Image
+from rapidocr_onnxruntime import RapidOCR
 
-# Lazy-load reader to avoid slow startup on import
-_reader = None
+_ocr = None
 
 
-def _get_reader():
-    global _reader
-    if _reader is None:
-        import easyocr
-        # gpu=True: uses CUDA if available, silently falls back to CPU
-        _reader = easyocr.Reader(["en"], gpu=True, verbose=False)
-    return _reader
+def _get_ocr():
+    global _ocr
+    if _ocr is None:
+        _ocr = RapidOCR()
+    return _ocr
 
 
 def extract_text(image_bytes: bytes) -> dict:
@@ -26,17 +21,19 @@ def extract_text(image_bytes: bytes) -> dict:
     Returns: { text: str, confidence: float }
     """
     try:
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        reader = _get_reader()
-        results = reader.readtext(np.array(img))
-
-        if not results:
+        ocr = _get_ocr()
+        result, _ = ocr(image_bytes)
+        if not result:
             return {"text": "", "confidence": 0.0}
 
-        # results: [(bbox, text, confidence), ...]
-        text = " ".join(r[1] for r in results)
-        confidence = sum(r[2] for r in results) / len(results)
-        return {"text": text.strip(), "confidence": confidence}
+        # result is list of [box, text, confidence]
+        texts = [(text, conf) for _, text, conf in result if conf is not None]
+        if not texts:
+            return {"text": "", "confidence": 0.0}
+
+        all_text = " ".join(t for t, _ in texts)
+        avg_conf = sum(c for _, c in texts) / len(texts)
+        return {"text": all_text.strip(), "confidence": avg_conf}
     except Exception as e:
         print(f"[ocr] error: {e}")
         return {"text": "", "confidence": 0.0}

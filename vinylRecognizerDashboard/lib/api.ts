@@ -14,9 +14,6 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
 
   if (!response.ok) {
     const errorText = await response.text()
-    if (response.status === 401 && typeof window !== "undefined") {
-      import("next-auth/react").then(({ signOut }) => signOut({ callbackUrl: "/" }))
-    }
     throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`)
   }
 
@@ -45,9 +42,9 @@ export const api = {
     search: (q: string, token?: string) => fetchApi(`/api/discogs/search?q=${encodeURIComponent(q)}`, {}, token),
     getRelease: (id: number | string, token?: string) => fetchApi(`/api/discogs/release/${id}`, {}, token),
     getMaster: async (id: number | string) => {
-      const res = await fetch(`/api/discogs/master/${id}`)
-      if (!res.ok) throw new Error("Failed to fetch Master release from Discogs")
-      return res.json()
+      // Proxy via Tauri Rust command (avoids CORS, no API route needed)
+      const { invoke } = await import('@tauri-apps/api/core')
+      return invoke('discogs_get_master', { id: String(id) })
     },
     refreshPrices: (token?: string) => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }, token),
   }

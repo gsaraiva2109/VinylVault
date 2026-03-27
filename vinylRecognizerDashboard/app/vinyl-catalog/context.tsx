@@ -12,7 +12,7 @@ import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, C
 import { filterRecords, sortRecords } from "./data"
 import { api } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
-import { useSession, signOut } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 import { MOCK_RECORDS } from "./mock-data"
 
 const IS_DEV = process.env.NODE_ENV === "development"
@@ -83,7 +83,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   const [refreshTick, setRefreshTick] = useState(0)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const { data: session, status } = useSession()
+  const { accessToken: token, status, signOut } = useTauriAuth()
 
   const refreshCollection = useCallback(() => {
     setRefreshTick((prev) => prev + 1)
@@ -96,11 +96,10 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       return prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
     })
     if (!IS_DEV) {
-      const token = (session as { accessToken?: string })?.accessToken
       const numId = parseInt(id, 10)
       if (!isNaN(numId)) {
         try {
-          await api.vinyls.update(numId, patch as Record<string, unknown>, token)
+          await api.vinyls.update(numId, patch as Record<string, unknown>, token ?? undefined)
         } catch (err) {
           if (original) {
             const orig = original
@@ -110,13 +109,9 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [session])
+  }, [token])
 
-  useEffect(() => {
-    if ((session as { error?: string })?.error === "RefreshAccessTokenError") {
-      signOut({ callbackUrl: "/" })
-    }
-  }, [session])
+  // status goes "unauthenticated" when the Rust refresh fails; page.tsx will show login screen
 
   // Fetch active + trashed records
   useEffect(() => {
@@ -133,11 +128,9 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     setError(null)
 
-    const token = (session as { accessToken?: string })?.accessToken
-
     Promise.all([
-      api.vinyls.getAll(token),
-      api.vinyls.getTrash(token),
+      api.vinyls.getAll(token ?? undefined),
+      api.vinyls.getTrash(token ?? undefined),
     ])
       .then(([active, trashed]: [BackendVinyl[], BackendVinyl[]]) => {
         if (!cancelled) {
@@ -149,7 +142,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           const errorMessage = err instanceof Error ? err.message : "Failed to load collection"
           if (errorMessage.includes("401 Unauthorized")) {
-            signOut({ callbackUrl: "/" })
+            signOut()
           } else {
             setError(errorMessage)
           }
@@ -160,13 +153,12 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       })
 
     return () => { cancelled = true }
-  }, [session, status, refreshTick])
+  }, [token, status, refreshTick, signOut])
 
   // SSE connection for real-time sync across tabs/devices
   useEffect(() => {
     if (IS_DEV && USE_MOCK_DATA) return
 
-    const token = (session as { accessToken?: string })?.accessToken
     if (!token || status !== "authenticated") return
 
     const url = `${API_URL}/api/events?token=${encodeURIComponent(token)}`
@@ -214,7 +206,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
     }
 
     return () => es.close()
-  }, [session, status])
+  }, [token, status])
 
   // Soft-delete: moves to trash via API
   const deleteRecord = useCallback(async (id: string): Promise<void> => {
@@ -230,8 +222,8 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
 
     if (!(IS_DEV && USE_MOCK_DATA)) {
       try {
-        const token = (session as { accessToken?: string })?.accessToken
-        const updated = await api.vinyls.delete(numId, token) as BackendVinyl
+        // token comes from useTauriAuth above
+        const updated = await api.vinyls.delete(numId, token ?? undefined) as BackendVinyl
         // Sync with server response (has accurate deletedAt)
         if (updated) {
           setTrashedRecords((prev) =>
@@ -247,7 +239,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         throw err
       }
     }
-  }, [records, session])
+  }, [records, token])
 
   // Recover from trash via API
   const recoverRecord = useCallback(async (id: string): Promise<void> => {
@@ -263,8 +255,8 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
 
     if (!(IS_DEV && USE_MOCK_DATA)) {
       try {
-        const token = (session as { accessToken?: string })?.accessToken
-        const recovered = await api.vinyls.recover(numId, token) as BackendVinyl
+        // token comes from useTauriAuth above
+        const recovered = await api.vinyls.recover(numId, token ?? undefined) as BackendVinyl
         if (recovered) {
           setRecords((prev) =>
             prev.map((r) => r.id === id ? mapBackendVinyl(recovered) : r)
@@ -279,7 +271,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
         throw err
       }
     }
-  }, [trashedRecords, session])
+  }, [trashedRecords, token])
 
   // Permanent delete via API — removes the DB row entirely
   const permanentlyDeleteRecord = useCallback(async (id: string): Promise<void> => {
@@ -291,8 +283,8 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
 
     if (!(IS_DEV && USE_MOCK_DATA) && !isNaN(numId)) {
       try {
-        const token = (session as { accessToken?: string })?.accessToken
-        await api.vinyls.permanentlyDelete(numId, token)
+        // token comes from useTauriAuth above
+        await api.vinyls.permanentlyDelete(numId, token ?? undefined)
       } catch (err) {
         setIsDeleting(false)
         // Rollback
@@ -301,7 +293,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       }
     }
     setIsDeleting(false)
-  }, [session, refreshCollection])
+  }, [token, refreshCollection])
 
   const setFilters = useCallback((newFilters: FilterOptions) => {
     setFiltersState(newFilters)

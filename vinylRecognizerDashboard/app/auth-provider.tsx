@@ -1,8 +1,8 @@
 "use client"
 
-import { SessionProvider } from "next-auth/react"
+import { TauriAuthProvider } from "@/lib/tauri-auth"
 import type { ReactNode } from "react"
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>
+  return <TauriAuthProvider>{children}</TauriAuthProvider>
 }

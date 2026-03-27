@@ -1,0 +1,66 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Vinyl Catalog",
+  "version": "0.1.0",
+  "identifier": "com.gsaraiva2109.vinyl-catalog",
+  "build": {
+    "frontendDist": "../vinylRecognizerDashboard/out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "cd ../vinylRecognizerDashboard && pnpm dev --turbopack",
+    "beforeBuildCommand": "cd ../vinylRecognizerDashboard && pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Vinyl Catalog",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' http://localhost:3000; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' http://localhost:3000 http://localhost:8765 http://localhost:3001 https: ipc: http://ipc.localhost ws://localhost:3000"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "appimage": {}
+    },
+    "macOS": {
+      "hardenedRuntime": true
+    },
+    "publisher": "gsaraiva2109",
+    "category": "Music",
+    "externalBin": ["binaries/sidecar"]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["vinylapp"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNEQ5NTdCRUExMkI3QUEKUldTcXR4THFlNVZOVTVNWjBha2kwMjNpbUhNNGphZXd5Nm1MN29GcFdSZStkcjVEQXFtK25JQWcK",
+      "endpoints": [
+        "https://github.com/gsaraiva2109/vinyl-catalog/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

@@ -2,13 +2,18 @@ node_modules/
 out/
 dist/
 .env
+src-tauri/.env
 *.local
 
 # Python
 __pycache__/
 *.pyc
 sidecar/.venv/
+sidecar/.venv313/
+sidecar/build/
+sidecar/dist/
 sidecar/settings.json
+src-tauri/binaries/
 
 # Backend build
 backend/dist/

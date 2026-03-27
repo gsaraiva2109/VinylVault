@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
-easyocr
+python-multipart
+rapidocr-onnxruntime
 pillow
 numpy
 openai
