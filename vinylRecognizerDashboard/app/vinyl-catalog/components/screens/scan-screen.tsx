@@ -451,6 +451,7 @@ function SuccessPanel({
         condition: record.condition,
         coverImageUrl: record.coverUrl,
         discogsId: record.discogs?.releaseId ? String(record.discogs.releaseId) : null,
+        discogsUrl: record.discogsUrl || null,
         spotifyUrl: record.spotify?.albumId ? `https://open.spotify.com/album/${record.spotify.albumId}` : null,
       }
       console.log("Confirming vinyl with payload:", payload)
@@ -550,7 +551,7 @@ function SuccessPanel({
 
           {record.discogs && (
             <a
-              href={`https://www.discogs.com/release/${record.discogs.releaseId}`}
+              href={record.discogsUrl || `https://www.discogs.com/release/${record.discogs.releaseId}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"

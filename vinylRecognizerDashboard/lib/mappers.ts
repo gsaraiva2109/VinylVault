@@ -17,6 +17,7 @@ export interface BackendVinyl {
   spotifyUrl: string | null
   addedBy: string | null
   addedByAvatar: string | null
+  discogsUrl: string | null
   deletedAt?: number | null
   isDeleted?: boolean
 }
@@ -50,6 +51,7 @@ export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
     deletedAt: raw.deletedAt ?? null,
     addedBy: raw.addedBy ?? undefined,
     addedByAvatar: raw.addedByAvatar ?? undefined,
+    discogsUrl: raw.discogsUrl ?? undefined,
     discogs: raw.discogsId
       ? {
           releaseId: String(raw.discogsId),
