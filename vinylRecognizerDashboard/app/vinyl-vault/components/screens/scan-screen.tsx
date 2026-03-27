@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useVinylCatalog } from "../../context"
+import { useVinylVault } from "../../context"
 import { useRecognition } from "../../../../hooks/use-recognition"
 import { ConditionBadge } from "../condition-badge"
 import { ManualAddModal } from "../manual-add-modal"
@@ -304,7 +304,7 @@ function WebEmptyState({ onManualAdd }: { onManualAdd: () => void }) {
       </p>
       <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
         <a
-          href="https://github.com/gsaraiva2109/vinyl-catalog"
+          href="https://github.com/gsaraiva2109/vinyl-vault"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-semibold transition-colors cursor-pointer"
@@ -432,7 +432,7 @@ function SuccessPanel({
   onReset: () => void
   onCloudAI: () => void
 }) {
-  const { refreshCollection, setActiveScreen } = useVinylCatalog()
+  const { refreshCollection, setActiveScreen } = useVinylVault()
   const { accessToken: token } = useTauriAuth()
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)

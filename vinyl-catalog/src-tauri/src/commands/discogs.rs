@@ -41,7 +41,7 @@ pub async fn discogs_get_master(id: String) -> Result<DiscogsMaster, String> {
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
-        .header("User-Agent", "VinylCatalog/1.0")
+        .header("User-Agent", "VinylVault/1.0")
         .send()
         .await
         .map_err(|e| e.to_string())?;

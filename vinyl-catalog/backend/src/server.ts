@@ -1,7 +1,11 @@
 import 'dotenv/config'
+import { join } from 'path'
 import express from 'express'
 import cors from 'cors'
 import cron from 'node-cron'
+import postgres from 'postgres'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { authMiddleware } from './middleware/auth'
 import vinylsRouter from './routes/vinyls'
 import collectionRouter from './routes/collection'
@@ -18,7 +22,7 @@ app.use(cors())
 app.use(express.json())
 
 // Health check (no auth)
-app.get('/', (_req, res) => res.json({ service: 'vinyl-catalog-api', status: 'ok' }))
+app.get('/', (_req, res) => res.json({ service: 'vinyl-vault-api', status: 'ok' }))
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // Auth-protected API routes
@@ -55,6 +59,26 @@ cron.schedule('0 3 * * *', () => {
   refreshStalePrices().catch((err) => console.error('[cron] price refresh error:', err))
 })
 
-app.listen(PORT, () => {
-  console.log(`[server] listening on http://localhost:${PORT}`)
-})
+async function main() {
+  // Run migrations before accepting traffic — exit hard on failure so the
+  // container restarts rather than serving requests against a stale schema.
+  const migrationClient = postgres(process.env.DATABASE_URL!)
+  try {
+    console.log('[migrate] running migrations…')
+    await migrate(drizzle(migrationClient), {
+      migrationsFolder: join(__dirname, '../drizzle'),
+    })
+    console.log('[migrate] done')
+  } catch (err) {
+    console.error('[migrate] failed:', err)
+    process.exit(1)
+  } finally {
+    await migrationClient.end()
+  }
+
+  app.listen(PORT, () => {
+    console.log(`[server] listening on http://localhost:${PORT}`)
+  })
+}
+
+main()

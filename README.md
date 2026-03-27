@@ -1,77 +1,127 @@
-# Vinyl Catalog
+# VinylVault
 
-A self-hosted app for cataloging vinyl record collections with AI-powered recognition, Discogs metadata, and collection value tracking.
+A self-hosted app for cataloging vinyl record collections with OCR-powered recognition, Discogs metadata, and collection value tracking.
 
-Built as a personal project for two people sharing one collection across two machines — an Arch Linux laptop and a MacBook Air M1. Runs entirely on a homelab; no external services required beyond Discogs.
+Built as a personal project for two people sharing one collection across two machines — an Arch Linux desktop and a MacBook Air M1. Runs entirely on a homelab; no external services required beyond Discogs.
 
 ## How it works
 
 - Scan a vinyl cover → OCR extracts text → Discogs search returns metadata and pricing
-- Low-confidence scans fall back to a local or cloud vision LLM
+- Linux uses a Python/FastAPI sidecar (EasyOCR + LLM fallback); macOS uses native Vision.framework
 - Collection stored in PostgreSQL on the homelab, accessible from any device
-- Available as a web app (browser) and a native desktop shell (Electron)
-
-The desktop app follows the Discord pattern: the Electron shell is a thin native wrapper that loads the hosted web frontend at `https://vinyl.gsaraiva.com.br`. There is no bundled UI — both the browser and the Electron app hit the same deployment.
-
-## Architecture
-
-```
-vinyl-catalog/
-  backend/            Node.js + Express + TypeScript API
-                      Drizzle ORM → PostgreSQL
-
-vinylRecognizerDashboard/
-                      Next.js 15 frontend (served from homelab)
-                      Loaded by both browser and Electron shell
-
-recognizer/           Python FastAPI sidecar
-                      EasyOCR → Discogs · LLM fallback (Ollama / OpenAI / Gemini)
-
-docker-compose.yml    Single Dokploy deployment (api + web + postgres)
-```
-
-### Network diagram
-
-```
-Internet
-  └─► Traefik (HTTPS, Dokploy)
-        ├─► web  (Next.js :3000)   vinyl.gsaraiva.com.br
-        └─► api  (Express :3001)   vinyl.gsaraiva.com.br/api
-
-Docker internal network (never exposed)
-  └─► postgres :5432
-
-Electron shell (desktop)
-  └─► loadURL('https://vinyl.gsaraiva.com.br')
-      Same auth flow as browser — standard cookies / OIDC session
-```
+- Available as a web app (browser) and a native desktop app (Tauri v2)
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 15, React 19, Tailwind CSS, shadcn/ui |
+| Frontend | Next.js 15, React 19, Tailwind CSS |
 | Backend API | Node.js, Express, TypeScript, Drizzle ORM |
-| Database | PostgreSQL 16 (Docker, internal-only) |
-| Auth | Authentik OIDC — standard browser session |
-| Recognition sidecar | Python, FastAPI, EasyOCR, Ollama / OpenAI / Gemini |
-| Desktop shell | Electron (thin wrapper, loads hosted URL) |
+| Database | PostgreSQL 16 (Docker, internal network only) |
+| Auth | Authentik OIDC (system browser flow via Tauri) |
+| OCR — Linux | Python FastAPI sidecar, EasyOCR, Ollama / OpenAI / Gemini fallback |
+| OCR — macOS | Native Vision.framework via Rust FFI |
+| Desktop | Tauri v2 (bundles the Next.js frontend as a static export) |
 | Deployment | Docker Compose, Dokploy, Traefik |
 
-## Homelab Requirements
+## Repository layout
 
-- Docker and Docker Compose
-- Dokploy (or any Docker host with Traefik)
-- An Authentik instance (or any OIDC provider)
-- A domain pointed at your homelab
+```
+vinyl-catalog/
+  backend/            Node.js + Express + TypeScript API
+                      Drizzle ORM → PostgreSQL
+                      Migrations run on startup (no CI/CD DB access)
+  src-tauri/          Rust — Tauri v2 shell, OCR commands, OIDC auth
+  sidecar/            Python FastAPI OCR sidecar (Linux only)
+
+vinylRecognizerDashboard/
+                      Next.js 15 frontend
+                      Served as a Docker web app AND bundled into the Tauri binary
+```
+
+## Network diagram
+
+```
+Internet
+  └─► Traefik (HTTPS, Dokploy)
+        ├─► vinyl-vault-web  (Next.js :3000)   vinyl.gsaraiva.com.br
+        └─► vinyl-vault-api  (Express :3001)   api-vinyl.gsaraiva.com.br
+
+Docker internal network (never exposed)
+  └─► postgres :5432
+
+Tauri desktop app
+  └─► embeds the Next.js frontend as a static export (out/)
+      OCR commands call the Python sidecar (Linux) or Vision.framework (macOS)
+      Auth uses Authentik OIDC via the system browser
+```
+
+## CI/CD Architecture
+
+VinylVault uses a **two-platform CI/CD** strategy:
+
+| Platform | Role |
+|---|---|
+| **Forgejo** (`git.gsaraiva.com.br`) | Primary remote. Runs quality gates, Docker image builds, Linux AppImage compilation. Mirrors to GitHub only after passing. |
+| **GitHub** | macOS builds only. `release-macos.yml` triggers on `v*` tags mirrored from Forgejo, compiles the `.dmg` using the macOS SDK (Vision.framework). |
+
+### Flow for a regular commit
+
+```
+git push → Forgejo
+  ├─ quality-gate    (lint, typecheck, cargo check)
+  ├─ docker builds   (vinyl-vault-api + vinyl-vault-web → GHCR)
+  ├─ AppImage build  (Linux Tauri)
+  └─ push-to-github  (mirrors main branch to GitHub — no GitHub CI triggered)
+```
+
+### Flow for a release tag (`v*`)
+
+```
+git push --tags → Forgejo
+  ├─ quality-gate
+  ├─ docker builds   (tagged: v1.2.3, latest)
+  ├─ AppImage build  (artifact stored on Forgejo)
+  └─ push-to-github  → mirrors tag to GitHub
+                           └─ GitHub: release-macos.yml
+                                └─ builds .dmg → GitHub Release
+```
+
+### Required Forgejo secrets & variables
+
+| Key | Type | Value |
+|---|---|---|
+| `MIRROR_TOKEN` | Secret | GitHub PAT with `repo` scope |
+| `GHCR_TOKEN` | Secret | GitHub PAT with `write:packages` scope |
+| `NEXT_PUBLIC_API_URL` | Secret | `https://api-vinyl.gsaraiva.com.br` |
+| `AUTHENTIK_ISSUER` | Secret | Your Authentik issuer URL |
+| `AUTHENTIK_CLIENT_ID` | Secret | Authentik client ID |
+| `AUTHENTIK_CLIENT_SECRET` | Secret | Authentik client secret |
+| `TAURI_SIGNING_PRIVATE_KEY` | Secret | Tauri updater signing key |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Secret | Signing key password |
+| `GHCR_OWNER` | Variable | `gsaraiva2109` |
+| `MIRROR_REPO` | Variable | `gsaraiva2109/vinylvault` |
+
+## How to push code
+
+```bash
+# Set Forgejo as your primary remote (if not already)
+git remote add origin https://git.gsaraiva.com.br/gsaraiva2109/vinylvault.git
+
+# Regular push — quality gate + Docker builds + Linux AppImage + mirror to GitHub
+git push origin main
+
+# Release — same as above, plus GitHub builds the macOS .dmg
+git tag v1.0.0 && git push origin v1.0.0
+```
 
 ## Deployment
 
-### 1. Clone the repository
+### 1. Clone from Forgejo
 
 ```bash
-git clone https://github.com/gsaraiva2109/vinyl-catalog.git
-cd vinyl-catalog
+git clone https://git.gsaraiva.com.br/gsaraiva2109/vinylvault.git
+cd vinylvault
 ```
 
 ### 2. Configure environment
@@ -80,39 +130,42 @@ cd vinyl-catalog
 cp .env.example .env
 ```
 
-Fill in `.env`:
+Fill in `.env` — see comments in the file. Key values:
 
-```env
-DOMAIN=vinyl.gsaraiva.com.br
-POSTGRES_PASSWORD=your_strong_password
-
-AUTHENTIK_JWKS_URL=https://auth.gsaraiva.com.br/application/o/vinyl-catalog/jwks/
-AUTHENTIK_ISSUER=https://auth.gsaraiva.com.br/application/o/vinyl-catalog/
-
-DISCOGS_TOKEN=your_discogs_personal_access_token
-```
-
-Get your Discogs token at [discogs.com/settings/developers](https://www.discogs.com/settings/developers).
+- `POSTGRES_PASSWORD` — pick a strong random password
+- `AUTHENTIK_*` — from your Authentik OAuth2/OIDC application
+- `DISCOGS_TOKEN` — from [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
 
 ### 3. Set up Authentik
 
-Create a provider in Authentik (OAuth2/OIDC) and an application pointing at it:
+Create an OAuth2/OIDC **Provider** and **Application** in Authentik:
 
-- **Redirect URIs:** `https://vinyl.gsaraiva.com.br/api/auth/callback`
-- **Signing key:** use the default RS256 key
-- Copy the JWKS URL and issuer into `.env`
+- **Application slug:** `vinyl-vault`
+- **Redirect URIs (desktop):** `http://127.0.0.1:49152/callback` (Tauri local server)
+- **Redirect URIs (web):** `https://vinyl.yourdomain.com/api/auth/callback`
+- **Signing key:** default RS256
 
-### 4. Deploy
-
-In Dokploy, create a new **Compose** application pointing at this repository. Dokploy will pick up the Traefik labels automatically and provision TLS via Let's Encrypt.
-
-Or run locally:
-
-```bash
-docker compose up -d
+The JWKS URL and issuer will be:
+```
+https://auth.yourdomain.com/application/o/vinyl-vault/jwks/
+https://auth.yourdomain.com/application/o/vinyl-vault/
 ```
 
-Database migrations run automatically on container start. PostgreSQL data is persisted in the `pgdata` Docker volume.
+### 4. Deploy via Dokploy
+
+Create two **Compose** apps in Dokploy:
+- **API:** points to `vinyl-catalog/backend/docker-compose.yml`
+- **Web:** points to `vinylRecognizerDashboard/docker-compose.yml`
+
+Dokploy picks up Traefik labels and provisions TLS via Let's Encrypt. Redeployment is triggered by Dokploy webhooks (configure the webhook URLs from Dokploy in your deployment pipeline).
+
+Database migrations run automatically on API container startup — no manual step required.
+
+### Or run locally
+
+```bash
+docker compose -f vinyl-catalog/backend/docker-compose.yml up -d
+```
 
 ## Local Development
 
@@ -121,60 +174,29 @@ Database migrations run automatically on container start. PostgreSQL data is per
 ```bash
 cd vinyl-catalog/backend
 npm install
-cp .env.example .env          # set DATABASE_URL to a local postgres instance
-npm run dev                   # starts on http://localhost:3001
+cp .env.example .env   # set DATABASE_URL to a local postgres
+npm run dev            # http://localhost:3001
 ```
 
-### Frontend
+### Frontend (web)
 
 ```bash
 cd vinylRecognizerDashboard
 pnpm install
-pnpm dev                      # starts on http://localhost:3000
+pnpm dev               # http://localhost:3000
 ```
 
 Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `vinylRecognizerDashboard/.env.local`.
 
-### Recognition sidecar
+### Desktop (Tauri)
 
 ```bash
-cd recognizer
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py                 # starts on http://localhost:8765
-```
-
-Ollama is optional. If not installed, local LLM mode is unavailable — the app shows a banner with a download link.
-
-## Recognition Pipeline
-
-When a vinyl cover is scanned:
-
-1. **EasyOCR** extracts text from the image
-2. If confidence ≥ threshold → search Discogs directly
-3. If confidence < threshold → LLM fallback:
-   - **Local:** Ollama (multimodal model, e.g. `llava`)
-   - **Cloud:** OpenAI GPT-4o or Google Gemini
-   - **Hybrid:** tries Ollama first, falls back to cloud
-
-The active LLM mode and confidence threshold are configurable per device in the app's Settings screen.
-
-## Desktop App (Electron)
-
-The Electron shell is intentionally minimal — it provides the native window, system tray, and auto-updater. The UI is the hosted web app.
-
-```bash
-# Development (loads http://localhost:3000)
 cd vinyl-catalog
-pnpm dev
-
-# Build
-pnpm build:linux   # AppImage
-pnpm build:mac     # dmg
+pnpm install
+pnpm dev               # starts Tauri dev window (loads http://localhost:3000)
 ```
 
-Auto-updates are served via GitHub Releases.
+The Python OCR sidecar (Linux) starts automatically. On macOS, Vision.framework is used natively.
 
 ## License
 

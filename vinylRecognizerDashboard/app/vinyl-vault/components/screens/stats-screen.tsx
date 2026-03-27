@@ -1,6 +1,6 @@
 "use client"
 
-import { useVinylCatalog } from "../../context"
+import { useVinylVault } from "../../context"
 import { getCollectionStats } from "../../data"
 import { ConditionBadge } from "../condition-badge"
 import { useTauriAuth } from "@/lib/tauri-auth"
@@ -20,7 +20,7 @@ import {
 import type { Condition } from "../../types"
 
 export function StatsScreen() {
-  const { activeRecords, refreshCollection } = useVinylCatalog()
+  const { activeRecords, refreshCollection } = useVinylVault()
   const stats = getCollectionStats(activeRecords)
   const { accessToken: token } = useTauriAuth()
   const [isRefreshing, setIsRefreshing] = useState(false)

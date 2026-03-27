@@ -1,8 +1,8 @@
 "use client"
 
-import { VinylCatalogProvider } from "./vinyl-catalog/context"
-import { AppShell } from "./vinyl-catalog/components/app-shell"
-import { ErrorBoundary } from "./vinyl-catalog/components/error-boundary"
+import { VinylVaultProvider } from "./vinyl-vault/context"
+import { AppShell } from "./vinyl-vault/components/app-shell"
+import { ErrorBoundary } from "./vinyl-vault/components/error-boundary"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { Disc3, LogIn, Loader2 } from "lucide-react"
 
@@ -20,7 +20,7 @@ function LoginScreen() {
         >
           <Disc3 className="h-10 w-10" style={{ color: "#28d768" }} />
         </div>
-        <h1 className="text-2xl font-bold text-white/90">Vinyl Catalog</h1>
+        <h1 className="text-2xl font-bold text-white/90">Vinyl Vault</h1>
         <p className="text-sm text-white/40">Sign in to access your collection</p>
       </div>
       <button
@@ -61,11 +61,11 @@ export default function HomePage() {
 
   return (
     <ErrorBoundary>
-      <VinylCatalogProvider>
+      <VinylVaultProvider>
         <div className="flex h-screen overflow-hidden bg-background">
           <AppShell />
         </div>
-      </VinylCatalogProvider>
+      </VinylVaultProvider>
     </ErrorBoundary>
   )
 }

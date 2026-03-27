@@ -153,7 +153,7 @@ async fn run_callback_server(
 
     // Respond so the browser tab shows a friendly message and can be closed
     let body = "<html><body style='font-family:sans-serif;text-align:center;margin-top:20vh'>\
-        <h2>Authorised ✓</h2><p>You can close this tab and return to Vinyl Catalog.</p>\
+        <h2>Authorised ✓</h2><p>You can close this tab and return to Vinyl Vault.</p>\
         </body></html>";
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",

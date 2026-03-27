@@ -1,6 +1,6 @@
 services:
-  vinyl-catalog-api:
-    image: ghcr.io/gsaraiva2109/vinyl-catalog-api:latest
+  vinyl-vault-api:
+    image: ghcr.io/gsaraiva2109/vinyl-vault-api:latest
     pull_policy: always
     restart: unless-stopped
     depends_on:

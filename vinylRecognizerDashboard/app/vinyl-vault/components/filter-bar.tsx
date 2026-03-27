@@ -1,6 +1,6 @@
 "use client"
 
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { getCollectionStats } from "../data"
 import { ChevronDown, ArrowUpDown, Grid3X3, List, X } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
@@ -17,7 +17,7 @@ export function FilterBar() {
     clearFilters,
     viewMode,
     setViewMode,
-  } = useVinylCatalog()
+  } = useVinylVault()
 
   const stats = getCollectionStats(records)
   const genres = Object.keys(stats.byGenre).sort()

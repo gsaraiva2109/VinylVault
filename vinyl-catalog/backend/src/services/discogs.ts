@@ -3,7 +3,7 @@ import { eq, and, isNull, isNotNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '../db'
 
 const DISCOGS_BASE = 'https://api.discogs.com'
-const USER_AGENT = 'VinylCatalogApp/0.1 +https://github.com/yourusername/vinyl-catalog'
+const USER_AGENT = 'VinylVaultApp/0.1 +https://github.com/gsaraiva2109/VinylVault'
 
 export function discogsGet(path: string): Promise<unknown> {
   const token = process.env.DISCOGS_TOKEN

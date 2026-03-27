@@ -1,6 +1,6 @@
 use keyring::Entry;
 
-const SERVICE: &str = "vinyl-catalog";
+const SERVICE: &str = "vinyl-vault";
 
 fn entry(provider: &str) -> Result<Entry, String> {
     Entry::new(SERVICE, &format!("{}-api-key", provider)).map_err(|e| e.to_string())

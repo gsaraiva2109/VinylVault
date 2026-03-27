@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Disc3, ScanLine, BarChart3, Settings, ChevronLeft, ChevronRight } from "lucide-react"
 import { useState } from "react"
 
@@ -13,7 +13,7 @@ const navItems = [
 ]
 
 export function Sidebar() {
-  const { activeScreen, setActiveScreen, records } = useVinylCatalog()
+  const { activeScreen, setActiveScreen, records } = useVinylVault()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   return (

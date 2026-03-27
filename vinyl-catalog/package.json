@@ -1,9 +1,9 @@
 {
-  "name": "vinyl-catalog",
+  "name": "vinyl-vault",
   "version": "0.1.0",
-  "description": "Vinyl record catalog — Tauri desktop app",
+  "description": "VinylVault — Tauri desktop app",
   "author": "gsaraiva2109",
-  "repository": "https://github.com/gsaraiva2109/vinylRecognizerDashboard",
+  "repository": "https://github.com/gsaraiva2109/vinylvault",
   "scripts": {
     "dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri dev",
     "vite": "vite",
