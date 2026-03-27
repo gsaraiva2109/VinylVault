@@ -116,6 +116,7 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
         coverImageUrl: form.coverUrl.trim() || null,
         notes: form.notes.trim() || null,
         discogsId: fetchedDiscogsId ? String(fetchedDiscogsId) : null,
+        discogsUrl: discogsUrl.trim() || null,
         spotifyUrl: form.spotifyId ? `https://open.spotify.com/album/${form.spotifyId}` : null,
       }
       
