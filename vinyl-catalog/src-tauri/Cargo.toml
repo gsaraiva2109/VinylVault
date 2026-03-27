@@ -1,0 +1,45 @@
+[package]
+name = "vinyl-catalog"
+version = "0.1.0"
+description = "Vinyl Catalog — Tauri desktop app"
+authors = ["gsaraiva2109"]
+license = ""
+repository = "https://github.com/gsaraiva2109/vinylRecognizerDashboard"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri            = { version = "2", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-shell    = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-updater  = "2"
+tauri-plugin-process  = "2"
+
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+log        = "0.4"
+tokio      = { version = "1", features = ["full"] }
+reqwest    = { version = "0.12", features = ["json", "multipart"] }
+keyring    = { version = "3", features = ["linux-native"] }
+openidconnect = "3"
+url        = "2"
+base64     = "0.22"
+urlencoding = "2"
+
+# Linux: webkit2gtk for camera permission handler
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2", features = ["v2_22"] }
+
+# macOS Vision.framework OCR
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-vision     = "0.3"
+objc2-foundation = "0.3"
+objc2-core-image = "0.3"

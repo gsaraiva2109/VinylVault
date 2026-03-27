@@ -1,9 +1,8 @@
 import { useState, useCallback } from "react"
 import type { VinylRecord, ScanState } from "../app/vinyl-catalog/types"
 import { api } from "@/lib/api"
-import { useSession } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 
-// Types for the Electron bridge
 interface RecognitionResult {
   artist: string
   album: string
@@ -11,28 +10,12 @@ interface RecognitionResult {
   source: string
 }
 
-declare global {
-  interface Window {
-    vinylApp?: {
-      recognize: (buffer: ArrayBuffer) => Promise<RecognitionResult>
-    }
-  }
-}
-
 export function useRecognition() {
   const [state, setState] = useState<ScanState>({ status: "idle" })
-  const { data: session } = useSession()
+  const { accessToken: token } = useTauriAuth()
 
   const captureAndRecognize = useCallback(
     async (videoElement: HTMLVideoElement) => {
-      if (!window.vinylApp) {
-        setState({
-          status: "error",
-          errorMessage: "Electron recognition bridge not found.",
-        })
-        return
-      }
-
       setState({ status: "scanning" })
       try {
         // 1. Capture frame from video to canvas
@@ -52,17 +35,18 @@ export function useRecognition() {
 
         const buffer = await blob.arrayBuffer()
 
-        // 2. Call local Python sidecar via Electron bridge
-        const recognition = await window.vinylApp.recognize(buffer)
-        
+        // 2. Call Tauri recognize command (Rust sidecar on Linux, Vision on macOS)
+        const { invoke } = await import("@tauri-apps/api/core")
+        const imageData = Array.from(new Uint8Array(buffer))
+        const recognition = await invoke<RecognitionResult>("recognize", { imageData })
+
         // 3. Search Discogs using the identified artist/album
         const query = `${recognition.artist} ${recognition.album}`.trim()
         if (!query) {
           throw new Error("Could not identify any text on the album cover.")
         }
 
-        const token = (session as { accessToken?: string })?.accessToken
-        const searchResults = await api.discogs.search(query, token)
+        const searchResults = await api.discogs.search(query, token ?? undefined)
 
         if (!searchResults || searchResults.length === 0) {
           throw new Error(`No records found on Discogs for "${query}"`)
@@ -76,7 +60,7 @@ export function useRecognition() {
           artist: bestMatch.artist || bestMatch.title.split(" - ")[0] || "Unknown Artist",
           year: bestMatch.year || new Date().getFullYear(),
           genre: bestMatch.genre || "Unknown",
-          condition: "VG", // Default for new scans
+          condition: "VG",
           coverUrl: bestMatch.coverImage || "",
           dateAdded: new Date().toISOString().split("T")[0],
           discogs: {
@@ -92,7 +76,7 @@ export function useRecognition() {
         })
       }
     },
-    [session]
+    [token]
   )
 
   const reset = useCallback(() => setState({ status: "idle" }), [])

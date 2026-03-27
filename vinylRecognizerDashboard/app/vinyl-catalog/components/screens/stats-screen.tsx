@@ -3,7 +3,7 @@
 import { useVinylCatalog } from "../../context"
 import { getCollectionStats } from "../../data"
 import { ConditionBadge } from "../condition-badge"
-import { useSession } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 import { useState } from "react"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
@@ -22,14 +22,13 @@ import type { Condition } from "../../types"
 export function StatsScreen() {
   const { activeRecords, refreshCollection } = useVinylCatalog()
   const stats = getCollectionStats(activeRecords)
-  const { data: session } = useSession()
+  const { accessToken: token } = useTauriAuth()
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefreshPrices = async () => {
     setIsRefreshing(true)
     try {
-      const token = (session as { accessToken?: string })?.accessToken
-      await api.discogs.refreshPrices(token)
+      await api.discogs.refreshPrices(token ?? undefined)
       toast.success("Price refresh started. Updates may take a few minutes.")
       refreshCollection()
     } catch (err) {

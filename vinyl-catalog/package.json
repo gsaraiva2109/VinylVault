@@ -1,53 +1,49 @@
 {
   "name": "vinyl-catalog",
   "version": "0.1.0",
-  "description": "Vinyl record catalog — Electron desktop app",
+  "description": "Vinyl record catalog — Tauri desktop app",
   "author": "gsaraiva2109",
   "repository": "https://github.com/gsaraiva2109/vinylRecognizerDashboard",
-  "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "build:linux": "electron-vite build && electron-builder --linux",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "preview": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri dev",
+    "vite": "vite",
+    "build": "vite build",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:mac": "tauri build --target aarch64-apple-darwin",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "better-sqlite3": "^12.8.0",
-    "drizzle-orm": "^0.41.0",
-    "electron-updater": "^6.8.3",
-    "form-data": "^4.0.5",
-    "got": "^12.6.1",
-    "keytar": "^7.9.0",
-    "openid-client": "^5.7.1"
+    "drizzle-orm": "^0.41.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
-      "electron",
-      "esbuild",
-      "keytar"
+      "esbuild"
     ]
   },
   "devDependencies": {
-    "@electron-toolkit/tsconfig": "^1.0.1",
-    "@electron-toolkit/utils": "^3.0.0",
+    "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-query": "^5.95.0",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/form-data": "^2.5.2",
     "@types/node": "^22.19.15",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.27",
     "drizzle-kit": "^0.30.6",
-    "electron": "^35.7.5",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^3.1.0",
+    "postcss": "^8.5.8",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "vite": "^6.4.1"
   }

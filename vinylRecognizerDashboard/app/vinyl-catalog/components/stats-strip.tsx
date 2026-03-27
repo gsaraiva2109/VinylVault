@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useVinylCatalog } from "../context"
 import { Disc3, Search, X } from "lucide-react"
-import { useSession } from "next-auth/react"
+import { useTauriAuth } from "@/lib/tauri-auth"
 
 interface StatsStripProps {
   onSearchOpen: () => void
@@ -12,7 +12,7 @@ interface StatsStripProps {
 
 export function StatsStrip({ onSearchOpen }: StatsStripProps) {
   const { activeRecords, activeScreen, filters, setFilters, setActiveScreen } = useVinylCatalog()
-  const { data: session } = useSession()
+  const { user } = useTauriAuth()
   const inputRef = useRef<HTMLInputElement>(null)
 
   const stats = useMemo(() => {
@@ -33,9 +33,9 @@ export function StatsStrip({ onSearchOpen }: StatsStripProps) {
   const fmtValue = (v: number) =>
     v > 0 ? `$${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"
 
-  const userName = session?.user?.name ?? session?.user?.email?.split("@")[0] ?? "You"
+  const userName = user?.name ?? user?.email?.split("@")[0] ?? "You"
   const userInitial = userName.charAt(0).toUpperCase()
-  const userAvatar = session?.user?.image
+  const userAvatar = user?.image
 
   const isCollection = activeScreen === "collection"
   const searchQuery = filters.searchQuery ?? ""
