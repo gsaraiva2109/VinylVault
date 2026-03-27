@@ -15,6 +15,7 @@ export interface VinylRecord {
   deletedAt?: number | null  // unix ms — present only for trashed records
   addedBy?: string
   addedByAvatar?: string
+  discogsUrl?: string
   discogs?: {
     releaseId: string
     value?: number

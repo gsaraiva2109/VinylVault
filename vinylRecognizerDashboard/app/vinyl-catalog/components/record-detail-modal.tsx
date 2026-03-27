@@ -301,9 +301,9 @@ export function RecordDetailModal() {
 
                 {/* External Links */}
                 <div className="mt-6 flex flex-wrap gap-3">
-                  {selectedRecord.discogs && (
+                  {(selectedRecord.discogs || selectedRecord.discogsUrl) && (
                     <a
-                      href={`https://www.discogs.com/release/${selectedRecord.discogs.releaseId}`}
+                      href={selectedRecord.discogsUrl || `https://www.discogs.com/release/${selectedRecord.discogs?.releaseId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
