@@ -1,7 +1,7 @@
 {
-  "name": "vinyl-catalog-backend",
+  "name": "vinyl-vault-backend",
   "version": "0.1.0",
-  "description": "Vinyl Catalog homelab backend API",
+  "description": "VinylVault homelab backend API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

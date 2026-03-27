@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Disc3, Search, X } from "lucide-react"
 import { useTauriAuth } from "@/lib/tauri-auth"
 
@@ -11,7 +11,7 @@ interface StatsStripProps {
 }
 
 export function StatsStrip({ onSearchOpen }: StatsStripProps) {
-  const { activeRecords, activeScreen, filters, setFilters, setActiveScreen } = useVinylCatalog()
+  const { activeRecords, activeScreen, filters, setFilters, setActiveScreen } = useVinylVault()
   const { user } = useTauriAuth()
   const inputRef = useRef<HTMLInputElement>(null)
 

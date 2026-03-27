@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useState, useCallback, type ElementType } from "react"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Disc3, ScanLine, BarChart3, Settings, User } from "lucide-react"
 
 type Screen = "collection" | "scan" | "stats" | "settings" | "account"
@@ -21,7 +21,7 @@ interface IndicatorStyle {
 }
 
 export function BottomDock() {
-  const { activeScreen, setActiveScreen } = useVinylCatalog()
+  const { activeScreen, setActiveScreen } = useVinylVault()
 
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
   const prevScreenRef = useRef<Screen>(activeScreen)

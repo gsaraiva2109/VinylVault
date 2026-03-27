@@ -1,6 +1,6 @@
 services:
-  vinyl-catalog-web:
-    image: ghcr.io/gsaraiva2109/vinyl-catalog-web:latest
+  vinyl-vault-web:
+    image: ghcr.io/gsaraiva2109/vinyl-vault-web:latest
     pull_policy: always
     restart: unless-stopped
     environment:

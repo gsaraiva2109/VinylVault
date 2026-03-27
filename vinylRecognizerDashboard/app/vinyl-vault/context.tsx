@@ -19,7 +19,7 @@ const IS_DEV = process.env.NODE_ENV === "development"
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
-interface VinylCatalogContextType {
+interface VinylVaultContextType {
   // Records
   records: VinylRecord[]
   activeRecords: VinylRecord[]
@@ -65,9 +65,9 @@ interface VinylCatalogContextType {
   trashedRecords: VinylRecord[]
 }
 
-const VinylCatalogContext = createContext<VinylCatalogContextType | undefined>(undefined)
+const VinylVaultContext = createContext<VinylVaultContextType | undefined>(undefined)
 
-export function VinylCatalogProvider({ children }: { children: ReactNode }) {
+export function VinylVaultProvider({ children }: { children: ReactNode }) {
   const [records, setRecords] = useState<VinylRecord[]>([])
   const [trashedRecords, setTrashedRecords] = useState<VinylRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -324,7 +324,7 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <VinylCatalogContext.Provider
+    <VinylVaultContext.Provider
       value={{
         records,
         activeRecords,
@@ -355,14 +355,14 @@ export function VinylCatalogProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </VinylCatalogContext.Provider>
+    </VinylVaultContext.Provider>
   )
 }
 
-export function useVinylCatalog() {
-  const context = useContext(VinylCatalogContext)
+export function useVinylVault() {
+  const context = useContext(VinylVaultContext)
   if (context === undefined) {
-    throw new Error("useVinylCatalog must be used within a VinylCatalogProvider")
+    throw new Error("useVinylVault must be used within a VinylVaultProvider")
   }
   return context
 }

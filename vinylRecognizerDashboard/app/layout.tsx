@@ -31,7 +31,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata = {
-  title: "Vinyl Catalog | Your Record Collection",
+  title: "Vinyl Vault | Your Record Collection",
   description: "Manage and explore your vinyl record collection with ease",
 }
 

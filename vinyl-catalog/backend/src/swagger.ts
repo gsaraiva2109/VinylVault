@@ -6,9 +6,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Vinyl Catalog API',
+      title: 'Vinyl Vault API',
       version: '1.0.0',
-      description: 'API documentation for Vinyl Catalog',
+      description: 'API documentation for Vinyl Vault',
     },
     components: {
       securitySchemes: {

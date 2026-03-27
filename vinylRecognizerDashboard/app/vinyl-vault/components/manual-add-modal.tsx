@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type ChangeEvent } from "react"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
@@ -28,7 +28,7 @@ function parseDiscogsUrl(url: string): { id: string; type: "release" | "master" 
 }
 
 export function ManualAddModal({ onClose }: ManualAddModalProps) {
-  const { refreshCollection, setActiveScreen } = useVinylCatalog()
+  const { refreshCollection, setActiveScreen } = useVinylVault()
   const { accessToken: token } = useTauriAuth()
 
   const [discogsUrl, setDiscogsUrl] = useState("")

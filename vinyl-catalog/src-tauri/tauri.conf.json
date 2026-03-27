@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Vinyl Catalog",
+  "productName": "Vinyl Vault",
   "version": "0.1.0",
-  "identifier": "com.gsaraiva2109.vinyl-catalog",
+  "identifier": "com.gsaraiva2109.vinyl-vault",
   "build": {
     "frontendDist": "../vinylRecognizerDashboard/out",
     "devUrl": "http://localhost:3000",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Vinyl Catalog",
+        "title": "Vinyl Vault",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -59,7 +59,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNEQ5NTdCRUExMkI3QUEKUldTcXR4THFlNVZOVTVNWjBha2kwMjNpbUhNNGphZXd5Nm1MN29GcFdSZStkcjVEQXFtK25JQWcK",
       "endpoints": [
-        "https://github.com/gsaraiva2109/vinyl-catalog/releases/latest/download/latest.json"
+        "https://github.com/gsaraiva2109/vinylvault/releases/latest/download/latest.json"
       ]
     }
   }

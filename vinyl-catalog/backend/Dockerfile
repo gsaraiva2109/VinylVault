@@ -20,4 +20,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
-CMD ["sh", "-c", "node dist/db/migrate.js && node dist/server.js"]
+CMD ["node", "dist/server.js"]
