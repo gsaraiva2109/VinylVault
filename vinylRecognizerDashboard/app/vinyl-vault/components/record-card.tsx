@@ -2,7 +2,7 @@
 
 import type { VinylRecord } from "../types"
 import { ConditionBadge } from "./condition-badge"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Play } from "lucide-react"
 
 interface RecordCardProps {
@@ -11,7 +11,7 @@ interface RecordCardProps {
 }
 
 export function RecordCard({ record, className }: RecordCardProps) {
-  const { setSelectedRecord, setIsDetailOpen } = useVinylCatalog()
+  const { setSelectedRecord, setIsDetailOpen } = useVinylVault()
 
   const handleClick = () => {
     setSelectedRecord(record)

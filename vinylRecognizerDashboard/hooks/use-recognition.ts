@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react"
-import type { VinylRecord, ScanState } from "../app/vinyl-catalog/types"
+import type { VinylRecord, ScanState } from "../app/vinyl-vault/types"
 import { api } from "@/lib/api"
 import { useTauriAuth } from "@/lib/tauri-auth"
 

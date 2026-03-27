@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import type { VinylRecord } from "../types"
 import { ConditionBadge } from "./condition-badge"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Play, DollarSign, Calendar, Music } from "lucide-react"
 
 interface RecordListItemProps {
@@ -12,7 +12,7 @@ interface RecordListItemProps {
 }
 
 export function RecordListItem({ record, className }: RecordListItemProps) {
-  const { setSelectedRecord, setIsDetailOpen } = useVinylCatalog()
+  const { setSelectedRecord, setIsDetailOpen } = useVinylVault()
 
   const handleClick = () => {
     setSelectedRecord(record)

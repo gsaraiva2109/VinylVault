@@ -1,4 +1,4 @@
-import type { VinylRecord, Condition } from "@/app/vinyl-catalog/types"
+import type { VinylRecord, Condition } from "@/app/vinyl-vault/types"
 
 // Shape returned by the backend Drizzle API
 export interface BackendVinyl {

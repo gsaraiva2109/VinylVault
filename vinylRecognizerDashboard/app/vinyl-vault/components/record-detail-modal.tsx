@@ -1,6 +1,6 @@
 "use client"
 
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { ConditionBadge } from "./condition-badge"
 import {
   X, Calendar, Music, StickyNote, ExternalLink, Play,
@@ -22,7 +22,7 @@ const conditions: Condition[] = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"]
 
 export function RecordDetailModal() {
   const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord, deleteRecord, isDeleting } =
-    useVinylCatalog()
+    useVinylVault()
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)

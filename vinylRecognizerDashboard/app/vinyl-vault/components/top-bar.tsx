@@ -1,6 +1,6 @@
 "use client"
 
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { Search, Grid3X3, List, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -20,7 +20,7 @@ export function TopBar() {
     filters,
     setFilters,
     clearFilters,
-  } = useVinylCatalog()
+  } = useVinylVault()
 
   const hasActiveFilters = filters.genre || filters.decade || filters.condition || filters.searchQuery
 

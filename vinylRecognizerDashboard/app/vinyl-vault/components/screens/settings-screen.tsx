@@ -24,7 +24,7 @@ import {
   AlertTriangle,
   Loader2,
 } from "lucide-react"
-import { useVinylCatalog } from "../../context"
+import { useVinylVault } from "../../context"
 import type { VinylRecord } from "../../types"
 
 type SettingsTab = "integrations" | "notifications" | "data" | "appearance" | "privacy"
@@ -305,7 +305,7 @@ function NotificationsSettings() {
 type ExportFormat = "json" | "csv"
 
 function DataSettings() {
-  const { records, trashedRecords, recoverRecord, permanentlyDeleteRecord } = useVinylCatalog()
+  const { records, trashedRecords, recoverRecord, permanentlyDeleteRecord } = useVinylVault()
   const [exportFormat, setExportFormat] = useState<ExportFormat>("json")
   const [importFormat, setImportFormat] = useState<ExportFormat>("json")
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -322,7 +322,7 @@ function DataSettings() {
   function handleExport() {
     if (exportFormat === "json") {
       const blob = new Blob([JSON.stringify(records, null, 2)], { type: "application/json" })
-      triggerDownload(blob, `vinyl-catalog-${today()}.json`)
+      triggerDownload(blob, `vinyl-vault-${today()}.json`)
     } else {
       const headers = ["id", "title", "artist", "year", "genre", "condition", "notes", "dateAdded", "addedBy"]
       const rows = records.map((r) => [
@@ -338,7 +338,7 @@ function DataSettings() {
       ])
       const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
       const blob = new Blob([csv], { type: "text/csv" })
-      triggerDownload(blob, `vinyl-catalog-${today()}.csv`)
+      triggerDownload(blob, `vinyl-vault-${today()}.csv`)
     }
   }
 

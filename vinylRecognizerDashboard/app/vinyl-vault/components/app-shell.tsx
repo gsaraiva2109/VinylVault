@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import { StatsStrip } from "./stats-strip"
 import { BottomDock } from "./bottom-dock"
 import { SearchModal } from "./search-modal"
@@ -13,7 +13,7 @@ import { AccountScreen } from "./screens/account-screen"
 import { RecordDetailModal } from "./record-detail-modal"
 
 export function AppShell() {
-  const { activeScreen } = useVinylCatalog()
+  const { activeScreen } = useVinylVault()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   // Global ⌘K shortcut

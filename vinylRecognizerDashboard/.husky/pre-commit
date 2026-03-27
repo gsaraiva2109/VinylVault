@@ -1,1 +1,8 @@
+# Format staged files (prettier — config in vinylRecognizerDashboard/package.json)
 pnpm dlx lint-staged
+
+# Frontend — typecheck
+(cd vinylRecognizerDashboard && pnpm exec tsc --noEmit)
+
+# Backend — typecheck
+(cd vinyl-catalog/backend && npx tsc --noEmit)

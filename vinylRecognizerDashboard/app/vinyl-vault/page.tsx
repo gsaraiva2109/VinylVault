@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
-export default function VinylCatalogPage() {
+export default function VinylVaultPage() {
   redirect("/")
 }

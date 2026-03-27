@@ -1,5 +1,5 @@
 """
-Vinyl Catalog — Python sidecar (FastAPI, localhost:8765)
+Vinyl Vault — Python sidecar (FastAPI, localhost:8765)
 
 This is a HEADLESS HTTP API. It does NOT access the camera.
 Camera capture happens in the Electron renderer via getUserMedia.
@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ocr import extract_text
 from llm import route_to_llm
 
-app = FastAPI(title="Vinyl Catalog Sidecar", version="0.1.0")
+app = FastAPI(title="Vinyl Vault Sidecar", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Search, Clock, Plus, ScanLine, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useVinylCatalog } from "../context"
+import { useVinylVault } from "../context"
 import type { VinylRecord } from "../types"
 
 const STORAGE_KEY = "vinyl-recent-searches"
@@ -33,7 +33,7 @@ interface SearchModalProps {
 
 export function SearchModal({ open, onClose }: SearchModalProps) {
   const { records, setSelectedRecord, setIsDetailOpen, setActiveScreen } =
-    useVinylCatalog()
+    useVinylVault()
 
   const [query, setQuery] = useState("")
   const [recentSearches, setRecentSearches] = useState<string[]>([])
