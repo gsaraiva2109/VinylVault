@@ -303,7 +303,14 @@ jobs:
   push-to-github:
     name: Mirror to GitHub
     runs-on: ubuntu-latest
-    needs: [quality-gate, build-and-push-images, build-tauri-linux]
+    needs: [quality-gate, build-and-push-images, build-tauri-linux, auto-release]
+    # Run even when auto-release is skipped (tag pushes), fail fast on any real failure
+    if: >-
+      always() &&
+      needs.quality-gate.result == 'success' &&
+      needs.build-and-push-images.result == 'success' &&
+      needs.build-tauri-linux.result == 'success' &&
+      (needs.auto-release.result == 'success' || needs.auto-release.result == 'skipped')
 
     steps:
       - uses: actions/checkout@v4
@@ -315,10 +322,18 @@ jobs:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
         run: |
+          git fetch --tags
           git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
-          git push github HEAD:refs/heads/main
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            git push github "${GITHUB_REF}"
+            # Tag push: mirror the tag (|| true — may already exist from branch-triggered run)
+            git push github "${GITHUB_REF}" || true
+          else
+            # Branch push: mirror commit + push the version tag auto-release just created
+            git push github HEAD:refs/heads/main
+            LATEST_TAG=$(git tag -l 'v*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+            if [ -n "$LATEST_TAG" ]; then
+              git push github "refs/tags/${LATEST_TAG}"
+            fi
           fi
 
   # ── Tauri Linux AppImage ──────────────────────────────────────────────────
