@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.gsaraiva2109.vinyl-vault",
   "build": {
-    "frontendDist": "../vinylRecognizerDashboard/out",
+    "frontendDist": "../../vinylRecognizerDashboard/out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "cd ../vinylRecognizerDashboard && pnpm dev --turbopack",
     "beforeBuildCommand": "cd ../vinylRecognizerDashboard && pnpm build"
