@@ -317,7 +317,7 @@ jobs:
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: vinyl-vault-linux-appimage
           path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
