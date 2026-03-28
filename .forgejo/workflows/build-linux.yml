@@ -82,6 +82,8 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
 
       - name: Create dummy sidecar for cargo check
         run: |
@@ -95,6 +97,10 @@ jobs:
           AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
           AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
           AUTHENTIK_CLIENT_SECRET: ${{ secrets.AUTHENTIK_CLIENT_SECRET }}
+          # Route debug artifacts to /tmp — keeps workspace disk free
+          CARGO_TARGET_DIR: /tmp/cargo-target
+          # Limit linker parallelism to avoid SIGBUS under memory pressure
+          CARGO_BUILD_JOBS: '2'
         run: cargo check --no-default-features
 
   # ── Docker Build & Push ───────────────────────────────────────────────────
@@ -247,13 +253,12 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Cache cargo registry and build artifacts
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            vinyl-catalog/src-tauri/target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-
@@ -273,6 +278,8 @@ jobs:
             python3 \
             python3-pip \
             python3-venv
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
 
       # ── Frontend + Tauri deps ─────────────────────────────────────────────
       - name: Install Next.js deps
@@ -303,6 +310,7 @@ jobs:
           AUTHENTIK_CLIENT_SECRET: ${{ secrets.AUTHENTIK_CLIENT_SECRET }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CARGO_BUILD_JOBS: '2'
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
       - name: Upload AppImage artifact
