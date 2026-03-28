@@ -208,7 +208,7 @@ jobs:
   push-to-github:
     name: Mirror to GitHub
     runs-on: ubuntu-latest
-    needs: quality-gate
+    needs: [quality-gate, build-and-push-images, build-tauri-linux]
 
     steps:
       - uses: actions/checkout@v4
