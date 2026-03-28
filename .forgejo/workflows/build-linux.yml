@@ -276,8 +276,9 @@ jobs:
           echo "$VERSION" > VERSION
           git config user.email "ci-bot@noreply.local"
           git config user.name "CI Bot"
-          SERVER="${GITHUB_SERVER_URL#https://}"
-          git remote set-url origin "https://x-access-token:${FORGEJO_BOT_TOKEN}@${SERVER}/${GITHUB_REPOSITORY}.git"
+          PROTOCOL="${GITHUB_SERVER_URL%%://*}"
+          SERVER="${GITHUB_SERVER_URL#*//}"
+          git remote set-url origin "${PROTOCOL}://x-access-token:${FORGEJO_BOT_TOKEN}@${SERVER}/${GITHUB_REPOSITORY}.git"
           git add VERSION
           git commit -m "chore: bump version to v${VERSION} [skip ci]"
           git tag "v${VERSION}"
