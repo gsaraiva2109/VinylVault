@@ -15,13 +15,24 @@ jobs:
   # All downstream jobs are blocked on this passing.
   quality-gate:
     name: Quality Gate
-    runs-on: docker://node:20-bookworm
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: |
+            vinylRecognizerDashboard/pnpm-lock.yaml
+            vinyl-catalog/pnpm-lock.yaml
 
       # ── Next.js frontend ────────────────────────────────────────────────
       - name: Install Next.js deps
@@ -50,12 +61,22 @@ jobs:
         run: npm run build
 
       # ── Rust / Tauri ────────────────────────────────────────────────────
-      - name: Install Rust
+      - name: Install Rust stable
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "/root/.cargo/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Install Linux system deps for Tauri
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-
+
+      - name: Install Linux system deps for cargo check
         run: |
           apt-get update
           apt-get install -y \
@@ -77,7 +98,7 @@ jobs:
           AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
           AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
           AUTHENTIK_CLIENT_SECRET: ${{ secrets.AUTHENTIK_CLIENT_SECRET }}
-        run: /root/.cargo/bin/cargo check --no-default-features
+        run: cargo check --no-default-features
 
   # ── Docker Build & Push ───────────────────────────────────────────────────
   # Builds and pushes vinyl-vault-api and vinyl-vault-web images to GHCR.
@@ -85,7 +106,7 @@ jobs:
   # DATABASE_URL is NEVER passed — no CI/CD DB connections.
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: quality-gate
 
     strategy:
@@ -166,7 +187,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## 🐳 ${{ matrix.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "## ${{ matrix.image }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`ghcr.io/${{ vars.GHCR_OWNER }}/${{ matrix.image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -183,7 +204,7 @@ jobs:
   # MIRROR_REPO variable ("gsaraiva2109/vinylvault") configured on Forgejo.
   push-to-github:
     name: Mirror to GitHub
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: quality-gate
 
     steps:
@@ -207,18 +228,41 @@ jobs:
   # Python OCR sidecar. Artifact stored on Forgejo for 30 days.
   build-tauri-linux:
     name: Build Tauri Linux AppImage
-    runs-on: rust-latest
+    runs-on: ubuntu-latest
     needs: quality-gate
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── Node / pnpm ───────────────────────────────────────────────────────
-      - name: Install Node 20 + pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: |
+            vinylRecognizerDashboard/pnpm-lock.yaml
+            vinyl-catalog/pnpm-lock.yaml
+
+      - name: Install Rust stable
         run: |
-          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-          npm install -g pnpm
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            vinyl-catalog/src-tauri/target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
 
       # ── System deps ───────────────────────────────────────────────────────
       - name: Install Linux system deps
