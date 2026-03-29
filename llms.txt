@@ -1,0 +1,1 @@
+/home/gsaraiva/Projects/vinylRecognizerDashboard/docs/project-architecture.md

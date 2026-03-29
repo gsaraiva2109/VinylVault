@@ -1,0 +1,33 @@
+#!/usr/bin/env sh
+# Pre-push hook: optionally run the release script before pushing.
+# Skipped automatically when pushing a tag (the release script already tagged it).
+
+# Don't prompt when pushing a tag — it was already versioned
+if git describe --exact-match HEAD 2>/dev/null | grep -qE '^v[0-9]+'; then
+  exit 0
+fi
+
+# Don't prompt if there are no commits ahead of the remote
+REMOTE="${1:-origin}"
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+if [ -n "$BRANCH" ]; then
+  AHEAD=$(git rev-list --count "@{u}..HEAD" 2>/dev/null || echo "1")
+  if [ "$AHEAD" = "0" ]; then
+    exit 0
+  fi
+fi
+
+printf "\nRelease a new version before pushing? [patch/minor/major/skip] (default: skip): "
+read -r ANSWER </dev/tty
+
+case "$ANSWER" in
+  patch|minor|major)
+    ./scripts/release.sh "$ANSWER"
+    ;;
+  [0-9]*)
+    ./scripts/release.sh "$ANSWER"
+    ;;
+  *)
+    # skip or Enter — push without bumping
+    ;;
+esac

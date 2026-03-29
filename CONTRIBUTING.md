@@ -1,32 +1,71 @@
-# Commit Convention
+# Contributing
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/). The CI auto-release job reads commit messages since the last tag to determine the next version.
+This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
-## Format
+## Commit Format
 
 ```
 <type>[optional scope]: <description>
 ```
 
-## Version Bump Rules
-
-| Commit prefix | Version bump | Example |
-|---------------|-------------|---------|
-| `feat!:` `fix!:` `BREAKING CHANGE:` | **major** (X.0.0) | `feat!: redesign auth flow` |
-| `feat:` `feat(scope):` | **minor** (x.Y.0) | `feat(ui): add dark mode toggle` |
-| anything else | **patch** (x.y.Z) | `fix: correct album art URL` |
-
 ## Common Types
 
-- `feat` — new feature
-- `fix` — bug fix
-- `chore` — maintenance, deps, tooling
-- `ci` — CI/CD changes
-- `perf` — performance improvement
-- `refactor` — code change with no behavior change
-- `docs` — documentation only
+| Type | Use for |
+|------|---------|
+| `feat` | new feature |
+| `fix` | bug fix |
+| `chore` | maintenance, deps, tooling |
+| `ci` | CI/CD changes |
+| `perf` | performance improvement |
+| `refactor` | code change with no behavior change |
+| `docs` | documentation only |
+
+## Releasing a New Version
+
+Versioning is managed locally via a release script — **CI does not auto-bump versions**.
+
+```bash
+./scripts/release.sh patch     # 1.0.0 → 1.0.1
+./scripts/release.sh minor     # 1.0.0 → 1.1.0
+./scripts/release.sh major     # 1.0.0 → 2.0.0
+./scripts/release.sh 1.2.3     # explicit version
+./scripts/release.sh patch --dry-run  # preview only
+```
+
+The script:
+1. Reads the current version from the root `VERSION` file
+2. Updates all manifests atomically:
+   - `VERSION`
+   - `vinyl-catalog/backend/src/swagger.ts`
+   - `vinyl-catalog/sidecar/main.py`
+   - `vinyl-catalog/src-tauri/Cargo.toml`
+   - `vinyl-catalog/src-tauri/tauri.conf.json`
+   - `vinyl-catalog/package.json`
+   - `vinylRecognizerDashboard/package.json` + `package-lock.json`
+   - `vinyl-catalog/backend/package.json` + `package-lock.json`
+3. Creates a `chore: bump version to vX.Y.Z [skip ci]` commit
+4. Creates the `vX.Y.Z` git tag
+
+Then push:
+```bash
+git push && git push origin vX.Y.Z
+```
+
+The `[skip ci]` commit skips the Forgejo pipeline on the branch push. The tag push triggers the full pipeline:
+- Docker images built and pushed to GHCR → Dokploy auto-deploys
+- Tag mirrored to GitHub → macOS `.dmg` build via GitHub Actions
+
+## Version Bump Guidance
+
+While conventional commit types no longer drive automated version bumps, they remain useful as a signal when deciding what bump to use:
+
+| Change type | Suggested bump |
+|-------------|---------------|
+| Breaking change | major |
+| New user-facing feature | minor |
+| Bug fix, refactor, chore | patch |
 
 ## Notes
 
-- Commits with `[skip ci]` in the message are excluded from the changelog (used by the auto-release bot).
-- The release changelog is generated from all commits between the previous tag and `HEAD`.
+- The root `VERSION` file is the single source of truth for all versions.
+- `[skip ci]` commits are excluded from release changelogs.
