@@ -201,14 +201,15 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.meta.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
 
-  # ── Mirror to GitHub ─────────────────────────────────────────────────────
-  # Runs after all build jobs pass. Pushes the current commit (and tag,
-  # if this is a release) to GitHub, which triggers release-macos.yml for
-  # the macOS .dmg build. Requires MIRROR_TOKEN secret (repo + workflow scopes)
-  # and MIRROR_REPO variable ("gsaraiva2109/vinylvault") configured on Forgejo.
-  # Versioning is local — run ./scripts/release.sh before pushing a release.
+  # ── Mirror to GitHub + Create Release ───────────────────────────────────
+  # Runs after all build jobs pass.
+  # 1. Pushes the branch commit first (so GitHub has the code), then the tag.
+  # 2. Creates the GitHub Release and uploads the Linux AppImage built above.
+  # The macOS .dmg is then attached by release-macos.yml on GitHub Actions.
+  # Requires MIRROR_TOKEN secret (repo + workflow scopes) and MIRROR_REPO
+  # variable ("gsaraiva2109/vinylvault") configured on Forgejo.
   push-to-github:
-    name: Mirror to GitHub
+    name: Mirror to GitHub + Create Release
     runs-on: ubuntu-latest
     needs: [quality-gate, build-and-push-images, build-tauri-linux]
     if: >-
@@ -229,17 +230,86 @@ jobs:
         run: |
           git fetch --tags
           git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Tag push: mirror the tag
-            git push github "${GITHUB_REF}"
+          # Always push the branch first so the commit exists on GitHub before we push the tag.
+          # Without this, GitHub has no code to check out and the macOS build fails.
+          git push github HEAD:refs/heads/main
+          git push github "${GITHUB_REF}"
+
+      - name: Download AppImage artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: vinyl-vault-linux-appimage
+          path: dist/
+
+      - name: Create GitHub Release and upload AppImage
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          APPIMAGE=$(find dist/ -name "*.AppImage" | head -1)
+          APPIMAGE_NAME=$(basename "$APPIMAGE")
+
+          # Generate SHA256 checksum for the AppImage
+          sha256sum "$APPIMAGE" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+          # Install instructions prepended to auto-generated changelog.
+          # GitHub appends the commit-based notes after the body when
+          # generate_release_notes is true.
+          RELEASE_BODY="### Install
+
+**Linux (x86_64)** — download the \`.AppImage\` below:
+\`\`\`bash
+chmod +x Vinyl.Vault_*.AppImage
+./Vinyl.Vault_*.AppImage
+\`\`\`
+
+**macOS (Apple Silicon)** — download the \`.dmg\`, open it, drag to Applications.
+> The app is unsigned. Right-click → Open on first launch to bypass Gatekeeper.
+
+---"
+
+          # Create the release with auto-generated notes appended.
+          # If it already exists (422 from a retry), fetch the existing ID.
+          PAYLOAD=$(python3 -c "
+import json, sys
+body = sys.stdin.read()
+print(json.dumps({
+  'tag_name': '${TAG}',
+  'name': 'Vinyl Vault ${TAG}',
+  'body': body,
+  'generate_release_notes': True
+}))" <<< "$RELEASE_BODY")
+
+          RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${MIRROR_REPO}/releases" \
+            -d "$PAYLOAD")
+
+          if [ "$RESP" = "422" ]; then
+            RELEASE_ID=$(curl -s \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
           else
-            # Branch push: mirror commit + latest version tag if present
-            git push github HEAD:refs/heads/main
-            LATEST_TAG=$(git tag -l 'v*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-            if [ -n "$LATEST_TAG" ]; then
-              git push github "refs/tags/${LATEST_TAG}" || true
-            fi
+            RELEASE_ID=$(python3 -c "import json; print(json.load(open('/tmp/release.json'))['id'])")
           fi
+
+          upload() {
+            local FILE="$1" NAME="$2" TYPE="$3"
+            curl -s -X POST \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              -H "Content-Type: ${TYPE}" \
+              "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=${NAME}" \
+              --data-binary @"$FILE"
+            echo "Uploaded ${NAME}"
+          }
+
+          upload "$APPIMAGE"    "$APPIMAGE_NAME"          "application/octet-stream"
+          upload SHA256SUMS.txt "SHA256SUMS.txt"           "text/plain"
 
   # ── Tauri Linux AppImage ──────────────────────────────────────────────────
   # Compiles the full Tauri desktop app for Linux x86_64, including the
