@@ -257,28 +257,27 @@ jobs:
           # Install instructions prepended to auto-generated changelog.
           # GitHub appends the commit-based notes after the body when
           # generate_release_notes is true.
-          PAYLOAD=$(python3 - <<'PYEOF'
-import json, os
-tag  = os.environ["TAG"]
+          PAYLOAD=$(python3 -c "
+import json, sys
+tag = sys.argv[1]
 body = (
-    "### Install\n\n"
-    "**Linux (x86_64)** - download the `.AppImage` below:\n"
-    "```bash\n"
-    "chmod +x Vinyl.Vault_*.AppImage\n"
-    "./Vinyl.Vault_*.AppImage\n"
-    "```\n\n"
-    "**macOS (Apple Silicon)** - download the `.dmg`, open it, drag to Applications.\n"
-    "> The app is unsigned. Right-click and Open on first launch to bypass Gatekeeper.\n\n"
-    "---"
+    '### Install\n\n'
+    '**Linux (x86_64)** - download the \`.AppImage\` below:\n'
+    '\`\`\`bash\n'
+    'chmod +x Vinyl.Vault_*.AppImage\n'
+    './Vinyl.Vault_*.AppImage\n'
+    '\`\`\`\n\n'
+    '**macOS (Apple Silicon)** - download the \`.dmg\`, open it, drag to Applications.\n'
+    '> The app is unsigned. Right-click and Open on first launch to bypass Gatekeeper.\n\n'
+    '---'
 )
 print(json.dumps({
-    "tag_name": tag,
-    "name": f"Vinyl Vault {tag}",
-    "body": body,
-    "generate_release_notes": True,
+    'tag_name': tag,
+    'name': 'Vinyl Vault ' + tag,
+    'body': body,
+    'generate_release_notes': True,
 }))
-PYEOF
-          )
+" "$TAG")
 
           RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
             -X POST \
