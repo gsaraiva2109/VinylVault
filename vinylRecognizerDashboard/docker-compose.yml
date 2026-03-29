@@ -1,6 +1,6 @@
 services:
   vinyl-vault-web:
-    image: ghcr.io/gsaraiva2109/vinyl-vault-web:latest
+    image: git.gsaraiva.com.br/gsaraiva2109/vinyl-vault-web:latest
     pull_policy: always
     restart: unless-stopped
     environment:
