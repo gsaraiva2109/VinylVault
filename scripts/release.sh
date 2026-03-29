@@ -126,10 +126,10 @@ if $DRY_RUN; then
   echo "  vinyl-catalog/backend/src/swagger.ts"
   echo "  vinyl-catalog/sidecar/main.py"
   echo ""
-  PENDING=$(git status --porcelain | grep -v '^\?\?' | wc -l | tr -d ' ')
+  PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
   if [[ "$PENDING" -gt 0 ]]; then
     echo "Pending staged/modified files that will be included in the commit:"
-    git status --porcelain | grep -v '^\?\?'
+    git status --porcelain | grep -v '^\??'
   fi
   echo ""
   echo "[dry-run] No changes made."
@@ -137,10 +137,10 @@ if $DRY_RUN; then
 fi
 
 # ── Confirm ───────────────────────────────────────────────────────────────────
-PENDING=$(git status --porcelain | grep -v '^\?\?' | wc -l | tr -d ' ')
+PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
 if [[ "$PENDING" -gt 0 ]]; then
   echo "Pending changes that will be included in the release commit:"
-  git status --porcelain | grep -v '^\?\?'
+  git status --porcelain | grep -v '^\??'
   echo ""
 fi
 
@@ -164,13 +164,26 @@ sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
 sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
   vinyl-catalog/sidecar/main.py
 
+# Update package.json files
+for pkg_json in vinylRecognizerDashboard/package.json vinyl-catalog/package.json vinyl-catalog/backend/package.json; do
+  if [ -f "$pkg_json" ]; then
+    echo "Updating $pkg_json to $NEW"
+    tmp="$(mktemp)"
+    jq --arg v "$NEW" '.version = $v' "$pkg_json" > "$tmp"
+    mv "$tmp" "$pkg_json"
+  fi
+done
+
 # ── Single commit — version files + anything already staged ──────────────────
 git add \
   VERSION \
   vinyl-catalog/src-tauri/Cargo.toml \
   vinyl-catalog/src-tauri/tauri.conf.json \
   vinyl-catalog/backend/src/swagger.ts \
-  vinyl-catalog/sidecar/main.py
+  vinyl-catalog/sidecar/main.py \
+  vinylRecognizerDashboard/package.json \
+  vinyl-catalog/package.json \
+  vinyl-catalog/backend/package.json
 
 git commit -m "chore: release v${NEW}"
 git tag "v${NEW}"
