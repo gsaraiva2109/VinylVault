@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
 
       - name: Install pnpm
         run: npm install -g pnpm@9
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ~/.local/share/pnpm/store
           key: ${{ runner.os }}-pnpm-${{ hashFiles('vinylRecognizerDashboard/pnpm-lock.yaml', 'vinyl-catalog/pnpm-lock.yaml') }}
@@ -64,7 +64,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: |
             ~/.cargo/registry
@@ -176,7 +176,8 @@ jobs:
           fi
 
       - name: Build and push ${{ matrix.image }}
-        uses: docker/build-push-action@v5
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
@@ -190,6 +191,9 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ vars.GHCR_OWNER }}/${{ matrix.image }}:cache,mode=max
 
       - name: Summary
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           echo "## ${{ matrix.image }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -197,9 +201,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "${IMAGE_TAGS}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Digest:** \`${{ steps.meta.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** \`${IMAGE_DIGEST}\`" >> $GITHUB_STEP_SUMMARY
 
   # ── Mirror to GitHub + Create Release ───────────────────────────────────
   # Runs after all build jobs pass.
@@ -219,7 +223,7 @@ jobs:
       needs.build-tauri-linux.result == 'success'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
           fetch-depth: 0
 
@@ -229,14 +233,19 @@ jobs:
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
         run: |
           git fetch --tags
-          git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
-          # Always push the branch first so the commit exists on GitHub before we push the tag.
-          # Without this, GitHub has no code to check out and the macOS build fails.
-          git push github HEAD:refs/heads/main
-          git push github "${GITHUB_REF}"
+          # Ensure remote doesn't already exist or has correct URL
+          if git remote | grep -q "^github$"; then
+            git remote set-url github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
+          else
+            git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
+          fi
+          
+          # Push the branch first so the commit exists on GitHub
+          git push github HEAD:refs/heads/main --force
+          git push github "${GITHUB_REF}" --tags --force
 
       - name: Download AppImage artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: vinyl-vault-linux-appimage
           path: dist/
@@ -248,61 +257,61 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           APPIMAGE=$(find dist/ -name "*.AppImage" | head -1)
+          
+          if [ -z "$APPIMAGE" ]; then
+            echo "::error::No .AppImage file found in dist/ directory."
+            exit 1
+          fi
+          
           APPIMAGE_NAME=$(basename "$APPIMAGE")
-
-          # Generate SHA256 checksum for the AppImage
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
-          cat SHA256SUMS.txt
 
-          # Install instructions prepended to auto-generated changelog.
-          # GitHub appends the commit-based notes after the body when
-          # generate_release_notes is true.
-          PAYLOAD=$(python3 -c "
-import json, sys
-tag = sys.argv[1]
-body = (
-    '### Install\n\n'
-    '**Linux (x86_64)** - download the \`.AppImage\` below:\n'
-    '\`\`\`bash\n'
-    'chmod +x Vinyl.Vault_*.AppImage\n'
-    './Vinyl.Vault_*.AppImage\n'
-    '\`\`\`\n\n'
-    '**macOS (Apple Silicon)** - download the \`.dmg\`, open it, drag to Applications.\n'
-    '> The app is unsigned. Right-click and Open on first launch to bypass Gatekeeper.\n\n'
-    '---'
-)
-print(json.dumps({
-    'tag_name': tag,
-    'name': 'Vinyl Vault ' + tag,
-    'body': body,
-    'generate_release_notes': True,
-}))
-" "$TAG")
+          BODY="### Install\n\n**Linux (x86_64)** - download the \`.AppImage\` below:\n\`\`\`bash\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n\`\`\`\n\n**macOS (Apple Silicon)** - download the \`.dmg\`, open it, drag to Applications.\n\n---"
+          PAYLOAD=$(jq -n \
+            --arg tag  "$TAG" \
+            --arg name "Vinyl Vault $TAG" \
+            --arg body "$BODY" \
+            '{tag_name: $tag, name: $name, body: $body, generate_release_notes: true}')
 
-          RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
+          # Create release or fetch existing
+          echo "Checking/Creating release for ${TAG}..."
+          HTTP_CODE=$(curl -s -o /tmp/release.json -w "%{http_code}" \
             -X POST \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${MIRROR_REPO}/releases" \
             -d "$PAYLOAD")
 
-          if [ "$RESP" = "422" ]; then
-            RELEASE_ID=$(curl -s \
-              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+          if [ "$HTTP_CODE" = "422" ]; then
+            echo "Release already exists, fetching ID..."
+            RELEASE_ID=$(curl -s -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+              | jq -r '.id')
+          elif [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::GitHub API returned ${HTTP_CODE} when creating release."
+            cat /tmp/release.json
+            exit 1
           else
-            RELEASE_ID=$(python3 -c "import json; print(json.load(open('/tmp/release.json'))['id'])")
+            RELEASE_ID=$(jq -r '.id' /tmp/release.json)
+          fi
+
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "::error::Failed to resolve Release ID."
+            exit 1
           fi
 
           upload() {
             local FILE="$1" NAME="$2" TYPE="$3"
-            curl -s -X POST \
+            echo "Uploading ${NAME}..."
+            RES=$(curl -s -X POST \
               -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               -H "Content-Type: ${TYPE}" \
               "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=${NAME}" \
-              --data-binary @"$FILE"
-            echo "Uploaded ${NAME}"
+              --data-binary @"$FILE")
+            
+            if echo "$RES" | grep -q "errors"; then
+              echo "::warning::Upload of ${NAME} failed or already exists: $(echo $RES | jq -r '.message // .')"
+            fi
           }
 
           upload "$APPIMAGE"    "$APPIMAGE_NAME"          "application/octet-stream"
@@ -318,13 +327,13 @@ print(json.dumps({
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
 
       - name: Install pnpm
         run: npm install -g pnpm@9
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ~/.local/share/pnpm/store
           key: ${{ runner.os }}-pnpm-${{ hashFiles('vinylRecognizerDashboard/pnpm-lock.yaml', 'vinyl-catalog/pnpm-lock.yaml') }}
@@ -337,7 +346,7 @@ print(json.dumps({
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: |
             ~/.cargo/registry
@@ -400,7 +409,7 @@ print(json.dumps({
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: vinyl-vault-linux-appimage
           path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
