@@ -190,7 +190,8 @@ jobs:
         with:
           registry: git.gsaraiva.com.br
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # Fallback to GITHUB_TOKEN if REGISTRY_TOKEN isn't set
+          password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Extract image metadata
         if: steps.check_skip.outputs.SKIP != 'true'
