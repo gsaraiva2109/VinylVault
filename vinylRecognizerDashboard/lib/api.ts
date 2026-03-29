@@ -43,8 +43,12 @@ export const api = {
     getRelease: (id: number | string, token?: string) => fetchApi(`/api/discogs/release/${id}`, {}, token),
     getMaster: async (id: number | string) => {
       // Proxy via Tauri Rust command (avoids CORS, no API route needed)
-      const { invoke } = await import('@tauri-apps/api/core')
-      return invoke('discogs_get_master', { id: String(id) })
+      // Guard for web version
+      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        return invoke('discogs_get_master', { id: String(id) })
+      }
+      return null
     },
     refreshPrices: (token?: string) => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }, token),
   }
