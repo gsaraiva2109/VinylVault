@@ -62,7 +62,7 @@ echo ""
 # ── Check Forgejo CI status ───────────────────────────────────────────────────
 if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
   REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-  if [[ "$REMOTE_URL" =~ ^https?:// ]]; then
+  if [[ "$REMOTE_URL" =~ ^https??:// ]]; then
     FORGEJO_BASE=$(echo "$REMOTE_URL" | sed 's|://[^@]*@|://|' | sed 's|\.git$||')
     REPO_PATH="${FORGEJO_BASE#*://*/}"
     FORGEJO_HOST="${FORGEJO_BASE%/$REPO_PATH}"
@@ -77,7 +77,7 @@ if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
 
   if ! $SKIP_CI_CHECK; then
     BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "main")
-    API_URL="${FORGEJO_HOST}/api/v1/repos/${REPO_PATH}/actions/runs?branch=${BRANCH}&limit=1"
+    API_URL="${FORGEJO_HOST}/api/v1/repos/${REPO_PATH}/actions/runs??branch=${BRANCH}&limit=1"
 
     echo "  Checking CI status on ${FORGEJO_HOST}..."
     HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
@@ -126,10 +126,10 @@ if $DRY_RUN; then
   echo "  vinyl-catalog/backend/src/swagger.ts"
   echo "  vinyl-catalog/sidecar/main.py"
   echo ""
-  PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
+  PENDING=$(git status --porcelain | grep -v '^????' | wc -l | tr -d ' ')
   if [[ "$PENDING" -gt 0 ]]; then
     echo "Pending staged/modified files that will be included in the commit:"
-    git status --porcelain | grep -v '^\??'
+    git status --porcelain | grep -v '^????'
   fi
   echo ""
   echo "[dry-run] No changes made."
@@ -137,14 +137,14 @@ if $DRY_RUN; then
 fi
 
 # ── Confirm ───────────────────────────────────────────────────────────────────
-PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
+PENDING=$(git status --porcelain | grep -v '^????' | wc -l | tr -d ' ')
 if [[ "$PENDING" -gt 0 ]]; then
   echo "Pending changes that will be included in the release commit:"
-  git status --porcelain | grep -v '^\??'
+  git status --porcelain | grep -v '^????'
   echo ""
 fi
 
-read -rp "Release v${NEW}? [y/N] " CONFIRM
+read -rp "Release v${NEW}?? [y/N] " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 
 # ── Update version files ──────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ git add \
   vinyl-catalog/package.json \
   vinyl-catalog/backend/package.json
 
-git commit -m "chore: release v${NEW}"
+git commit -m "chore: release v${NEW} [skip ci]"
 git tag "v${NEW}"
 
 # ── Push branch + tag in one command ─────────────────────────────────────────
