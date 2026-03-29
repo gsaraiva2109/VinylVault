@@ -2,9 +2,10 @@ import NextAuth from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 // Next.js 15 Static Export compatibility:
-// In Tauri (export mode), we force this route to static and provide no params so it doesn't break the build.
-// In Web (standalone mode), it remains dynamic for Authentik OAuth.
-export const dynamic = process.env.NEXT_OUTPUT === "standalone" ? "force-dynamic" : "force-static";
+// This MUST be a literal string for static analysis. 
+// For the Web (standalone), we use force-dynamic.
+// For Tauri (export), the CI pipeline will sed this to force-static.
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return [];
