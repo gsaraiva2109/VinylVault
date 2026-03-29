@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release.sh — bump version across all manifests, commit, and tag
+# release.sh — bump version, commit everything, tag, and push in one shot
 #
 # Usage:
 #   ./scripts/release.sh patch            # 1.0.0 → 1.0.1
@@ -7,9 +7,13 @@
 #   ./scripts/release.sh major            # 1.0.0 → 2.0.0
 #   ./scripts/release.sh 1.2.3            # explicit version
 #   ./scripts/release.sh patch --dry-run  # preview only, no changes
-#   ./scripts/release.sh patch --skip-ci-check  # skip Forgejo CI status check
+#   ./scripts/release.sh patch --skip-ci-check
 #
 # Set FORGEJO_TOKEN env var for authenticated CI status checks.
+#
+# Workflow:
+#   1. Stage your changes however you like (git add ...)
+#   2. Run this script — it adds version files, commits everything, tags, and pushes
 
 set -euo pipefail
 
@@ -68,7 +72,6 @@ if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
     REPO_PATH="${HOST_PART#*:}"
     REPO_PATH="${REPO_PATH%.git}"
   else
-    echo "  [ci-check] Could not parse remote URL, skipping CI check."
     SKIP_CI_CHECK=true
   fi
 
@@ -98,71 +101,70 @@ if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
       completed)
         if [[ "$CI_CONCLUSION" != "success" ]]; then
           echo ""
-          echo "  ✗ CI last run concluded: ${CI_CONCLUSION}"
-          echo "  Fix the failure before releasing. Use --skip-ci-check to bypass."
+          echo "  ✗ CI last run: ${CI_CONCLUSION}. Fix before releasing."
+          echo "  Use --skip-ci-check to bypass."
           echo ""
           exit 1
         fi
-        echo "  ✓ CI is green (${CI_CONCLUSION})"
+        echo "  ✓ CI is green"
         ;;
       in_progress|waiting|queued)
         echo ""
-        echo "  ⚠ CI is still running (${CI_STATUS}). Wait for it to finish."
-        echo "  Use --skip-ci-check to bypass."
+        echo "  ⚠ CI is still running. Wait for it or use --skip-ci-check."
         echo ""
         exit 1
-        ;;
-      *)
-        echo "  [ci-check] Unknown CI status '${CI_STATUS}', skipping check."
         ;;
     esac
   fi
 fi
 
-# ── Preview ───────────────────────────────────────────────────────────────────
-echo "Files to update:"
-echo "  VERSION"
-echo "  vinyl-catalog/src-tauri/Cargo.toml"
-echo "  vinyl-catalog/src-tauri/tauri.conf.json"
-echo "  vinyl-catalog/backend/src/swagger.ts"
-echo "  vinyl-catalog/sidecar/main.py"
-echo ""
-
 if $DRY_RUN; then
-  echo "[dry-run] No files changed."
+  echo "Files to update:"
+  echo "  VERSION"
+  echo "  vinyl-catalog/src-tauri/Cargo.toml"
+  echo "  vinyl-catalog/src-tauri/tauri.conf.json"
+  echo "  vinyl-catalog/backend/src/swagger.ts"
+  echo "  vinyl-catalog/sidecar/main.py"
+  echo ""
+  PENDING=$(git status --porcelain | grep -v '^\?\?' | wc -l | tr -d ' ')
+  if [[ "$PENDING" -gt 0 ]]; then
+    echo "Pending staged/modified files that will be included in the commit:"
+    git status --porcelain | grep -v '^\?\?'
+  fi
+  echo ""
+  echo "[dry-run] No changes made."
   exit 0
 fi
 
 # ── Confirm ───────────────────────────────────────────────────────────────────
-read -rp "Proceed? [y/N] " CONFIRM
+PENDING=$(git status --porcelain | grep -v '^\?\?' | wc -l | tr -d ' ')
+if [[ "$PENDING" -gt 0 ]]; then
+  echo "Pending changes that will be included in the release commit:"
+  git status --porcelain | grep -v '^\?\?'
+  echo ""
+fi
+
+read -rp "Release v${NEW}? [y/N] " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 
-# ── Update files ──────────────────────────────────────────────────────────────
+# ── Update version files ──────────────────────────────────────────────────────
 
-# 1. Root VERSION — CI reads this to tag Docker images
 echo "$NEW" > VERSION
 
-# 2. Cargo.toml — first occurrence only (package version, not dependency versions)
 sed -i "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
   vinyl-catalog/src-tauri/Cargo.toml
 
-# 3. tauri.conf.json — Tauri CLI reads this at build time
 tmp="$(mktemp)"
 jq --arg v "$NEW" '.version = $v' vinyl-catalog/src-tauri/tauri.conf.json > "$tmp"
 mv "$tmp" vinyl-catalog/src-tauri/tauri.conf.json
 
-# 4. swagger.ts — version shown in Swagger UI
 sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
   vinyl-catalog/backend/src/swagger.ts
 
-# 5. main.py — version shown in FastAPI /openapi.json
 sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
   vinyl-catalog/sidecar/main.py
 
-echo ""
-echo "Updated manifests to ${NEW}."
-
-# ── Git commit + tag ──────────────────────────────────────────────────────────
+# ── Single commit — version files + anything already staged ──────────────────
 git add \
   VERSION \
   vinyl-catalog/src-tauri/Cargo.toml \
@@ -170,12 +172,14 @@ git add \
   vinyl-catalog/backend/src/swagger.ts \
   vinyl-catalog/sidecar/main.py
 
-git commit -m "chore: bump version to v${NEW}"
+git commit -m "chore: release v${NEW}"
 git tag "v${NEW}"
 
+# ── Push branch + tag in one command ─────────────────────────────────────────
 echo ""
-echo "Committed and tagged v${NEW}."
+echo "Pushing..."
+git push origin HEAD:refs/heads/main "refs/tags/v${NEW}"
+
 echo ""
-echo "Push when ready:"
-echo "  git push && git push origin v${NEW}"
+echo "Released v${NEW} and pushed."
 echo ""
