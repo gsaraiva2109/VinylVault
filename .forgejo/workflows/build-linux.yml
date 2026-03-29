@@ -188,7 +188,7 @@ jobs:
         if: steps.check_skip.outputs.SKIP != 'true'
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.INTERNAL_FORGEJO_REGISTRY || 'git.gsaraiva.com.br' }}
+          registry: git.gsaraiva.com.br
           username: ${{ github.repository_owner }}
           password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
 
@@ -197,7 +197,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ vars.INTERNAL_FORGEJO_REGISTRY || 'git.gsaraiva.com.br' }}/${{ github.repository_owner }}/${{ matrix.image }}
+          images: git.gsaraiva.com.br/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=ref,event=branch
             type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' }}
@@ -228,8 +228,8 @@ jobs:
             ${{ steps.build_args.outputs.args }}
             VERSION=${{ steps.version.outputs.version }}
             COMMIT_SHA=${{ github.sha }}
-          cache-from: type=registry,ref=${{ vars.INTERNAL_FORGEJO_REGISTRY || 'git.gsaraiva.com.br' }}/${{ github.repository_owner }}/${{ matrix.image }}:cache
-          cache-to: type=registry,ref=${{ vars.INTERNAL_FORGEJO_REGISTRY || 'git.gsaraiva.com.br' }}/${{ github.repository_owner }}/${{ matrix.image }}:cache,mode=max
+          cache-from: type=registry,ref=git.gsaraiva.com.br/${{ github.repository_owner }}/${{ matrix.image }}:cache
+          cache-to: type=registry,ref=git.gsaraiva.com.br/${{ github.repository_owner }}/${{ matrix.image }}:cache,mode=max
 
       - name: Trigger Dokploy Deploy
         if: steps.check_skip.outputs.SKIP != 'true' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
