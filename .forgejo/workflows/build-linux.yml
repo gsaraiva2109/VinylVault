@@ -257,30 +257,28 @@ jobs:
           # Install instructions prepended to auto-generated changelog.
           # GitHub appends the commit-based notes after the body when
           # generate_release_notes is true.
-          RELEASE_BODY="### Install
-
-**Linux (x86_64)** — download the \`.AppImage\` below:
-\`\`\`bash
-chmod +x Vinyl.Vault_*.AppImage
-./Vinyl.Vault_*.AppImage
-\`\`\`
-
-**macOS (Apple Silicon)** — download the \`.dmg\`, open it, drag to Applications.
-> The app is unsigned. Right-click → Open on first launch to bypass Gatekeeper.
-
----"
-
-          # Create the release with auto-generated notes appended.
-          # If it already exists (422 from a retry), fetch the existing ID.
-          PAYLOAD=$(python3 -c "
-import json, sys
-body = sys.stdin.read()
+          PAYLOAD=$(python3 - <<'PYEOF'
+import json, os
+tag  = os.environ["TAG"]
+body = (
+    "### Install\n\n"
+    "**Linux (x86_64)** - download the `.AppImage` below:\n"
+    "```bash\n"
+    "chmod +x Vinyl.Vault_*.AppImage\n"
+    "./Vinyl.Vault_*.AppImage\n"
+    "```\n\n"
+    "**macOS (Apple Silicon)** - download the `.dmg`, open it, drag to Applications.\n"
+    "> The app is unsigned. Right-click and Open on first launch to bypass Gatekeeper.\n\n"
+    "---"
+)
 print(json.dumps({
-  'tag_name': '${TAG}',
-  'name': 'Vinyl Vault ${TAG}',
-  'body': body,
-  'generate_release_notes': True
-}))" <<< "$RELEASE_BODY")
+    "tag_name": tag,
+    "name": f"Vinyl Vault {tag}",
+    "body": body,
+    "generate_release_notes": True,
+}))
+PYEOF
+          )
 
           RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
             -X POST \
