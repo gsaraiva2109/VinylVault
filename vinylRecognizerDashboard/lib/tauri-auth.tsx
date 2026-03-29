@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "next-auth/react"
 
 export interface TauriUser {
   name: string
@@ -38,13 +39,14 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 }
 
 export function TauriAuthProvider({ children }: { children: ReactNode }) {
+  const { data: session, status: nextAuthStatus } = useSession()
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [user, setUser] = useState<TauriUser | null>(null)
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
 
   const refreshAuthState = useCallback(async () => {
     try {
-      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
         const { invoke } = await import("@tauri-apps/api/core")
         const token = await invoke<string | null>("get_access_token")
         if (token) {
@@ -61,7 +63,22 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
           setStatus("unauthenticated")
         }
       } else {
-        setStatus("unauthenticated")
+        // Handle web version via NextAuth
+        if (nextAuthStatus === "authenticated" && session) {
+          setAccessToken(session.accessToken ?? null)
+          setUser({
+            name: session.user?.name ?? "User",
+            email: session.user?.email ?? "",
+            image: session.user?.image ?? undefined,
+          })
+          setStatus("authenticated")
+        } else if (nextAuthStatus === "unauthenticated") {
+          setAccessToken(null)
+          setUser(null)
+          setStatus("unauthenticated")
+        } else {
+          setStatus("loading")
+        }
       }
     } catch {
       // Not running inside Tauri (browser preview etc.)
@@ -69,54 +86,57 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setStatus("unauthenticated")
     }
-  }, [])
+  }, [nextAuthStatus, session])
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
-      return
-    }
+    if (typeof window === 'undefined') return
 
-    refreshAuthState()
+    if (window.__TAURI_INTERNALS__) {
+      refreshAuthState()
 
-    let unlisten: (() => void) | undefined
-    import("@tauri-apps/api/event")
-      .then(({ listen }) =>
-        listen<{ status: string }>("auth:state-changed", (event) => {
-          if (event.payload.status === "authenticated") {
-            refreshAuthState()
-          } else {
-            setAccessToken(null)
-            setUser(null)
-            setStatus("unauthenticated")
-          }
+      let unlisten: (() => void) | undefined
+      import("@tauri-apps/api/event")
+        .then(({ listen }) =>
+          listen<{ status: string }>("auth:state-changed", (event) => {
+            if (event.payload.status === "authenticated") {
+              refreshAuthState()
+            } else {
+              setAccessToken(null)
+              setUser(null)
+              setStatus("unauthenticated")
+            }
+          })
+        )
+        .then((fn) => {
+          unlisten = fn
         })
-      )
-      .then((fn) => {
-        unlisten = fn
-      })
-      .catch(() => {})
+        .catch(() => {})
 
-    return () => {
-      unlisten?.()
+      return () => {
+        unlisten?.()
+      }
+    } else {
+      // Running in web browser
+      refreshAuthState()
     }
   }, [refreshAuthState])
 
   const signIn = useCallback(async () => {
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
       const { invoke } = await import("@tauri-apps/api/core")
       await invoke("start_auth_flow")
+    } else {
+      await nextAuthSignIn("authentik")
     }
   }, [])
 
   const signOut = useCallback(async () => {
     try {
-      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
         const { invoke } = await import("@tauri-apps/api/core")
         await invoke("sign_out")
       } else {
-        setAccessToken(null)
-        setUser(null)
-        setStatus("unauthenticated")
+        await nextAuthSignOut()
       }
     } catch {
       setAccessToken(null)

@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+# NEW: Use the 'bundle' script to create a minified single-file build
+RUN npm run bundle
+# NEW: Prune to only the few libraries that couldn't be bundled
 RUN npm prune --production && npm cache clean --force
 
 FROM node:24-alpine AS production
@@ -12,6 +14,7 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
 
+# Only copy what is absolutely necessary
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/drizzle ./drizzle
