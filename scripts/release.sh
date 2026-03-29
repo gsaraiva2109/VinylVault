@@ -126,10 +126,10 @@ if $DRY_RUN; then
   echo "  vinyl-catalog/backend/src/swagger.ts"
   echo "  vinyl-catalog/sidecar/main.py"
   echo ""
-  PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
+  PENDING=$(git status --porcelain | grep -v '^??' | wc -l | tr -d ' ')
   if [[ "$PENDING" -gt 0 ]]; then
     echo "Pending staged/modified files that will be included in the commit:"
-    git status --porcelain | grep -v '^\??'
+    git status --porcelain | grep -v '^??'
   fi
   echo ""
   echo "[dry-run] No changes made."
@@ -137,10 +137,10 @@ if $DRY_RUN; then
 fi
 
 # ── Confirm ───────────────────────────────────────────────────────────────────
-PENDING=$(git status --porcelain | grep -v '^\??' | wc -l | tr -d ' ')
+PENDING=$(git status --porcelain | grep -v '^??' | wc -l | tr -d ' ')
 if [[ "$PENDING" -gt 0 ]]; then
   echo "Pending changes that will be included in the release commit:"
-  git status --porcelain | grep -v '^\??'
+  git status --porcelain | grep -v '^??'
   echo ""
 fi
 
@@ -185,7 +185,7 @@ git add \
   vinyl-catalog/package.json \
   vinyl-catalog/backend/package.json
 
-git commit -m "chore: release v${NEW} [skip ci]"
+git commit -m "chore: release v${NEW}"
 git tag "v${NEW}"
 
 # ── Push branch + tag in one command ─────────────────────────────────────────
