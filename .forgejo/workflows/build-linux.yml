@@ -227,7 +227,9 @@ jobs:
   push-to-github:
     name: Mirror to GitHub + Create Release
     runs-on: ubuntu-latest
-    needs: [quality-gate, build-and-push-images, build-tauri-linux]
+    # Only wait for the Quality Gate and the Linux AppImage build.
+    # Docker image builds can finish in parallel without blocking the release.
+    needs: [quality-gate, build-tauri-linux]
     if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && success() }}
 
     steps:
@@ -235,7 +237,7 @@ jobs:
         run: |
           echo "Event Name: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
-          echo "Ref Type: ${{ github.ref_type }}"
+          echo "Mirror Repo: ${{ vars.MIRROR_REPO }}"
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
@@ -247,14 +249,13 @@ jobs:
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
         run: |
           git fetch --tags
-          # Ensure remote doesn't already exist or has correct URL
           if git remote | grep -q "^github$"; then
             git remote set-url github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
           else
             git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
           fi
           
-          # Push the branch first so the commit exists on GitHub
+          echo "Pushing code to GitHub..."
           git push github HEAD:refs/heads/main --force
           git push github "${GITHUB_REF}" --tags --force
 
@@ -273,7 +274,7 @@ jobs:
           APPIMAGE=$(find dist/ -name "*.AppImage" | head -1)
           
           if [ -z "$APPIMAGE" ]; then
-            echo "::error::No .AppImage file found in dist/ directory."
+            echo "::error::No .AppImage file found. Check build-tauri-linux job."
             exit 1
           fi
           
@@ -287,14 +288,16 @@ jobs:
             --arg body "$BODY" \
             '{tag_name: $tag, name: $name, body: $body, generate_release_notes: true}')
 
-          # Create release or fetch existing
-          echo "Checking/Creating release for ${TAG}..."
-          HTTP_CODE=$(curl -s -o /tmp/release.json -w "%{http_code}" \
+          echo "Creating Release ${TAG} on GitHub..."
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${MIRROR_REPO}/releases" \
             -d "$PAYLOAD")
+
+          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n 1)
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | head -n -1)
 
           if [ "$HTTP_CODE" = "422" ]; then
             echo "Release already exists, fetching ID..."
@@ -302,15 +305,14 @@ jobs:
               "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
               | jq -r '.id')
           elif [ "$HTTP_CODE" -ge 400 ]; then
-            echo "::error::GitHub API returned ${HTTP_CODE} when creating release."
-            cat /tmp/release.json
+            echo "::error::GitHub API Error ($HTTP_CODE): $HTTP_BODY"
             exit 1
           else
-            RELEASE_ID=$(jq -r '.id' /tmp/release.json)
+            RELEASE_ID=$(echo "$HTTP_BODY" | jq -r '.id')
           fi
 
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
-            echo "::error::Failed to resolve Release ID."
+            echo "::error::Could not resolve GitHub Release ID."
             exit 1
           fi
 
@@ -324,7 +326,7 @@ jobs:
               --data-binary @"$FILE")
             
             if echo "$RES" | grep -q "errors"; then
-              echo "::warning::Upload of ${NAME} failed or already exists: $(echo $RES | jq -r '.message // .')"
+              echo "::warning::Upload failed: $(echo $RES | jq -r '.message // .')"
             fi
           }
 
