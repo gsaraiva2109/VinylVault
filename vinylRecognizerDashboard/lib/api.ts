@@ -44,7 +44,7 @@ export const api = {
     getMaster: async (id: number | string) => {
       // Proxy via Tauri Rust command (avoids CORS, no API route needed)
       // Guard for web version
-      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
         const { invoke } = await import('@tauri-apps/api/core')
         return invoke('discogs_get_master', { id: String(id) })
       }
