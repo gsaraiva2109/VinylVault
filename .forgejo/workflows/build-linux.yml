@@ -21,7 +21,7 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
-      - uses: dorny/paths-filter@v3
+      - uses: https://github.com/dorny/paths-filter@v3
         id: filter
         with:
           filters: |
