@@ -239,7 +239,8 @@ jobs:
             echo "Triggering Dokploy deploy for ${{ matrix.image }}..."
             # Combine Host + Webhook Path if needed, or just use the full URL if it's already an IP
             # We add -i to see response and -d '{}' to ensure POST body is present
-            curl -i -X POST \
+            # Added -L and --post301 to follow redirects (301) while maintaining POST
+            curl -i -L --post301 -X POST \
               -H "Content-Type: application/json" \
               -d "{}" \
               "$WEBHOOK_URL"
