@@ -55,6 +55,20 @@ jobs:
         working-directory: vinyl-catalog
         run: pnpm install --frozen-lockfile
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Python sidecar
+        working-directory: vinyl-catalog/sidecar
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --quiet -r requirements.txt pyinstaller
+          pyinstaller --clean --onefile --name sidecar --distpath ../src-tauri/binaries main.py
+          mv ../src-tauri/binaries/sidecar ../src-tauri/binaries/sidecar-aarch64-apple-darwin
+
       # pnpm tauri build reads beforeBuildCommand from tauri.conf.json and
       # runs `cd ../vinylRecognizerDashboard && pnpm build` automatically.
       - name: Build Tauri macOS .dmg
