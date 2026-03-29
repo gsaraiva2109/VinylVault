@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node24 --outfile=dist/server.js --minify --external:postgres --external:swagger-ui-express --external:swagger-jsdoc",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node24 --outfile=dist/server.js --minify --external:postgres",
     "start": "node dist/server.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts"
