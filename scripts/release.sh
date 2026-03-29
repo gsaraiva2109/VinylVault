@@ -8,6 +8,8 @@
 #   ./scripts/release.sh 1.2.3            # explicit version
 #   ./scripts/release.sh patch --dry-run  # preview only, no changes
 #   ./scripts/release.sh patch --skip-ci-check  # skip Forgejo CI status check
+#
+# Set FORGEJO_TOKEN env var for authenticated CI status checks.
 
 set -euo pipefail
 
@@ -55,12 +57,8 @@ echo ""
 
 # ── Check Forgejo CI status ───────────────────────────────────────────────────
 if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
-  # Parse Forgejo URL + repo from git remote
   REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-  # Supports: https://forgejo.example.com/owner/repo.git
-  #           git@forgejo.example.com:owner/repo.git
   if [[ "$REMOTE_URL" =~ ^https?:// ]]; then
-    # Strip credentials if present (https://user:token@host/...)
     FORGEJO_BASE=$(echo "$REMOTE_URL" | sed 's|://[^@]*@|://|' | sed 's|\.git$||')
     REPO_PATH="${FORGEJO_BASE#*://*/}"
     FORGEJO_HOST="${FORGEJO_BASE%/$REPO_PATH}"
@@ -81,13 +79,15 @@ if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
     echo "  Checking CI status on ${FORGEJO_HOST}..."
     HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
       -H "Accept: application/json" \
+      ${FORGEJO_TOKEN:+-H "Authorization: token ${FORGEJO_TOKEN}"} \
       "$API_URL" 2>/dev/null || echo -e "\n000")
 
     HTTP_BODY=$(echo "$HTTP_RESPONSE" | head -n -1)
     HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n 1)
 
     if [[ "$HTTP_CODE" != "200" ]]; then
-      echo "  [ci-check] Could not reach Forgejo API (HTTP $HTTP_CODE). Use --skip-ci-check to bypass."
+      echo "  [ci-check] Could not reach Forgejo API (HTTP $HTTP_CODE)."
+      echo "  Set FORGEJO_TOKEN env var or use --skip-ci-check to bypass."
       exit 1
     fi
 
@@ -122,13 +122,10 @@ fi
 # ── Preview ───────────────────────────────────────────────────────────────────
 echo "Files to update:"
 echo "  VERSION"
-echo "  vinyl-catalog/backend/src/swagger.ts"
-echo "  vinyl-catalog/sidecar/main.py"
 echo "  vinyl-catalog/src-tauri/Cargo.toml"
 echo "  vinyl-catalog/src-tauri/tauri.conf.json"
-echo "  vinyl-catalog/package.json"
-echo "  vinylRecognizerDashboard/package.json + package-lock.json"
-echo "  vinyl-catalog/backend/package.json + package-lock.json"
+echo "  vinyl-catalog/backend/src/swagger.ts"
+echo "  vinyl-catalog/sidecar/main.py"
 echo ""
 
 if $DRY_RUN; then
@@ -142,55 +139,38 @@ read -rp "Proceed? [y/N] " CONFIRM
 
 # ── Update files ──────────────────────────────────────────────────────────────
 
-# 1. Root VERSION
+# 1. Root VERSION — CI reads this to tag Docker images
 echo "$NEW" > VERSION
 
-# 2. swagger.ts — matches: version: 'X.Y.Z'
-sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
-  vinyl-catalog/backend/src/swagger.ts
-
-# 3. main.py — matches: version="X.Y.Z" inside FastAPI(...)
-sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
-  vinyl-catalog/sidecar/main.py
-
-# 4. Cargo.toml — matches only the top-level `version = "X.Y.Z"` line
-#    (dependency versions use inline tables and won't match ^version)
+# 2. Cargo.toml — first occurrence only (package version, not dependency versions)
 sed -i "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
   vinyl-catalog/src-tauri/Cargo.toml
 
-# 5. tauri.conf.json
+# 3. tauri.conf.json — Tauri CLI reads this at build time
 tmp="$(mktemp)"
 jq --arg v "$NEW" '.version = $v' vinyl-catalog/src-tauri/tauri.conf.json > "$tmp"
 mv "$tmp" vinyl-catalog/src-tauri/tauri.conf.json
 
-# 6. vinylRecognizerDashboard/package.json + package-lock.json (npm)
-(cd vinylRecognizerDashboard && npm version "$NEW" --no-git-tag-version --allow-same-version 2>/dev/null)
+# 4. swagger.ts — version shown in Swagger UI
+sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
+  vinyl-catalog/backend/src/swagger.ts
 
-# 7. vinyl-catalog/backend/package.json + package-lock.json (npm)
-(cd vinyl-catalog/backend && npm version "$NEW" --no-git-tag-version --allow-same-version 2>/dev/null)
-
-# 8. vinyl-catalog/package.json (pnpm workspace root)
-tmp="$(mktemp)"
-jq --arg v "$NEW" '.version = $v' vinyl-catalog/package.json > "$tmp"
-mv "$tmp" vinyl-catalog/package.json
+# 5. main.py — version shown in FastAPI /openapi.json
+sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
+  vinyl-catalog/sidecar/main.py
 
 echo ""
-echo "Updated all manifests to ${NEW}."
+echo "Updated manifests to ${NEW}."
 
 # ── Git commit + tag ──────────────────────────────────────────────────────────
 git add \
   VERSION \
-  vinyl-catalog/backend/src/swagger.ts \
-  vinyl-catalog/sidecar/main.py \
   vinyl-catalog/src-tauri/Cargo.toml \
   vinyl-catalog/src-tauri/tauri.conf.json \
-  vinyl-catalog/package.json \
-  vinylRecognizerDashboard/package.json \
-  vinylRecognizerDashboard/package-lock.json \
-  vinyl-catalog/backend/package.json \
-  vinyl-catalog/backend/package-lock.json
+  vinyl-catalog/backend/src/swagger.ts \
+  vinyl-catalog/sidecar/main.py
 
-git commit -m "chore: bump version to v${NEW} [skip ci]"
+git commit -m "chore: bump version to v${NEW}"
 git tag "v${NEW}"
 
 echo ""
