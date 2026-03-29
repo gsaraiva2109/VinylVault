@@ -200,117 +200,20 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.meta.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
 
-  # ── Auto Version & Tag ───────────────────────────────────────────────────
-  # On every successful main build:
-  #   1. Reads latest vX.Y.Z git tag as the version source of truth
-  #   2. Inspects conventional commits since last tag to pick major/minor/patch
-  #   3. Skips if computed tag already exists (safe to retry)
-  #   4. Updates VERSION file, commits [skip ci], pushes tag
-  #   5. Creates a Forgejo release with a generated changelog
-  # The tag push fires a second pipeline run which:
-  #   • publishes :latest + :vX.Y.Z to GHCR  → Dokploy can deploy
-  #   • mirrors the tag to GitHub             → triggers release-macos.yml (.dmg)
-  # Requires: FORGEJO_BOT_TOKEN secret (repo write access on Forgejo).
-  auto-release:
-    name: Auto Version & Tag
-    runs-on: ubuntu-latest
-    needs: [quality-gate, build-and-push-images, build-tauri-linux]
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      !contains(github.event.head_commit.message, '[skip ci]')
-
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.FORGEJO_BOT_TOKEN }}
-
-      - name: Determine version bump
-        id: version
-        run: |
-          LATEST_TAG=$(git tag -l 'v*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-          [ -z "$LATEST_TAG" ] && LATEST_TAG="v0.0.0"
-          CURRENT=${LATEST_TAG#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
-          COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-          BUMP="patch"
-          echo "$COMMITS" | grep -qE '^(feat!:|fix!:|BREAKING CHANGE:)' && BUMP="major"
-          echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'                  && [ "$BUMP" != "major" ] && BUMP="minor"
-
-          case "$BUMP" in
-            major) NEW="$((MAJOR + 1)).0.0" ;;
-            minor) NEW="${MAJOR}.$((MINOR + 1)).0" ;;
-            *)     NEW="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
-          esac
-
-          echo "version=${NEW}"          >> "$GITHUB_OUTPUT"
-          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Bumping ${CURRENT} → ${NEW} (${BUMP})"
-
-      - name: Check if tag already exists
-        id: check
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true"  >> "$GITHUB_OUTPUT"
-            echo "Tag v${{ steps.version.outputs.version }} already exists — skipping"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Update VERSION, tag, and create release
-        if: steps.check.outputs.exists == 'false'
-        env:
-          FORGEJO_BOT_TOKEN: ${{ secrets.FORGEJO_BOT_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-
-          # Changelog from commits since last tag (before version bump commit)
-          CHANGELOG=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"- %s" 2>/dev/null || echo "- Initial release")
-
-          # Update VERSION file
-          echo "$VERSION" > VERSION
-          git config user.email "ci-bot@noreply.local"
-          git config user.name "CI Bot"
-          PROTOCOL="${GITHUB_SERVER_URL%%://*}"
-          SERVER="${GITHUB_SERVER_URL#*//}"
-          git remote set-url origin "${PROTOCOL}://x-access-token:${FORGEJO_BOT_TOKEN}@${SERVER}/${GITHUB_REPOSITORY}.git"
-          git add VERSION
-          git commit -m "chore: bump version to v${VERSION} [skip ci]"
-          git tag "v${VERSION}"
-          git push origin HEAD:main
-          git push origin "v${VERSION}"
-
-          # Create Forgejo release via API
-          curl -s -X POST "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases" \
-            -H "Authorization: token ${FORGEJO_BOT_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg tag  "v${VERSION}" \
-              --arg name "Release v${VERSION}" \
-              --arg body "$CHANGELOG" \
-              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')"
-
   # ── Mirror to GitHub ─────────────────────────────────────────────────────
-  # Only runs after quality gate passes. Pushes the current commit (and tag,
+  # Runs after all build jobs pass. Pushes the current commit (and tag,
   # if this is a release) to GitHub, which triggers release-macos.yml for
-  # the macOS .dmg build. Requires MIRROR_TOKEN secret and
-  # MIRROR_REPO variable ("gsaraiva2109/vinylvault") configured on Forgejo.
+  # the macOS .dmg build. Requires MIRROR_TOKEN secret (repo + workflow scopes)
+  # and MIRROR_REPO variable ("gsaraiva2109/vinylvault") configured on Forgejo.
+  # Versioning is local — run ./scripts/release.sh before pushing a release.
   push-to-github:
     name: Mirror to GitHub
     runs-on: ubuntu-latest
-    needs: [quality-gate, build-and-push-images, build-tauri-linux, auto-release]
-    # Run even when auto-release is skipped (tag pushes), fail fast on any real failure
+    needs: [quality-gate, build-and-push-images, build-tauri-linux]
     if: >-
-      always() &&
       needs.quality-gate.result == 'success' &&
       needs.build-and-push-images.result == 'success' &&
-      needs.build-tauri-linux.result == 'success' &&
-      (needs.auto-release.result == 'success' || needs.auto-release.result == 'skipped')
+      needs.build-tauri-linux.result == 'success'
 
     steps:
       - uses: actions/checkout@v4
@@ -325,14 +228,14 @@ jobs:
           git fetch --tags
           git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Tag push: mirror the tag (|| true — may already exist from branch-triggered run)
-            git push github "${GITHUB_REF}" || true
+            # Tag push: mirror the tag
+            git push github "${GITHUB_REF}"
           else
-            # Branch push: mirror commit + push the version tag auto-release just created
+            # Branch push: mirror commit + latest version tag if present
             git push github HEAD:refs/heads/main
             LATEST_TAG=$(git tag -l 'v*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
             if [ -n "$LATEST_TAG" ]; then
-              git push github "refs/tags/${LATEST_TAG}"
+              git push github "refs/tags/${LATEST_TAG}" || true
             fi
           fi
 
