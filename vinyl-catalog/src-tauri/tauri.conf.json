@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Vinyl Vault",
-  "version": "0.1.0",
+  "version": "1.0.2",
   "identifier": "com.gsaraiva2109.vinyl-vault",
   "build": {
     "frontendDist": "../../vinylRecognizerDashboard/out",
@@ -29,7 +29,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage"],
+    "targets": [
+      "appimage"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,7 +47,9 @@
     },
     "publisher": "gsaraiva2109",
     "category": "Music",
-    "externalBin": ["binaries/sidecar"]
+    "externalBin": [
+      "binaries/sidecar"
+    ]
   },
   "plugins": {
     "shell": {
@@ -53,7 +57,9 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["vinylapp"]
+        "schemes": [
+          "vinylapp"
+        ]
       }
     },
     "updater": {
