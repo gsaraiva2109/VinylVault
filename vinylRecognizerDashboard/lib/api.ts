@@ -1,3 +1,5 @@
+import { isTauri } from "./utils"
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export async function fetchApi(path: string, options: RequestInit = {}, token?: string) {
@@ -43,8 +45,7 @@ export const api = {
     getRelease: (id: number | string, token?: string) => fetchApi(`/api/discogs/release/${id}`, {}, token),
     getMaster: async (id: number | string) => {
       // Proxy via Tauri Rust command (avoids CORS, no API route needed)
-      // Guard for web version
-      if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+      if (isTauri()) {
         const { invoke } = await import('@tauri-apps/api/core')
         return invoke('discogs_get_master', { id: String(id) })
       }

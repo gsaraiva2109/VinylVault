@@ -51,42 +51,49 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
         const token = await invoke<string | null>("get_access_token")
         if (token) {
           const claims = decodeJwtPayload(token)
-          setAccessToken(token)
-          setUser({
+          const newStatus = "authenticated"
+          const newAccessToken = token
+          const newUser = {
             name: String(claims.name ?? claims.preferred_username ?? "User"),
             email: String(claims.email ?? ""),
-          })
-          setStatus("authenticated")
+          }
+
+          if (status !== newStatus) setStatus(newStatus)
+          if (accessToken !== newAccessToken) setAccessToken(newAccessToken)
+          if (user?.email !== newUser.email || user?.name !== newUser.name) setUser(newUser)
         } else {
-          setAccessToken(null)
-          setUser(null)
-          setStatus("unauthenticated")
+          if (accessToken !== null) setAccessToken(null)
+          if (user !== null) setUser(null)
+          if (status !== "unauthenticated") setStatus("unauthenticated")
         }
       } else {
         // Handle web version via NextAuth
         if (nextAuthStatus === "authenticated" && session) {
-          setAccessToken(session.accessToken ?? null)
-          setUser({
+          const newAccessToken = session.accessToken ?? null
+          const newUser = {
             name: session.user?.name ?? "User",
             email: session.user?.email ?? "",
             image: session.user?.image ?? undefined,
-          })
-          setStatus("authenticated")
+          }
+
+          if (accessToken !== newAccessToken) setAccessToken(newAccessToken)
+          if (user?.email !== newUser.email || user?.name !== newUser.name) setUser(newUser)
+          if (status !== "authenticated") setStatus("authenticated")
         } else if (nextAuthStatus === "unauthenticated") {
-          setAccessToken(null)
-          setUser(null)
-          setStatus("unauthenticated")
+          if (accessToken !== null) setAccessToken(null)
+          if (user !== null) setUser(null)
+          if (status !== "unauthenticated") setStatus("unauthenticated")
         } else {
-          setStatus("loading")
+          if (status !== "loading") setStatus("loading")
         }
       }
     } catch {
       // Not running inside Tauri (browser preview etc.)
-      setAccessToken(null)
-      setUser(null)
-      setStatus("unauthenticated")
+      if (accessToken !== null) setAccessToken(null)
+      if (user !== null) setUser(null)
+      if (status !== "unauthenticated") setStatus("unauthenticated")
     }
-  }, [nextAuthStatus, session])
+  }, [nextAuthStatus, session, status, accessToken, user])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

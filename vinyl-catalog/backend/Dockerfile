@@ -3,9 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-# NEW: Use the 'bundle' script to create a minified single-file build
+# NEW: Bundle almost everything into dist/server.js
 RUN npm run bundle
-# NEW: Prune to only the few libraries that couldn't be bundled
+# NEW: Prune to strictly only 'postgres' driver
 RUN npm prune --production && npm cache clean --force
 
 FROM node:24-alpine AS production
@@ -16,7 +16,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Only copy what is absolutely necessary
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules/postgres ./node_modules/postgres
 COPY --from=builder /app/drizzle ./drizzle
 COPY package*.json ./
 
@@ -27,7 +27,8 @@ ENV PORT=3001
 
 EXPOSE 3001
 
+# Hardened healthcheck using Node.js instead of wget
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
-  CMD wget -qO- http://localhost:3001/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3001/health', (res) => { if (res.statusCode === 200) process.exit(0); else process.exit(1); }).on('error', () => process.exit(1))"
 
 CMD ["node", "dist/server.js"]
