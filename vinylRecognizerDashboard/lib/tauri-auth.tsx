@@ -44,19 +44,23 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
 
   const refreshAuthState = useCallback(async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core")
-      const token = await invoke<string | null>("get_access_token")
-      if (token) {
-        const claims = decodeJwtPayload(token)
-        setAccessToken(token)
-        setUser({
-          name: String(claims.name ?? claims.preferred_username ?? "User"),
-          email: String(claims.email ?? ""),
-        })
-        setStatus("authenticated")
+      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+        const { invoke } = await import("@tauri-apps/api/core")
+        const token = await invoke<string | null>("get_access_token")
+        if (token) {
+          const claims = decodeJwtPayload(token)
+          setAccessToken(token)
+          setUser({
+            name: String(claims.name ?? claims.preferred_username ?? "User"),
+            email: String(claims.email ?? ""),
+          })
+          setStatus("authenticated")
+        } else {
+          setAccessToken(null)
+          setUser(null)
+          setStatus("unauthenticated")
+        }
       } else {
-        setAccessToken(null)
-        setUser(null)
         setStatus("unauthenticated")
       }
     } catch {
@@ -68,6 +72,10 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
+      return
+    }
+
     refreshAuthState()
 
     let unlisten: (() => void) | undefined
@@ -94,14 +102,22 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
   }, [refreshAuthState])
 
   const signIn = useCallback(async () => {
-    const { invoke } = await import("@tauri-apps/api/core")
-    await invoke("start_auth_flow")
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      const { invoke } = await import("@tauri-apps/api/core")
+      await invoke("start_auth_flow")
+    }
   }, [])
 
   const signOut = useCallback(async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core")
-      await invoke("sign_out")
+      if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+        const { invoke } = await import("@tauri-apps/api/core")
+        await invoke("sign_out")
+      } else {
+        setAccessToken(null)
+        setUser(null)
+        setStatus("unauthenticated")
+      }
     } catch {
       setAccessToken(null)
       setUser(null)
