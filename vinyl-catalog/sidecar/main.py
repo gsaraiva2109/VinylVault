@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ocr import extract_text
 from llm import route_to_llm
 
-app = FastAPI(title="Vinyl Vault Sidecar", version="1.0.8")
+app = FastAPI(title="Vinyl Vault Sidecar", version="1.0.9")
 
 app.add_middleware(
     CORSMiddleware,
