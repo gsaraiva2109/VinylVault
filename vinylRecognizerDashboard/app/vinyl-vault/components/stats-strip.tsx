@@ -106,6 +106,8 @@ export function StatsStrip({ onSearchOpen }: StatsStripProps) {
             style={{ color: "var(--app-text-3)" }}
           />
           <input
+            id="collection-search-input"
+            name="search-collection"
             ref={inputRef}
             type="text"
             placeholder="Search collection..."

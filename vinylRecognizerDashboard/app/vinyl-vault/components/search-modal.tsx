@@ -155,6 +155,8 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
               style={{ width: 17, height: 17 }}
             />
             <input
+              id="search-input"
+              name="search"
               ref={inputRef}
               value={query}
               onChange={(e) => {
