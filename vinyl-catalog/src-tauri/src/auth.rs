@@ -27,6 +27,12 @@ use crate::commands::keyring;
 const AUTHENTIK_ISSUER: &str = env!("AUTHENTIK_ISSUER");
 const CLIENT_ID: &str = env!("AUTHENTIK_CLIENT_ID");
 const CLIENT_SECRET: &str = env!("AUTHENTIK_CLIENT_SECRET");
+
+const _: () = {
+    assert!(!AUTHENTIK_ISSUER.is_empty(), "AUTHENTIK_ISSUER env var is empty");
+    assert!(!CLIENT_ID.is_empty(), "AUTHENTIK_CLIENT_ID env var is empty");
+    assert!(!CLIENT_SECRET.is_empty(), "AUTHENTIK_CLIENT_SECRET env var is empty");
+};
 /// Fixed loopback port for the OAuth callback server. Must match the redirect URI registered in Authentik.
 const CALLBACK_PORT: u16 = 17823;
 
@@ -105,6 +111,9 @@ pub async fn start_auth_flow(app: AppHandle) -> Result<(), String> {
         let state = app.state::<AuthState>();
         *state.pending_verifier.lock().unwrap() = Some(pkce_verifier);
     }
+
+    log::info!("[auth] client_id={CLIENT_ID:?} redirect_uri={redirect_uri}");
+    log::info!("[auth] auth_url={}", auth_url.as_str());
 
     // Open the URL in the system browser
     #[allow(deprecated)]
