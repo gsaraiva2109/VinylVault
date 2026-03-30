@@ -12,7 +12,8 @@ export class UnauthorizedError extends Error {
 export function isTokenExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-    return Date.now() >= (payload.exp as number) * 1000
+    if (typeof payload.exp !== 'number') return true
+    return Date.now() >= payload.exp * 1000
   } catch {
     return true
   }
