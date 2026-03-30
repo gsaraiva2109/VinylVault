@@ -339,7 +339,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: vinyl-vault-linux-appimage
-          path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+          path: |
+            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.sig
           retention-days: 30
 
   # ── Create GitHub Release ─────────────────────────────────────────────────
@@ -360,6 +362,7 @@ jobs:
         with:
           name: vinyl-vault-linux-appimage
           path: dist/
+          flat: true
 
       - name: Create GitHub Release and upload AppImage
         env:
@@ -367,13 +370,23 @@ jobs:
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
         run: |
           TAG="${{ github.ref_name }}"
-          APPIMAGE=$(find dist/ -name "*.AppImage" | head -1)
+          # Strip leading 'v' for version number in latest.json
+          VERSION="${TAG#v}"
+
+          APPIMAGE=$(find dist/ -name "*.AppImage" ! -name "*.sig" | head -1)
+          SIG_FILE=$(find dist/ -name "*.AppImage.sig" | head -1)
+
           if [ -z "$APPIMAGE" ]; then
             echo "::error::No AppImage found in dist/"
             exit 1
           fi
+          if [ -z "$SIG_FILE" ]; then
+            echo "::error::No .AppImage.sig found in dist/ — ensure TAURI_SIGNING_PRIVATE_KEY is set"
+            exit 1
+          fi
 
           APPIMAGE_NAME=$(basename "$APPIMAGE")
+          SIG_NAME=$(basename "$SIG_FILE")
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
 
           # Generate changelog from commits since previous tag (exclude version bumps)
@@ -437,4 +450,50 @@ jobs:
             echo "Uploaded ${display_name}: HTTP $HTTP"
           }
           upload_asset "$APPIMAGE"    "$APPIMAGE_NAME"  "application/octet-stream"
+          upload_asset "$SIG_FILE"    "$SIG_NAME"       "text/plain"
           upload_asset SHA256SUMS.txt "SHA256SUMS.txt"  "text/plain"
+
+          # ── Generate latest.json for Tauri auto-updater ───────────────────
+          # Tauri v2 expects: https://tauri.app/plugin/updater/#update-server
+          SIGNATURE=$(cat "$SIG_FILE")
+          DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${APPIMAGE_NAME}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq -n \
+            --arg version   "$VERSION" \
+            --arg notes     "$CHANGELOG" \
+            --arg pub_date  "$PUB_DATE" \
+            --arg url       "$DOWNLOAD_URL" \
+            --arg signature "$SIGNATURE" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "linux-x86_64": {
+                  signature: $signature,
+                  url: $url
+                }
+              }
+            }' > latest.json
+
+          echo "--- latest.json ---"
+          cat latest.json
+
+          upload_asset latest.json "latest.json" "application/json"
+
+          # ── Trigger macOS release workflow ────────────────────────────────
+          # Forgejo's native push mirror uses a token that GitHub treats as
+          # a bot push, so on: push: tags triggers are suppressed on GitHub.
+          # We fire a repository_dispatch instead to reliably start the macOS job.
+          echo "Dispatching release-macos workflow for tag ${TAG}..."
+          DISPATCH_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${MIRROR_REPO}/dispatches" \
+            -d "{\"event_type\":\"release-macos\",\"client_payload\":{\"tag\":\"${TAG}\"}}")
+          echo "Dispatch response: HTTP $DISPATCH_RESP"
+          if [ "$DISPATCH_RESP" != "204" ]; then
+            echo "::warning::macOS dispatch returned HTTP $DISPATCH_RESP — check MIRROR_TOKEN has workflow scope"
+          fi

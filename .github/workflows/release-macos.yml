@@ -8,6 +8,10 @@ on:
   push:
     tags:
       - "v*"
+  # Fired explicitly by the Forgejo push-to-github job via the GitHub API
+  # when GitHub suppresses the push trigger from the mirror token.
+  repository_dispatch:
+    types: [release-macos]
 
 permissions:
   contents: write
@@ -20,11 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
 
-      - uses: pnpm/action-setup@fc06bc1257033666666666666666666666666666 # v5.0.0
+      - uses: pnpm/action-setup@v5.0.0
         with:
           version: latest
 
-      - uses: actions/setup-node@53b8394e64135882195359d6c73d679701af0d1f # v6.3.0
+      - uses: actions/setup-node@v6.3.0
         with:
           node-version: 20
           cache: pnpm
@@ -38,7 +42,7 @@ jobs:
           targets: aarch64-apple-darwin
 
       - name: Cache cargo registry
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@v4.2.2
         with:
           path: |
             ~/.cargo/registry
@@ -91,7 +95,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
+          TAG="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}"
           DMG=$(find vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
           shasum -a 256 "$DMG" > SHA256SUMS-macos.txt
           
