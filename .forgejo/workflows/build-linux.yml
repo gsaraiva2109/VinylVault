@@ -146,7 +146,7 @@ jobs:
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
-    runs-on: heavy-node
+    runs-on: heavy-ubuntu
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() and manual check of failure to handle skipped jobs
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
