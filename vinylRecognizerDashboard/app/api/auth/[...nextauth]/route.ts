@@ -8,6 +8,11 @@ import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
+  // Only generate static params when compiling for Tauri (static export).
+  // In dev and prod (standalone), return empty array so all routes remain fully dynamic.
+  if (process.env.NEXT_OUTPUT === "standalone" || process.env.NODE_ENV === "development") {
+    return [];
+  }
   return [{ nextauth: ["callback"] }];
 }
 

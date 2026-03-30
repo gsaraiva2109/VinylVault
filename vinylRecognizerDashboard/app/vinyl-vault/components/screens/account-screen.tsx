@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { User, LogOut, Mail, Shield, Camera } from "lucide-react"
 
@@ -15,6 +15,14 @@ export function AccountScreen() {
 
   const [displayName, setDisplayName] = useState(userName)
   const [editEmail, setEditEmail] = useState(userEmail)
+
+  // Sync state when user object loads/changes
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.name)
+      setEditEmail(user.email)
+    }
+  }, [user])
 
   return (
     <div className="flex flex-col items-center overflow-auto px-6 py-10">
@@ -103,15 +111,21 @@ export function AccountScreen() {
             {/* Fields */}
             <div className="space-y-3.5">
               <ProfileField
+                id="display-name"
+                name="name"
                 label="Display Name"
                 value={displayName}
                 onChange={setDisplayName}
+                autoComplete="name"
               />
               <ProfileField
+                id="email"
+                name="email"
                 label="Email"
                 value={editEmail}
                 onChange={setEditEmail}
                 type="email"
+                autoComplete="email"
               />
             </div>
 
@@ -168,23 +182,32 @@ function Divider() {
 }
 
 function ProfileField({
+  id,
+  name,
   label,
   value,
   onChange,
   type = "text",
+  autoComplete,
 }: {
+  id: string
+  name: string
   label: string
   value: string
   onChange: (v: string) => void
   type?: string
+  autoComplete?: string
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-medium text-white/45">{label}</label>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-medium text-white/45">{label}</label>
       <input
+        id={id}
+        name={name}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
         className="h-9 w-full rounded-lg px-3 text-sm text-white/85 placeholder-white/25 outline-none transition-colors"
         style={{
           background: "rgba(255,255,255,0.06)",

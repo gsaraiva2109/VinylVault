@@ -167,6 +167,8 @@ export function RecordDetailModal() {
               <div className="flex flex-col gap-4">
                 <EditField label="Title">
                   <input
+                    id="edit-title-input"
+                    name="edit-title"
                     style={fieldStyle}
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
@@ -176,6 +178,8 @@ export function RecordDetailModal() {
                 </EditField>
                 <EditField label="Artist">
                   <input
+                    id="edit-artist-input"
+                    name="edit-artist"
                     style={fieldStyle}
                     value={editArtist}
                     onChange={(e) => setEditArtist(e.target.value)}
@@ -186,6 +190,8 @@ export function RecordDetailModal() {
                 <div className="grid grid-cols-2 gap-3">
                   <EditField label="Year">
                     <input
+                      id="edit-year-input"
+                      name="edit-year"
                       style={fieldStyle}
                       value={editYear}
                       onChange={(e) => setEditYear(e.target.value)}
@@ -195,6 +201,8 @@ export function RecordDetailModal() {
                   </EditField>
                   <EditField label="Genre">
                     <input
+                      id="edit-genre-input"
+                      name="edit-genre"
                       style={fieldStyle}
                       value={editGenre}
                       onChange={(e) => setEditGenre(e.target.value)}
@@ -206,6 +214,8 @@ export function RecordDetailModal() {
                 <EditField label="Condition">
                   <div className="relative">
                     <select
+                      id="edit-condition-input"
+                      name="edit-condition"
                       style={{ ...fieldStyle, appearance: "none", paddingRight: "28px" }}
                       value={editCondition}
                       onChange={(e) => setEditCondition(e.target.value as Condition)}
@@ -223,6 +233,8 @@ export function RecordDetailModal() {
                 </EditField>
                 <EditField label="Notes">
                   <textarea
+                    id="edit-notes-input"
+                    name="edit-notes"
                     style={{ ...fieldStyle, resize: "vertical", minHeight: "72px", lineHeight: "1.5" }}
                     value={editNotes}
                     placeholder="Optional notes..."

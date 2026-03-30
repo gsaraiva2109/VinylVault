@@ -220,10 +220,11 @@ export function StatsScreen() {
                 >
                   <div
                     className="h-10 w-10 shrink-0 rounded-lg bg-cover bg-center"
-                    style={{
-                      backgroundImage: record.coverUrl ? `url(${record.coverUrl})` : undefined,
-                      background: record.coverUrl ? undefined : "var(--app-surface-3)",
-                    }}
+                    style={
+                      record.coverUrl
+                        ? { backgroundImage: `url(${record.coverUrl})` }
+                        : { background: "var(--app-surface-3)" }
+                    }
                   />
                   <div className="flex-1 overflow-hidden">
                     <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
@@ -268,10 +269,11 @@ export function StatsScreen() {
                     </div>
                     <div
                       className="h-12 w-12 shrink-0 rounded-lg bg-cover bg-center"
-                      style={{
-                        backgroundImage: record.coverUrl ? `url(${record.coverUrl})` : undefined,
-                        background: record.coverUrl ? undefined : "var(--app-surface-3)",
-                      }}
+                      style={
+                        record.coverUrl
+                          ? { backgroundImage: `url(${record.coverUrl})` }
+                          : { background: "var(--app-surface-3)" }
+                      }
                     />
                     <div className="flex-1 overflow-hidden">
                       <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
