@@ -43,3 +43,4 @@ webkit2gtk = { version = "2", features = ["v2_22"] }
 objc2-vision     = "0.3"
 objc2-foundation = "0.3"
 objc2-core-image = "0.3"
+objc2 = "0.5"

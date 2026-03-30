@@ -7,12 +7,13 @@
 
 #[cfg(target_os = "macos")]
 pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
-    use objc2_foundation::{NSArray, NSData, NSString};
+    use objc2_foundation::{NSArray, NSData, NSDictionary};
     use objc2_vision::{
-        VNImageRequestHandler, VNRecognizeTextRequest, VNRecognitionLevel,
+        VNImageRequestHandler, VNRecognizeTextRequest, VNRequestTextRecognitionLevel, VNRequest,
     };
     use objc2_core_image::CIImage;
-    use std::ptr::NonNull;
+    use objc2::ClassType;
+    use objc2::rc::Retained;
 
     // Safety: all Vision calls happen synchronously on this thread.
     unsafe {
@@ -28,7 +29,7 @@ pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
 
         // Build the recognition request
         let request = VNRecognizeTextRequest::new();
-        request.setRecognitionLevel(VNRecognitionLevel::Accurate);
+        request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
         request.setUsesLanguageCorrection(true);
 
         // Execute the request against the image
@@ -38,9 +39,7 @@ pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
             &objc2_foundation::NSDictionary::new(),
         );
 
-        let requests = NSArray::from_vec(vec![request
-            .as_ref()
-            .as_ref() as *const _ as *mut _]);
+        let requests = NSArray::from_vec(vec![Retained::cast::<VNRequest>(request)]);
 
         handler
             .performRequests_error(&requests)
