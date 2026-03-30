@@ -10,10 +10,13 @@ export function Select({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   const [value, setValue] = React.useState("");
+  const reactId = React.useId();
 
   return (
     <div className="relative flex flex-col">
       <select
+        id={props.id || reactId}
+        name={props.name || props.id || reactId}
         className={clsx(
           "appearance-none rounded-md border border-[--border] bg-[--surface-secondary] py-2 pl-3 pr-3.5 text-sm placeholder:text-sm placeholder:text-[--text-tertiary-50] dark:border-[--dark-border] dark:bg-[--dark-surface-tertiary] dark:placeholder:text-[--dark-text-tertiary-50]",
           value === "" && "text-[--text-tertiary-50] dark:text-[--dark-text-tertiary-50]",

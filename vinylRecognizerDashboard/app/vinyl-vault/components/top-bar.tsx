@@ -38,6 +38,8 @@ export function TopBar() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <input
+              id="topbar-search-input"
+              name="topbar-search"
               type="text"
               placeholder="Search records..."
               value={filters.searchQuery || ""}

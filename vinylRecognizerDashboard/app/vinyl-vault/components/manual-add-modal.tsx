@@ -221,6 +221,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
                   <div className="relative flex-1">
                     <Link2 className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--app-text-3)" }} />
                     <input
+                      id="discogs-import-url"
+                      name="discogs-url"
                       type="url"
                       value={discogsUrl}
                       onChange={(e) => setDiscogsUrl(e.target.value)}
@@ -269,6 +271,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
               <Field label="Title" required>
                 <Input
+                  id="record-title"
+                  name="title"
                   value={form.title}
                   onChange={set("title")}
                   placeholder="e.g. Kind of Blue"
@@ -278,6 +282,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
               <Field label="Artist" required>
                 <Input
+                  id="record-artist"
+                  name="artist"
                   value={form.artist}
                   onChange={set("artist")}
                   placeholder="e.g. Miles Davis"
@@ -287,6 +293,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Year" required>
                   <Input
+                    id="record-year"
+                    name="year"
                     value={form.year}
                     onChange={set("year")}
                     placeholder="1959"
@@ -298,6 +306,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
                 <Field label="Genre" required>
                   <Input
+                    id="record-genre"
+                    name="genre"
                     value={form.genre}
                     onChange={set("genre")}
                     placeholder="e.g. Jazz"
@@ -330,6 +340,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
               <Field label="Cover URL" hint="Optional">
                 <Input
+                  id="record-cover-url"
+                  name="coverUrl"
                   value={form.coverUrl}
                   onChange={set("coverUrl")}
                   placeholder="https://..."
@@ -349,6 +361,8 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
               <Field label="Notes" hint="Optional">
                 <textarea
+                  id="record-notes"
+                  name="notes"
                   value={form.notes}
                   onChange={set("notes")}
                   placeholder="Any notes about this record..."
@@ -444,6 +458,8 @@ function Field({
 }
 
 function Input({
+  id,
+  name,
   value,
   onChange,
   placeholder,
@@ -452,6 +468,8 @@ function Input({
   min,
   max,
 }: {
+  id?: string
+  name?: string
   value: string
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   placeholder?: string
@@ -462,6 +480,8 @@ function Input({
 }) {
   return (
     <input
+      id={id}
+      name={name}
       type={type}
       value={value}
       onChange={onChange}

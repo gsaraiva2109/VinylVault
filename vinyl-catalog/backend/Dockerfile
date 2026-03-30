@@ -1,13 +1,12 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,id=npm,target=/root/.npm \
+    npm ci
 COPY . .
 # NEW: Bundle almost everything into dist/server.js
 RUN npm run bundle
-# NEW: Prune to strictly only 'postgres' driver
-RUN npm prune --production && npm cache clean --force
-
+# Removed redundant npm prune since we only explicitly copy specific files
 FROM node:24-alpine AS production
 WORKDIR /app
 

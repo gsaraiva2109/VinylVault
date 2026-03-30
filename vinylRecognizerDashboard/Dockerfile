@@ -1,13 +1,16 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json pnpm-lock.yaml* ./
-RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile
+RUN npm install -g pnpm@9
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && pnpm install --frozen-lockfile
 COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXTAUTH_SECRET=fallback_secret_for_build_only
 ENV NEXT_OUTPUT=standalone
-RUN pnpm build
+RUN --mount=type=cache,id=nextjs,target=/app/.next/cache \
+    pnpm build
 
 FROM node:24-alpine AS production
 WORKDIR /app

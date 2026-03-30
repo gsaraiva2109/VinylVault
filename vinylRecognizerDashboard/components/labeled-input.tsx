@@ -18,6 +18,7 @@ export function LabeledInput({
           "rounded-md border border-[--border] bg-[--surface-secondary] py-2 pl-3 pr-3.5 text-sm placeholder:text-sm placeholder:text-[--text-tertiary-50] dark:border-[--dark-border] dark:bg-[--dark-surface-tertiary] dark:placeholder:text-[--dark-text-tertiary-50]",
         )}
         id={id}
+        name={props.name || id}
         {...props}
       />
     </LabeledWrapper>
@@ -43,6 +44,7 @@ export const LabeledTextarea = ({
           "rounded-md border border-[--border] bg-[--surface-secondary] py-2 pl-3 pr-3.5 text-sm [form-sizing:content] placeholder:text-sm placeholder:text-[--text-tertiary] dark:border-[--dark-border] dark:bg-[--dark-surface-tertiary] dark:placeholder:text-[--dark-text-tertiary]",
         )}
         id={id}
+        name={props.name || id}
         {...props}
       />
     </LabeledWrapper>

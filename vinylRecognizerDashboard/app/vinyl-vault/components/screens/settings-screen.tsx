@@ -183,6 +183,8 @@ function IntegrationsSettings() {
               </label>
               <div className="flex gap-2">
                 <input
+                  id={`${key}-api-key-input`}
+                  name={`${key}-api-key`}
                   type={showApiKeys[key] ? "text" : "password"}
                   value={apiKeys[key]}
                   onChange={(e) => setApiKeys({ ...apiKeys, [key]: e.target.value })}
@@ -512,6 +514,8 @@ function DataSettings() {
           </div>
 
           <input
+            id="import-collection-file"
+            name="import-collection-file"
             ref={importInputRef}
             type="file"
             accept={importFormat === "json" ? ".json,application/json" : ".csv,text/csv"}
@@ -758,6 +762,8 @@ function AppearanceSettings() {
           <h3 className="mb-1.5 text-sm font-medium" style={{ color: "var(--app-text-2)" }}>Grid Density</h3>
           <p className="mb-3 text-xs" style={{ color: "var(--app-text-3)" }}>Choose how many records to display per row</p>
           <select
+            id="grid-density-select"
+            name="grid-density-select"
             className="h-9 w-full rounded-lg px-3 text-sm outline-none transition-colors cursor-pointer"
             style={{
               background: "var(--app-surface-3)",
