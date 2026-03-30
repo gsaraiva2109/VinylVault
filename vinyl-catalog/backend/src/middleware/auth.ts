@@ -35,7 +35,6 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
   // 2. Dev Mode Bypass: If a DEV_AUTH_TOKEN is set in .env, check if the Bearer token matches it
   if (DEV_AUTH_TOKEN && authorization === `Bearer ${DEV_AUTH_TOKEN}`) {
-    console.log('[auth] Dev Mode bypass activated with secret token')
     req.user = { name: 'Developer', sub: 'dev' }
     return next()
   }
@@ -51,7 +50,6 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
   // Dev Mode Bypass via query param token
   if (DEV_AUTH_TOKEN && rawToken === DEV_AUTH_TOKEN) {
-    console.log('[auth] Dev Mode bypass activated with secret token (query param)')
     req.user = { name: 'Developer', sub: 'dev' }
     return next()
   }
@@ -60,22 +58,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   const keyset = getJwks()
 
   if (!keyset) {
-    console.warn('[auth] AUTHENTIK_JWKS_URL not set — passing through (decoding user from token without verification)')
-    // Attempt to decode user info from JWT payload without signature verification
-    try {
-      const parts = token.split('.')
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-        req.user = {
-          name: (payload.name as string) || (payload.preferred_username as string) || 'Unknown User',
-          picture: payload.picture as string | undefined,
-          sub: (payload.sub as string) || 'unknown',
-        }
-      }
-    } catch {
-      // Ignore decode errors
-    }
-    return next()
+    console.error('[auth] AUTHENTIK_JWKS_URL not set but AUTH_ENABLED=true — rejecting request')
+    return res.status(500).json({ error: 'Internal server error' })
   }
 
   try {

@@ -35,7 +35,8 @@ router.get('/value', async (_req, res) => {
 
     res.json({ total, count: vinyls.length, byGenre, byFormat })
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[collection] GET /value error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

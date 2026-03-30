@@ -7,7 +7,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXTAUTH_SECRET=fallback_secret_for_build_only
+# NEXTAUTH_SECRET is a runtime secret — do NOT set a fallback here.
+# Provide it via the container's environment at runtime.
 ENV NEXT_OUTPUT=standalone
 RUN --mount=type=cache,id=nextjs,target=/app/.next/cache \
     pnpm build

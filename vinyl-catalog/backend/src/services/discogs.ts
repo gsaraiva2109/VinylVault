@@ -5,7 +5,9 @@ import { db, schema } from '../db'
 const DISCOGS_BASE = 'https://api.discogs.com'
 const USER_AGENT = 'VinylVaultApp/0.1 +https://github.com/gsaraiva2109/VinylVault'
 
-export function discogsGet(path: string): Promise<unknown> {
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+function discogsGetOnce(path: string): Promise<{ status: number; body: unknown }> {
   const token = process.env.DISCOGS_TOKEN
   return new Promise((resolve, reject) => {
     const req = https.get(
@@ -21,7 +23,7 @@ export function discogsGet(path: string): Promise<unknown> {
         res.on('data', (chunk) => (data += chunk))
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data))
+            resolve({ status: res.statusCode ?? 200, body: JSON.parse(data) })
           } catch {
             reject(new Error('Discogs JSON parse failed'))
           }
@@ -32,7 +34,22 @@ export function discogsGet(path: string): Promise<unknown> {
   })
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+export async function discogsGet(path: string, retries = 3): Promise<unknown> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const { status, body } = await discogsGetOnce(path)
+    if (status === 429) {
+      const backoffMs = Math.pow(2, attempt) * 2000
+      console.warn(`[discogs] rate limited (429), backing off ${backoffMs}ms`)
+      await sleep(backoffMs)
+      continue
+    }
+    if (status >= 400) {
+      throw new Error(`Discogs API error: HTTP ${status}`)
+    }
+    return body
+  }
+  throw new Error('Discogs API rate limit exceeded after retries')
+}
 
 export async function refreshStalePrices(
   stalePeriodMs = 24 * 60 * 60 * 1000

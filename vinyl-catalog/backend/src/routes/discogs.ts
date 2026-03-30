@@ -24,6 +24,7 @@ const router = Router()
 router.get('/search', async (req, res) => {
   const q = req.query.q as string
   if (!q) return res.status(400).json({ error: 'q parameter required' })
+  if (q.length > 500) return res.status(400).json({ error: 'q parameter too long' })
 
   try {
     const data = (await discogsGet(
@@ -42,7 +43,8 @@ router.get('/search', async (req, res) => {
 
     res.json(results)
   } catch (err) {
-    res.status(502).json({ error: String(err) })
+    console.error('[discogs] GET /search error:', err)
+    res.status(502).json({ error: 'Upstream service error' })
   }
 })
 
@@ -65,10 +67,13 @@ router.get('/search', async (req, res) => {
  *         description: Release details with pricing
  */
 router.get('/release/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id) || id <= 0) return res.status(400).json({ error: 'Invalid release ID' })
+
   try {
     const [data, stats] = await Promise.all([
-      discogsGet(`/releases/${req.params.id}`),
-      discogsGet(`/marketplace/stats/${req.params.id}`)
+      discogsGet(`/releases/${id}`),
+      discogsGet(`/marketplace/stats/${id}`)
     ]) as any[]
 
     res.json({
@@ -82,7 +87,8 @@ router.get('/release/:id', async (req, res) => {
       lowestPrice: stats.lowest_price?.value ?? data.lowest_price ?? null
     })
   } catch (err) {
-    res.status(502).json({ error: String(err) })
+    console.error('[discogs] GET /release/:id error:', err)
+    res.status(502).json({ error: 'Upstream service error' })
   }
 })
 

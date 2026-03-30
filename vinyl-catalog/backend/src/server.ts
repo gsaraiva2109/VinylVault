@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { join } from 'path'
 import express from 'express'
+import cors from 'cors'
 import cron from 'node-cron'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -13,11 +14,29 @@ import { refreshStalePrices } from './services/discogs'
 import { setupSwagger } from './swagger'
 import { addClient, removeClient } from './sse/broadcaster'
 
+// Validate required env vars before starting
+const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
+if (AUTH_ENABLED) {
+  const required = ['AUTHENTIK_JWKS_URL', 'AUTHENTIK_ISSUER'] as const
+  for (const key of required) {
+    if (!process.env[key]) {
+      console.error(`[server] Missing required env var: ${key}`)
+      process.exit(1)
+    }
+  }
+}
+
 const app = express()
 setupSwagger(app)
 const PORT = parseInt(process.env.PORT ?? '3001')
 
-app.use(express.json())
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) ?? []
+app.use(cors({
+  origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+  credentials: true,
+}))
+
+app.use(express.json({ limit: '1mb' }))
 
 // Health check (no auth)
 app.get('/', (_req, res) => res.json({ service: 'vinyl-vault-api', status: 'ok' }))
