@@ -69,6 +69,15 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Handle web version via NextAuth
         if (nextAuthStatus === "authenticated" && session) {
+          // Refresh token also expired — force re-login
+          if (session.error === "RefreshAccessTokenError") {
+            if (accessToken !== null) setAccessToken(null)
+            if (user !== null) setUser(null)
+            if (status !== "unauthenticated") setStatus("unauthenticated")
+            nextAuthSignOut()
+            return
+          }
+
           const newAccessToken = session.accessToken ?? null
           const newUser = {
             name: session.user?.name ?? "User",
