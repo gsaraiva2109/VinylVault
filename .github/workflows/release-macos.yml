@@ -62,8 +62,8 @@ jobs:
       - name: Fix Next.js static export for Tauri
         run: |
           # Next.js 15 requires force-static for routes during static export.
-          # We sed this at build time so the Web version stays dynamic.
-          sed -i 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
+          # macOS uses BSD sed, which requires an empty backup string (-i '') for in-place edits.
+          sed -i '' 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
 
       - name: Setup Python
         uses: actions/setup-python@v5
