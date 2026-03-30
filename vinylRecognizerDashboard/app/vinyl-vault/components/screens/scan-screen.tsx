@@ -304,7 +304,7 @@ function WebEmptyState({ onManualAdd }: { onManualAdd: () => void }) {
       </p>
       <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
         <a
-          href="https://github.com/gsaraiva2109/vinyl-vault"
+          href="https://github.com/gsaraiva2109/VinylVault/releases"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-semibold transition-colors cursor-pointer"

@@ -60,7 +60,7 @@ export function StatsStrip({ onSearchOpen }: StatsStripProps) {
           className="text-xs font-bold uppercase"
           style={{ color: "var(--app-text-3)", letterSpacing: "0.12em" }}
         >
-          Vinyl
+          Vinyl Vault
         </span>
       </div>
 
