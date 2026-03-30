@@ -338,14 +338,16 @@ jobs:
       - name: Verify build artifacts
         run: |
           echo "Checking build output directory..."
-          ls -R vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/
-
+          find vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ -type f \( -name "*.AppImage" -o -name "*.tar.gz" -o -name "*.sig" \)
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v3
         with:
           name: vinyl-vault-linux-appimage
-          path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/
+          path: |
+            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.tar.gz
+            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
 
   # ── Create GitHub Release ─────────────────────────────────────────────────
@@ -379,22 +381,31 @@ jobs:
           echo "DEBUG: Listing files in dist/:"
           ls -R dist/
 
-          # Find AppImage and signature, allowing for potential subdirectory nesting from download-artifact@v3
-          APPIMAGE=$(find dist/ -type f -name "*.AppImage" | grep -v "\.sig$" | head -1)
-          SIG_FILE=$(find dist/ -type f -iname "*.AppImage.sig" | head -1)
+          # Tauri v2 updater generates a .tar.gz and .tar.gz.sig for Linux AppImages
+          APPIMAGE=$(find dist/ -type f -name "*.AppImage" | head -1)
+          UPDATER_BUNDLE=$(find dist/ -type f -name "*.tar.gz" | head -1)
+          SIG_FILE=$(find dist/ -type f -name "*.sig" | head -1)
 
           if [ -z "$APPIMAGE" ]; then
-            echo "::error::No AppImage found in dist/"
+            echo "::error::No raw AppImage found in dist/"
+            exit 1
+          fi
+          if [ -z "$UPDATER_BUNDLE" ]; then
+            echo "::error::No updater .tar.gz bundle found in dist/ — updater plugin may not be running"
             exit 1
           fi
           if [ -z "$SIG_FILE" ]; then
-            echo "::error::No .AppImage.sig found in dist/ — ensure TAURI_SIGNING_PRIVATE_KEY is set"
+            echo "::error::No .sig found in dist/ — ensure TAURI_SIGNING_PRIVATE_KEY is set"
             exit 1
           fi
 
           APPIMAGE_NAME=$(basename "$APPIMAGE")
+          UPDATER_NAME=$(basename "$UPDATER_BUNDLE")
           SIG_NAME=$(basename "$SIG_FILE")
+          
+          # Checksums
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
+          sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
 
           # Generate changelog from commits since previous tag (exclude version bumps)
           PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
@@ -456,14 +467,15 @@ jobs:
               --data-binary @"${file}")
             echo "Uploaded ${display_name}: HTTP $HTTP"
           }
-          upload_asset "$APPIMAGE"    "$APPIMAGE_NAME"  "application/octet-stream"
-          upload_asset "$SIG_FILE"    "$SIG_NAME"       "text/plain"
-          upload_asset SHA256SUMS.txt "SHA256SUMS.txt"  "text/plain"
+          upload_asset "$APPIMAGE"       "$APPIMAGE_NAME"  "application/octet-stream"
+          upload_asset "$UPDATER_BUNDLE" "$UPDATER_NAME"   "application/gzip"
+          upload_asset "$SIG_FILE"       "$SIG_NAME"       "text/plain"
+          upload_asset SHA256SUMS.txt    "SHA256SUMS.txt"  "text/plain"
 
           # ── Generate latest.json for Tauri auto-updater ───────────────────
-          # Tauri v2 expects: https://tauri.app/plugin/updater/#update-server
+          # Tauri Linux updater expects the URL to point to the .tar.gz bundle!
           SIGNATURE=$(cat "$SIG_FILE")
-          DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${APPIMAGE_NAME}"
+          DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${UPDATER_NAME}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           jq -n \
