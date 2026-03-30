@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { join } from 'path'
 import express from 'express'
-import cors from 'cors'
 import cron from 'node-cron'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -18,7 +17,6 @@ const app = express()
 setupSwagger(app)
 const PORT = parseInt(process.env.PORT ?? '3001')
 
-app.use(cors())
 app.use(express.json())
 
 // Health check (no auth)

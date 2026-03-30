@@ -342,31 +342,19 @@ jobs:
           path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
           retention-days: 30
 
-  # ── Mirror to GitHub + Create Release ───────────────────────────────────
+  # ── Create GitHub Release ─────────────────────────────────────────────────
+  # Code mirroring is handled by Forgejo's native push mirror (repo settings).
+  # This job only creates the GitHub release and uploads the AppImage artifact.
   push-to-github:
-    name: Mirror to GitHub + Create Release
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-tauri-linux]
-    # Only need to wait for build-tauri-linux (which already waited for checks)
-    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && needs.build-tauri-linux.result == 'success' }}
+    needs: [build-tauri-linux]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.build-tauri-linux.result == 'success' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
           fetch-depth: 0
-      - name: Mirror branch + tag to GitHub
-        env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
-        run: |
-          git fetch --tags
-          if git remote | grep -q "^github$"; then
-            git remote set-url github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
-          else
-            git remote add github "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
-          fi
-          git push github HEAD:refs/heads/main --force
-          git push github "${GITHUB_REF}" --tags --force
-      
+
       - name: Download AppImage artifact
         uses: actions/download-artifact@v3
         with:
@@ -380,25 +368,73 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           APPIMAGE=$(find dist/ -name "*.AppImage" | head -1)
-          if [ -z "$APPIMAGE" ]; then exit 1; fi
-          
+          if [ -z "$APPIMAGE" ]; then
+            echo "::error::No AppImage found in dist/"
+            exit 1
+          fi
+
           APPIMAGE_NAME=$(basename "$APPIMAGE")
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
 
-          BODY="### Install\n\n**Linux (x86_64)** - download the \`.AppImage\` below:\n\`\`\`bash\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n\`\`\`\n\n**macOS (Apple Silicon)** - download the \`.dmg\`, open it, drag to Applications.\n\n---"
-          PAYLOAD=$(jq -n --arg tag "$TAG" --arg name "Vinyl Vault $TAG" --arg body "$BODY" '{tag_name: $tag, name: $name, body: $body, generate_release_notes: true}')
-
-          RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" -X POST -H "Authorization: Bearer ${MIRROR_TOKEN}" -H "Content-Type: application/json" "https://api.github.com/repos/${MIRROR_REPO}/releases" -d "$PAYLOAD")
-          if [ "$RESP" = "422" ]; then
-            RELEASE_ID=$(curl -s -H "Authorization: Bearer ${MIRROR_TOKEN}" "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" | jq -r '.id')
+          # Generate changelog from commits since previous tag (exclude version bumps)
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..${TAG}" \
+              | grep -v "\[skip ci\]" \
+              | grep -v "^- chore: release" \
+              | head -30)
+            [ -z "$CHANGELOG" ] && CHANGELOG="- Maintenance and dependency updates"
           else
-            RELEASE_ID=$(jq -r '.id' /tmp/release.json)
+            CHANGELOG="- Initial release"
           fi
 
-          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then exit 1; fi
+          BODY="$(printf '## Changelog\n\n%s\n\n---\n\n### Install\n\n**Linux (x86_64)** — download the `.AppImage` below:\n```bash\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** — download the `.dmg`, open it, drag to Applications.' "$CHANGELOG")"
+          PAYLOAD=$(jq -n \
+            --arg tag  "$TAG" \
+            --arg name "Vinyl Vault $TAG" \
+            --arg body "$BODY" \
+            '{tag_name: $tag, name: $name, body: $body}')
 
-          upload() {
-            curl -s -X POST -H "Authorization: Bearer ${MIRROR_TOKEN}" -H "Content-Type: $3" "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=$2" --data-binary @"$1"
+          RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${MIRROR_REPO}/releases" \
+            -d "$PAYLOAD")
+          echo "GitHub release API: HTTP $RESP"
+          cat /tmp/release.json
+
+          if [ "$RESP" = "422" ]; then
+            # Release already exists — fetch its ID
+            RELEASE_ID=$(curl -sf \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
+              | jq -r '.id')
+          elif [ "$RESP" = "201" ]; then
+            RELEASE_ID=$(jq -r '.id' /tmp/release.json)
+          else
+            echo "::error::Unexpected GitHub API response: HTTP $RESP"
+            exit 1
+          fi
+
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "::error::Failed to resolve release ID"
+            exit 1
+          fi
+          echo "Release ID: $RELEASE_ID"
+
+          # URL-encode asset name (productName is "Vinyl Vault" — contains a space)
+          upload_asset() {
+            local file="$1" display_name="$2" content_type="$3"
+            local encoded_name
+            encoded_name=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$display_name")
+            HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              -H "Content-Type: ${content_type}" \
+              "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=${encoded_name}" \
+              --data-binary @"${file}")
+            echo "Uploaded ${display_name}: HTTP $HTTP"
           }
-          upload "$APPIMAGE" "$APPIMAGE_NAME" "application/octet-stream"
-          upload SHA256SUMS.txt "SHA256SUMS.txt" "text/plain"
+          upload_asset "$APPIMAGE"    "$APPIMAGE_NAME"  "application/octet-stream"
+          upload_asset SHA256SUMS.txt "SHA256SUMS.txt"  "text/plain"

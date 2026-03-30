@@ -6,11 +6,13 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react"
+import { toast } from "sonner"
 import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, Condition } from "./types"
 import { filterRecords, sortRecords } from "./data"
-import { api } from "@/lib/api"
+import { api, UnauthorizedError, isTokenExpired } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { MOCK_RECORDS } from "./mock-data"
@@ -85,6 +87,17 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   const { accessToken: token, status, signOut } = useTauriAuth()
 
+  const signingOutRef = useRef(false)
+  const handleUnauthorized = useCallback(() => {
+    if (signingOutRef.current) return
+    signingOutRef.current = true
+    toast.error("Session expired", {
+      description: "Redirecting to sign in…",
+      duration: 3000,
+    })
+    setTimeout(() => signOut(), 1500)
+  }, [signOut])
+
   const refreshCollection = useCallback(() => {
     setRefreshTick((prev) => prev + 1)
   }, [])
@@ -140,11 +153,10 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          const errorMessage = err instanceof Error ? err.message : "Failed to load collection"
-          if (errorMessage.includes("401 Unauthorized")) {
-            signOut()
+          if (err instanceof UnauthorizedError) {
+            handleUnauthorized()
           } else {
-            setError(errorMessage)
+            setError(err instanceof Error ? err.message : "Failed to load collection")
           }
         }
       })
@@ -153,7 +165,7 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
       })
 
     return () => { cancelled = true }
-  }, [token, status, refreshTick, signOut])
+  }, [token, status, refreshTick, handleUnauthorized])
 
   // SSE connection for real-time sync across tabs/devices
   useEffect(() => {
@@ -202,11 +214,16 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
     })
 
     es.onerror = () => {
-      // EventSource auto-reconnects; no action needed
+      // EventSource doesn't expose the HTTP status code, but if the token
+      // is expired we know auth is the cause — sign out instead of looping.
+      if (token && isTokenExpired(token)) {
+        es.close()
+        handleUnauthorized()
+      }
     }
 
     return () => es.close()
-  }, [token, status])
+  }, [token, status, handleUnauthorized])
 
   // Soft-delete: moves to trash via API
   const deleteRecord = useCallback(async (id: string): Promise<void> => {
