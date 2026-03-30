@@ -14,7 +14,7 @@ jobs:
   # ── Change Detection ──────────────────────────────────────────────────────
   detect-changes:
     name: Detect Changes
-    runs-on: [ubuntu-latest, hp-light-lifter]
+    runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
@@ -50,7 +50,7 @@ jobs:
     name: Check Frontend
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: [ubuntu-latest, hp-light-lifter]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install pnpm
@@ -80,7 +80,7 @@ jobs:
     name: Check Backend
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: [ubuntu-latest, hp-light-lifter]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install backend deps
@@ -98,7 +98,7 @@ jobs:
     name: Check Rust
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: [ubuntu-latest, k6-heavy-lifter]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install Rust stable
@@ -146,7 +146,7 @@ jobs:
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
-    runs-on: [ubuntu-latest, k6-heavy-lifter]
+    runs-on: ubuntu-latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() and manual check of failure to handle skipped jobs
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -251,7 +251,7 @@ jobs:
   # ── Tauri Linux AppImage ──────────────────────────────────────────────────
   build-tauri-linux:
     name: Build Tauri Linux AppImage
-    runs-on: [ubuntu-latest, k6-heavy-lifter]
+    runs-on: ubuntu-latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() to allow building even if checks were skipped
     if: ${{ always() && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -355,7 +355,7 @@ jobs:
   # This job only creates the GitHub release and uploads the AppImage artifact.
   push-to-github:
     name: Create GitHub Release
-    runs-on: [ubuntu-latest, hp-light-lifter]
+    runs-on: ubuntu-latest
     needs: [build-tauri-linux]
     if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.build-tauri-linux.result == 'success' }}
     steps:
