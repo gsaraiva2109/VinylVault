@@ -335,13 +335,17 @@ jobs:
           APPIMAGE_BUNDLE_GSTREAMER: '0'
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
+      - name: Verify build artifacts
+        run: |
+          echo "Checking build output directory..."
+          ls -R vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/
+
+
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v3
         with:
           name: vinyl-vault-linux-appimage
-          path: |
-            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
-            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.sig
+          path: vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/
           retention-days: 30
 
   # ── Create GitHub Release ─────────────────────────────────────────────────
@@ -362,7 +366,6 @@ jobs:
         with:
           name: vinyl-vault-linux-appimage
           path: dist/
-          flat: true
 
       - name: Create GitHub Release and upload AppImage
         env:
@@ -373,8 +376,12 @@ jobs:
           # Strip leading 'v' for version number in latest.json
           VERSION="${TAG#v}"
 
-          APPIMAGE=$(find dist/ -name "*.AppImage" ! -name "*.sig" | head -1)
-          SIG_FILE=$(find dist/ -name "*.AppImage.sig" | head -1)
+          echo "DEBUG: Listing files in dist/:"
+          ls -R dist/
+
+          # Find AppImage and signature, allowing for potential subdirectory nesting from download-artifact@v3
+          APPIMAGE=$(find dist/ -type f -name "*.AppImage" | grep -v "\.sig$" | head -1)
+          SIG_FILE=$(find dist/ -type f -iname "*.AppImage.sig" | head -1)
 
           if [ -z "$APPIMAGE" ]; then
             echo "::error::No AppImage found in dist/"
