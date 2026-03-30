@@ -7,7 +7,7 @@
 
 #[cfg(target_os = "macos")]
 pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
-    use objc2_foundation::{NSArray, NSData, NSDictionary};
+    use objc2_foundation::{NSArray, NSData};
     use objc2_vision::{
         VNImageRequestHandler, VNRecognizeTextRequest, VNRequestTextRecognitionLevel, VNRequest,
     };
@@ -39,7 +39,7 @@ pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
             &objc2_foundation::NSDictionary::new(),
         );
 
-        let requests = NSArray::from_vec(vec![Retained::cast::<VNRequest>(request)]);
+        let requests = NSArray::from(vec![Retained::cast::<VNRequest>(request)]);
 
         handler
             .performRequests_error(&requests)
