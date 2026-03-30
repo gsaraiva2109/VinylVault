@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 use crate::commands::keyring;
 
 #[derive(Debug, Serialize, Deserialize)]
