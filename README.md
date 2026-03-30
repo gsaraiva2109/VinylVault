@@ -201,3 +201,4 @@ The Python OCR sidecar (Linux) starts automatically. On macOS, Vision.framework 
 ## License
 
 MIT
+
