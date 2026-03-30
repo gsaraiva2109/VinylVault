@@ -22,6 +22,23 @@ function pickMutable(body: Record<string, unknown>): Record<string, unknown> {
   return result
 }
 
+const STRING_FIELD_MAX_LENGTH = 1000
+const NOTES_MAX_LENGTH = 5000
+
+function validateStringFields(body: Record<string, unknown>): string | null {
+  const shortFields = ['title', 'artist', 'label', 'genre', 'format', 'condition', 'coverImageUrl', 'discogsUrl', 'spotifyUrl', 'conditionNotes'] as const
+  for (const field of shortFields) {
+    const val = body[field]
+    if (typeof val === 'string' && val.length > STRING_FIELD_MAX_LENGTH) {
+      return `${field} exceeds maximum length of ${STRING_FIELD_MAX_LENGTH}`
+    }
+  }
+  if (typeof body.notes === 'string' && body.notes.length > NOTES_MAX_LENGTH) {
+    return `notes exceeds maximum length of ${NOTES_MAX_LENGTH}`
+  }
+  return null
+}
+
 function validateCondition(condition: unknown): string | null {
   if (condition === null || condition === undefined) return null
   if (typeof condition !== 'string' || !(VALID_CONDITIONS as readonly string[]).includes(condition)) {
@@ -50,7 +67,8 @@ router.get('/', async (_req, res) => {
       .where(eq(schema.vinyls.isDeleted, false))
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] GET / error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -75,7 +93,8 @@ router.get('/trash', async (_req, res) => {
       .where(eq(schema.vinyls.isDeleted, true))
     res.json(rows)
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] GET /trash error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -110,7 +129,8 @@ router.get('/:id', async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Not found' })
     res.json(row)
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] GET /:id error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -156,6 +176,9 @@ router.post('/', async (req, res) => {
     const conditionErr = validateCondition(body.condition)
     if (conditionErr) return res.status(400).json({ error: conditionErr })
 
+    const lengthErr = validateStringFields(body)
+    if (lengthErr) return res.status(400).json({ error: lengthErr })
+
     const fields = pickMutable(body)
     const now = Date.now()
     const [created] = await db
@@ -172,7 +195,8 @@ router.post('/', async (req, res) => {
     broadcast('vinyl.created', created)
     res.status(201).json(created)
   } catch (err) {
-    res.status(400).json({ error: String(err) })
+    console.error('[vinyls] POST / error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -211,6 +235,9 @@ router.patch('/:id', async (req, res) => {
     const conditionErr = validateCondition(body.condition)
     if (conditionErr) return res.status(400).json({ error: conditionErr })
 
+    const lengthErr = validateStringFields(body)
+    if (lengthErr) return res.status(400).json({ error: lengthErr })
+
     const fields = pickMutable(body)
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: 'No updatable fields provided' })
@@ -226,7 +253,8 @@ router.patch('/:id', async (req, res) => {
     broadcast('vinyl.updated', updated)
     res.json(updated)
   } catch (err) {
-    res.status(400).json({ error: String(err) })
+    console.error('[vinyls] PATCH /:id error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -262,7 +290,8 @@ router.delete('/:id', async (req, res) => {
     broadcast('vinyl.deleted', updated)
     res.json(updated)
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] DELETE /:id error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -299,7 +328,8 @@ router.post('/:id/recover', async (req, res) => {
     broadcast('vinyl.recovered', recovered)
     res.json(recovered)
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] POST /:id/recover error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -331,7 +361,8 @@ router.delete('/:id/permanent', async (req, res) => {
     broadcast('vinyl.permanentlyDeleted', { id })
     res.status(204).end()
   } catch (err) {
-    res.status(500).json({ error: String(err) })
+    console.error('[vinyls] DELETE /:id/permanent error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
