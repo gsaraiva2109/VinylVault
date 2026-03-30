@@ -2,6 +2,22 @@ import { isTauri } from "./utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('Session expired or unauthorized')
+    this.name = 'UnauthorizedError'
+  }
+}
+
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return Date.now() >= (payload.exp as number) * 1000
+  } catch {
+    return true
+  }
+}
+
 export async function fetchApi(path: string, options: RequestInit = {}, token?: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -13,6 +29,10 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
     ...options,
     headers,
   })
+
+  if (response.status === 401) {
+    throw new UnauthorizedError()
+  }
 
   if (!response.ok) {
     const errorText = await response.text()
