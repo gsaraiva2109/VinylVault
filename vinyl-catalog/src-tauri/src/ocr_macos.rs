@@ -42,7 +42,7 @@ pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
         // Clone before upcast so we can read results afterwards
         let request_for_results = request.clone();
         let request_vn: Retained<VNRequest> = Retained::cast_unchecked(request);
-        let requests = NSArray::from_id_slice(&[request_vn]);
+        let requests = NSArray::from_slice(&[request_vn]);
 
         handler
             .performRequests_error(&requests)
