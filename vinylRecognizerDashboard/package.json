@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "lint": "next lint",
     "start": "next start",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,md}": [
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.19.15",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -39,10 +42,13 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "15.2.4",
     "husky": "^9.1.7",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
     "lint-staged": "^16.4.0",
     "postcss": "^8.5.8",
     "prettier": "^3.8.1",
     "tailwindcss-radix": "^3.0.5",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
   }
 }
