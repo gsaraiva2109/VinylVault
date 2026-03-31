@@ -143,11 +143,65 @@ jobs:
           CARGO_BUILD_JOBS: '16'
         run: cargo check --no-default-features
 
+  # ── Quality Gate: Rust / Tauri (macOS cfg simulation) ────────────────────
+  check-rust-macos:
+    name: Check Rust (macOS cfg)
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: heavy-ubuntu
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Install Rust stable
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Cache cargo registry
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-check-macos-reg-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-macos-reg-
+      - name: Cache cargo target
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: /tmp/cargo-target-macos
+          key: ${{ runner.os }}-cargo-check-macos-target-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-macos-target-
+      - name: Install Linux system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
+      - name: Create dummy sidecar (macOS name)
+        run: |
+          mkdir -p vinyl-catalog/src-tauri/binaries
+          touch vinyl-catalog/src-tauri/binaries/sidecar-aarch64-apple-darwin
+          chmod +x vinyl-catalog/src-tauri/binaries/sidecar-aarch64-apple-darwin
+      - name: Cargo check — simulate macOS cfg
+        working-directory: vinyl-catalog/src-tauri
+        env:
+          AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
+          AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
+          AUTHENTIK_CLIENT_SECRET: ${{ secrets.AUTHENTIK_CLIENT_SECRET }}
+          CARGO_TARGET_DIR: /tmp/cargo-target-macos
+          CARGO_BUILD_JOBS: '16'
+          # Trick rustc into compiling #[cfg(target_os = "macos")] blocks on Linux.
+          # This catches API errors in ocr_macos.rs and other macOS-only code
+          # without needing an actual Mac or the Apple SDK (no linking step).
+          RUSTFLAGS: '--cfg target_os="macos"'
+        run: cargo check --no-default-features
+
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
     runs-on: heavy-ubuntu
-    needs: [detect-changes, check-frontend, check-backend, check-rust]
+    needs: [detect-changes, check-frontend, check-backend, check-rust, check-rust-macos]
     # FIX: Use always() and manual check of failure to handle skipped jobs
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     strategy:
