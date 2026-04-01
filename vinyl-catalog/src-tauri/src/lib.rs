@@ -58,7 +58,7 @@ pub fn run() {
             commands::discogs::discogs_get_master,
             commands::spotify::spotify_search,
         ])
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 // Stop sidecar when the last window closes
                 #[cfg(target_os = "linux")]
