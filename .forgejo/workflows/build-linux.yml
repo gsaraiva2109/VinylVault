@@ -130,13 +130,17 @@ jobs:
           key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-check-target-
+      - name: Cache apt packages
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-tauri-check-v1
       - name: Install Linux system deps
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
           apt-get clean
-          rm -rf /var/lib/apt/lists/*
       - name: Create dummy sidecar
         run: |
           mkdir -p vinyl-catalog/src-tauri/binaries
