@@ -390,9 +390,11 @@ jobs:
             echo "::error::No raw AppImage found in dist/"
             exit 1
           fi
+          # Tauri v2 may sign the AppImage directly instead of wrapping it in a .tar.gz.
+          # Fall back to using the AppImage itself as the updater bundle.
           if [ -z "$UPDATER_BUNDLE" ]; then
-            echo "::error::No updater .tar.gz bundle found in dist/ — updater plugin may not be running"
-            exit 1
+            UPDATER_BUNDLE="$APPIMAGE"
+            echo "No .tar.gz found; using AppImage directly as updater bundle (Tauri v2 direct signing)"
           fi
           if [ -z "$SIG_FILE" ]; then
             echo "::error::No .sig found in dist/ — ensure TAURI_SIGNING_PRIVATE_KEY is set"
@@ -402,10 +404,12 @@ jobs:
           APPIMAGE_NAME=$(basename "$APPIMAGE")
           UPDATER_NAME=$(basename "$UPDATER_BUNDLE")
           SIG_NAME=$(basename "$SIG_FILE")
-          
+
           # Checksums
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
-          sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
+          if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
+            sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
+          fi
 
           # Generate changelog from commits since previous tag (exclude version bumps)
           PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
@@ -467,13 +471,15 @@ jobs:
               --data-binary @"${file}")
             echo "Uploaded ${display_name}: HTTP $HTTP"
           }
-          upload_asset "$APPIMAGE"       "$APPIMAGE_NAME"  "application/octet-stream"
-          upload_asset "$UPDATER_BUNDLE" "$UPDATER_NAME"   "application/gzip"
-          upload_asset "$SIG_FILE"       "$SIG_NAME"       "text/plain"
+          upload_asset "$APPIMAGE" "$APPIMAGE_NAME" "application/octet-stream"
+          if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
+            upload_asset "$UPDATER_BUNDLE" "$UPDATER_NAME" "application/gzip"
+          fi
+          upload_asset "$SIG_FILE" "$SIG_NAME" "text/plain"
           upload_asset SHA256SUMS.txt    "SHA256SUMS.txt"  "text/plain"
 
           # ── Generate latest.json for Tauri auto-updater ───────────────────
-          # Tauri Linux updater expects the URL to point to the .tar.gz bundle!
+          # URL points to the updater bundle (.tar.gz if present, otherwise the AppImage directly).
           SIGNATURE=$(cat "$SIG_FILE")
           DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${UPDATER_NAME}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
