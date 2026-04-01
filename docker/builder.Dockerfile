@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # Tauri system dependencies + Python toolchain
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    build-essential \
     libwebkit2gtk-4.1-dev \
     libssl-dev \
     libgtk-3-dev \

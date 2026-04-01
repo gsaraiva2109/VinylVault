@@ -155,7 +155,7 @@ jobs:
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
-    runs-on: light-ubuntu
+    runs-on: ${{ matrix.runner }}
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() and manual check of failure to handle skipped jobs
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -167,10 +167,12 @@ jobs:
             image: vinyl-vault-api
             filter: backend
             has_api_url: 'false'
+            runner: light-ubuntu
           - context: vinylRecognizerDashboard
             image: vinyl-vault-web
             filter: frontend
             has_api_url: 'true'
+            runner: heavy-ubuntu
     steps:
       - name: Check if image needs building
         id: check_skip
@@ -192,6 +194,8 @@ jobs:
       - name: Set up Docker Buildx
         if: steps.check_skip.outputs.SKIP != 'true'
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       - name: Login to Forgejo Registry
         if: steps.check_skip.outputs.SKIP != 'true'
