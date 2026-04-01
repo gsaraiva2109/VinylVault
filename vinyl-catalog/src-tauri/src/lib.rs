@@ -59,6 +59,7 @@ pub fn run() {
             commands::spotify::spotify_search,
         ])
         .on_window_event(|window, event| {
+            let _ = &window; // only used on Linux; suppress unused warning on other platforms
             if let tauri::WindowEvent::Destroyed = event {
                 // Stop sidecar when the last window closes
                 #[cfg(target_os = "linux")]

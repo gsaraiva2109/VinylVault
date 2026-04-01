@@ -6,6 +6,9 @@
  * If the binary is not present (dev without a PyInstaller build), we skip
  * silently rather than spamming errors.
  */
+// The sidecar module is compiled on all platforms (SidecarState is managed
+// unconditionally) but the functions are only called on Linux.
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 use std::sync::Mutex;
 use std::time::Duration;
