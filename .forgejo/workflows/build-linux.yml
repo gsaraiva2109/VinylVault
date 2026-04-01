@@ -261,6 +261,9 @@ jobs:
   build-tauri-linux:
     name: Build Tauri Linux AppImage
     runs-on: heavy-ubuntu
+    # Rust, system libs, and Python are pre-baked in the builder image stored
+    # on the local homelab registry (bypasses Cloudflare 413 limit).
+    container: localhost:5000/vinyl-vault-builder:latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() to allow building even if checks were skipped
     if: ${{ always() && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -280,20 +283,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-build-
 
-      - name: Cache Rust toolchain
-        id: cache-rustup-build
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/bin
-          key: ${{ runner.os }}-rustup-stable
-      - name: Install Rust stable
-        if: steps.cache-rustup-build.outputs.cache-hit != 'true'
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-      - name: Add cargo to PATH
-        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
+      # Rust and system libs are in the builder image — only compiled artefacts need caching.
       - name: Cache cargo registry
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
@@ -311,14 +301,6 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-target-
-
-      - name: Install Linux system deps
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf file python3 python3-pip python3-venv libpython3.10 xdg-utils
-          apt-get clean
-          rm -rf /var/lib/apt/lists/*
 
       - name: Install Next.js deps
         working-directory: vinylRecognizerDashboard
