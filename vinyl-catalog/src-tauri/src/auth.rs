@@ -186,7 +186,7 @@ async fn run_callback_server(
         .set_pkce_verifier(verifier)
         .request_async(async_http_client)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("{e:?}"))?;
 
     let access = token_resp.access_token().secret();
     keyring::store_token("access-token", access)?;
@@ -230,7 +230,7 @@ pub async fn get_access_token(_app: AppHandle) -> Result<Option<String>, String>
         .exchange_refresh_token(&RefreshToken::new(refresh))
         .request_async(async_http_client)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("{e:?}"))?;
 
     let new_access = resp.access_token().secret().to_string();
     keyring::store_token("access-token", &new_access)?;

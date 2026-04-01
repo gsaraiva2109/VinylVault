@@ -35,6 +35,13 @@ pub fn start(app: &AppHandle) {
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // If something healthy is already on :8765 (e.g. previous run left a process),
+        // adopt it instead of trying to spawn a conflicting second instance.
+        if is_healthy().await {
+            log::info!("[sidecar] port 8765 already responding — adopting existing process, skipping spawn");
+            return;
+        }
+
         if !spawn_sidecar(&app).await {
             // Binary doesn't exist on disk — give up silently, no restart loop
             log::warn!("[sidecar] binary not present — skipping (build with PyInstaller or run uvicorn manually on :8765)");
