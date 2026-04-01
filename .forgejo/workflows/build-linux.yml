@@ -101,10 +101,19 @@ jobs:
     runs-on: heavy-ubuntu
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Cache Rust toolchain
+        id: cache-rustup-check
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: |
+            ~/.rustup
+            ~/.cargo/bin
+          key: ${{ runner.os }}-rustup-stable
       - name: Install Rust stable
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        if: steps.cache-rustup-check.outputs.cache-hit != 'true'
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      - name: Add cargo to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Cache cargo registry
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
@@ -271,10 +280,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-build-
 
+      - name: Cache Rust toolchain
+        id: cache-rustup-build
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: |
+            ~/.rustup
+            ~/.cargo/bin
+          key: ${{ runner.os }}-rustup-stable
       - name: Install Rust stable
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        if: steps.cache-rustup-build.outputs.cache-hit != 'true'
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      - name: Add cargo to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache cargo registry
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
@@ -316,11 +334,19 @@ jobs:
           # We sed this at build time so the Web version stays dynamic.
           sed -i 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
 
+      - name: Cache pip packages
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('vinyl-catalog/sidecar/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Build Python sidecar
         working-directory: vinyl-catalog/sidecar
         run: |
           python3 -m venv .venv
-          .venv/bin/pip install --quiet -r requirements.txt pyinstaller
+          .venv/bin/pip install --quiet --cache-dir ~/.cache/pip -r requirements.txt pyinstaller
           .venv/bin/pyinstaller --clean --onefile --name sidecar --distpath ../src-tauri/binaries main.py
           mv ../src-tauri/binaries/sidecar ../src-tauri/binaries/sidecar-x86_64-unknown-linux-gnu
 

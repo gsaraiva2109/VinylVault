@@ -1,0 +1,39 @@
+name: Build Builder Image
+
+# Rebuilds the CI builder image when the Dockerfile changes.
+# After this runs, build-linux.yml can use:
+#   container: git.gsaraiva.com.br/gsaraiva2109/vinyl-vault-builder:latest
+# in build-tauri-linux to skip apt-get and Rust install entirely.
+on:
+  push:
+    paths:
+      - 'docker/builder.Dockerfile'
+    branches: [main, dev]
+  workflow_dispatch: {}
+
+jobs:
+  build-builder-image:
+    name: Build & Push Builder Image
+    runs-on: heavy-ubuntu
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Forgejo Registry
+        uses: docker/login-action@v3
+        with:
+          registry: git.gsaraiva.com.br
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Build and push builder image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/builder.Dockerfile
+          push: true
+          tags: git.gsaraiva.com.br/${{ github.repository_owner }}/vinyl-vault-builder:latest
+          cache-from: type=registry,ref=git.gsaraiva.com.br/${{ github.repository_owner }}/vinyl-vault-builder:cache
+          cache-to: type=registry,ref=git.gsaraiva.com.br/${{ github.repository_owner }}/vinyl-vault-builder:cache,mode=max
