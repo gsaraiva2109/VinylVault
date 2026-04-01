@@ -155,7 +155,7 @@ jobs:
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
-    runs-on: heavy-ubuntu
+    runs-on: light-ubuntu
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() and manual check of failure to handle skipped jobs
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -263,7 +263,10 @@ jobs:
     runs-on: heavy-ubuntu
     # Rust, system libs, and Python are pre-baked in the builder image stored
     # on the local homelab registry (bypasses Cloudflare 413 limit).
-    container: localhost:5000/vinyl-vault-builder:latest
+    # --pull always ensures the runner never uses a stale cached image layer.
+    container:
+      image: localhost:5000/vinyl-vault-builder:latest
+      options: --pull always
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() to allow building even if checks were skipped
     if: ${{ always() && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
