@@ -3,13 +3,12 @@
 <plist version="1.0">
 <dict>
     <!--
-        Required for keyring-rs (Security.framework) to read/write credentials
-        in a Hardened Runtime app. Without this, macOS silently denies reads
-        even if writes succeed — causing the auth state desync on macOS.
+        No keychain-access-groups entitlement is needed here.
+        That entitlement is for cross-app keychain sharing only; a single app
+        can read/write its own Keychain items under Hardened Runtime without it.
+        Using $(AppIdentifierPrefix) with ad-hoc signing leaves the macro
+        unexpanded, which causes Security.framework to apply an invalid group
+        filter on reads even though writes succeed.
     -->
-    <key>keychain-access-groups</key>
-    <array>
-        <string>$(AppIdentifierPrefix)com.gsaraiva2109.vinyl-vault</string>
-    </array>
 </dict>
 </plist>

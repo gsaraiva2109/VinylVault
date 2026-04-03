@@ -97,7 +97,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macOS-Tauri-App
-          path: vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          path: |
+            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
       - name: Wait for Release and Upload
         if: github.event_name != 'workflow_dispatch'
@@ -105,19 +108,49 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}"
-          DMG=$(find vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          VERSION="${TAG#v}"
+
+          BUNDLE_DIR="vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle"
+          DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" | head -1)
+          UPDATER_TGZ=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" | head -1)
+          UPDATER_SIG=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz.sig" | head -1)
+
           shasum -a 256 "$DMG" > SHA256SUMS-macos.txt
-          
+
           echo "Waiting for release ${TAG} to be created by Forgejo..."
           for i in {1..10}; do
             if gh release view "$TAG" > /dev/null 2>&1; then
               echo "Release found!"
               gh release upload "$TAG" "$DMG" SHA256SUMS-macos.txt --clobber
+
+              # Upload updater artifacts if present
+              if [ -f "$UPDATER_TGZ" ] && [ -f "$UPDATER_SIG" ]; then
+                gh release upload "$TAG" "$UPDATER_TGZ" "$UPDATER_SIG" --clobber
+
+                # Patch latest.json to add darwin-aarch64 entry
+                TGZ_NAME=$(basename "$UPDATER_TGZ")
+                SIGNATURE=$(cat "$UPDATER_SIG")
+                DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${TGZ_NAME}"
+
+                gh release download "$TAG" --pattern "latest.json" --output latest.json 2>/dev/null || echo '{}' > latest.json
+
+                jq --arg sig "$SIGNATURE" --arg url "$DOWNLOAD_URL" \
+                  '.platforms["darwin-aarch64"] = {signature: $sig, url: $url}' \
+                  latest.json > latest.json.tmp && mv latest.json.tmp latest.json
+
+                echo "--- latest.json (after darwin-aarch64 merge) ---"
+                cat latest.json
+
+                gh release upload "$TAG" latest.json --clobber
+              else
+                echo "::warning::Updater artifacts (.app.tar.gz / .sig) not found — skipping darwin-aarch64 latest.json entry"
+              fi
+
               exit 0
             fi
             echo "Release not found yet, retrying in 30s ($i/10)..."
             sleep 30
           done
-          
+
           echo "::error::Release ${TAG} not found after 5 minutes. Mirroring might have failed."
           exit 1
