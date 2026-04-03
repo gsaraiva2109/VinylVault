@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { toast } from "sonner"
 import { VinylVaultProvider } from "./vinyl-vault/context"
 import { AppShell } from "./vinyl-vault/components/app-shell"
 import { ErrorBoundary } from "./vinyl-vault/components/error-boundary"
@@ -8,6 +10,27 @@ import { Disc3, LogIn, Loader2 } from "lucide-react"
 
 function LoginScreen() {
   const { signIn, status } = useTauriAuth()
+  const [isSigningIn, setIsSigningIn] = useState(false)
+
+  const handleSignIn = async () => {
+    setIsSigningIn(true)
+    try {
+      await signIn()
+    } catch (err) {
+      toast.error("Could not open the login page", {
+        description:
+          typeof err === "string"
+            ? err
+            : (err as Error)?.message ?? "Please close any other Vinyl Vault windows and try again.",
+        duration: 6000,
+      })
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  const isLoading = status === "loading" || isSigningIn
+
   return (
     <div
       className="flex h-screen flex-col items-center justify-center gap-8"
@@ -24,8 +47,8 @@ function LoginScreen() {
         <p className="text-sm text-white/40">Sign in to access your collection</p>
       </div>
       <button
-        onClick={signIn}
-        disabled={status === "loading"}
+        onClick={handleSignIn}
+        disabled={isLoading}
         className="flex items-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition-all cursor-pointer disabled:opacity-40"
         style={{ background: "#28d768", color: "#0a0a0a" }}
         onMouseEnter={(e) => {
@@ -33,7 +56,7 @@ function LoginScreen() {
         }}
         onMouseLeave={(e) => (e.currentTarget.style.background = "#28d768")}
       >
-        {status === "loading" ? (
+        {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           <LogIn className="h-4 w-4" />

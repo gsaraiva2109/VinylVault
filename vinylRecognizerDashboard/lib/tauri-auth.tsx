@@ -139,8 +139,14 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async () => {
     if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
-      const { invoke } = await import("@tauri-apps/api/core")
-      await invoke("start_auth_flow")
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        await invoke("start_auth_flow")
+      } catch (err) {
+        console.error("[TauriAuth] start_auth_flow failed:", err)
+        // Re-throw so callers / UI can display an error toast
+        throw err
+      }
     } else {
       await nextAuthSignIn("authentik")
     }
