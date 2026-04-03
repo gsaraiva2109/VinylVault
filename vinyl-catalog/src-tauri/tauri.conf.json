@@ -44,7 +44,8 @@
       "appimage": {}
     },
     "macOS": {
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements-macOS.plist"
     },
     "publisher": "gsaraiva2109",
     "category": "Music",

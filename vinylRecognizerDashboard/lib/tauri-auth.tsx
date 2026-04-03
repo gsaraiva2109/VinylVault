@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -104,44 +105,71 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [nextAuthStatus, session, status, accessToken, user])
 
+  // Always hold the latest refreshAuthState in a ref so the Tauri event
+  // listener (registered once) can call the current version without capturing
+  // a stale closure — avoids re-subscription races on macOS.
+  const refreshAuthStateRef = useRef(refreshAuthState)
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    if (window.__TAURI_INTERNALS__) {
-      refreshAuthState()
-
-      let unlisten: (() => void) | undefined
-      import("@tauri-apps/api/event")
-        .then(({ listen }) =>
-          listen<{ status: string }>("auth:state-changed", (event) => {
-            if (event.payload.status === "authenticated") {
-              refreshAuthState()
-            } else {
-              setAccessToken(null)
-              setUser(null)
-              setStatus("unauthenticated")
-            }
-          })
-        )
-        .then((fn) => {
-          unlisten = fn
-        })
-        .catch(() => {})
-
-      return () => {
-        unlisten?.()
-      }
-    } else {
-      // Running in web browser
-      refreshAuthState()
-    }
+    refreshAuthStateRef.current = refreshAuthState
   }, [refreshAuthState])
+
+  // Register the Tauri IPC listener ONCE (empty deps) using the stable ref.
+  // This prevents the brief subscription gap caused by re-running the effect
+  // every time refreshAuthState is recreated due to state changes.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) {
+      refreshAuthStateRef.current()
+      return
+    }
+
+    refreshAuthStateRef.current()
+
+    let unlisten: (() => void) | undefined
+    import("@tauri-apps/api/event")
+      .then(({ listen }) =>
+        listen<{ status: string }>("auth:state-changed", (event) => {
+          if (event.payload.status === "authenticated") {
+            refreshAuthStateRef.current()
+          } else {
+            setAccessToken(null)
+            setUser(null)
+            setStatus("unauthenticated")
+          }
+        })
+      )
+      .then((fn) => {
+        unlisten = fn
+      })
+      .catch(() => {})
+
+    return () => {
+      unlisten?.()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally empty — uses ref to access latest refreshAuthState
 
   const signIn = useCallback(async () => {
     if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
       try {
         const { invoke } = await import("@tauri-apps/api/core")
         await invoke("start_auth_flow")
+
+        // Defense-in-depth: poll for the token after the flow resolves.
+        // On macOS the Keychain write from the callback server and the IPC
+        // event may arrive at slightly different times. Polling for up to
+        // 30 s ensures the UI updates even if the event fires before the
+        // token is readable.
+        const POLL_INTERVAL_MS = 500
+        const POLL_TIMEOUT_MS  = 30_000
+        const deadline = Date.now() + POLL_TIMEOUT_MS
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+          const token = await invoke<string | null>("get_access_token")
+          if (token) {
+            refreshAuthStateRef.current()
+            break
+          }
+        }
       } catch (err) {
         console.error("[TauriAuth] start_auth_flow failed:", err)
         // Re-throw so callers / UI can display an error toast

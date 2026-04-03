@@ -25,10 +25,21 @@ pub fn store_token(account: &str, value: &str) -> Result<(), String> {
 }
 
 pub fn load_token(account: &str) -> Option<String> {
-    Entry::new(SERVICE, account)
-        .ok()?
-        .get_password()
-        .ok()
+    let entry = match Entry::new(SERVICE, account) {
+        Ok(e) => e,
+        Err(e) => {
+            log::error!("[keyring] Failed to create entry for {account}: {e}");
+            return None;
+        }
+    };
+
+    match entry.get_password() {
+        Ok(pw) => Some(pw),
+        Err(e) => {
+            log::error!("[keyring] Failed to read password for {account}: {e}");
+            None
+        }
+    }
 }
 
 pub fn delete_token(account: &str) {
