@@ -12,6 +12,7 @@ on:
   # when GitHub suppresses the push trigger from the mirror token.
   repository_dispatch:
     types: [release-macos]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -91,7 +92,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg
 
+      - name: Upload macOS App Artifact (Manual Triggers)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-Tauri-App
+          path: vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+
       - name: Wait for Release and Upload
+        if: github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
