@@ -1,6 +1,6 @@
 {
   "name": "vinyl-vault-backend",
-  "version": "1.0.10",
+  "version": "1.0.19",
   "description": "VinylVault homelab backend API",
   "main": "dist/server.js",
   "scripts": {
@@ -17,8 +17,14 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"],
-    "collectCoverageFrom": ["src/**/*.ts", "!src/server.ts", "!src/db/migrate.ts"]
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/server.ts",
+      "!src/db/migrate.ts"
+    ]
   },
   "dependencies": {
     "cors": "^2.8.5",
