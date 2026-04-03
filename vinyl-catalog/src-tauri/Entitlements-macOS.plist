@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Required for keyring-rs (Security.framework) to read/write credentials
+        in a Hardened Runtime app. Without this, macOS silently denies reads
+        even if writes succeed — causing the auth state desync on macOS.
+    -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.gsaraiva2109.vinyl-vault</string>
+    </array>
+</dict>
+</plist>
