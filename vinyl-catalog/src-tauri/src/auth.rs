@@ -90,7 +90,7 @@ pub async fn start_auth_flow(app: AppHandle) -> Result<(), String> {
     let redirect_uri = format!("http://127.0.0.1:{}/callback", CALLBACK_PORT);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", CALLBACK_PORT))
         .await
-        .map_err(|e| format!("Could not bind callback port {CALLBACK_PORT}: {e}"))?;
+        .map_err(|e| format!("Could not start the auth callback server (port {CALLBACK_PORT} may already be in use). Please close any other Vinyl Vault instances and try again. Details: {e}"))?;
 
     let client = build_client(&redirect_uri).await?;
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
