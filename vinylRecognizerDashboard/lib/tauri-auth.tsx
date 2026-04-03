@@ -52,15 +52,13 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
         const token = await invoke<string | null>("get_access_token")
         if (token) {
           const claims = decodeJwtPayload(token)
-          const newStatus = "authenticated"
-          const newAccessToken = token
           const newUser = {
             name: String(claims.name ?? claims.preferred_username ?? "User"),
             email: String(claims.email ?? ""),
           }
 
-          if (status !== newStatus) setStatus(newStatus)
-          if (accessToken !== newAccessToken) setAccessToken(newAccessToken)
+          if (status !== "authenticated") setStatus("authenticated")
+          if (accessToken !== token) setAccessToken(token)
           if (user?.email !== newUser.email || user?.name !== newUser.name) setUser(newUser)
         } else {
           if (accessToken !== null) setAccessToken(null)
