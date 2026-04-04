@@ -45,7 +45,10 @@
     },
     "macOS": {
       "hardenedRuntime": true,
-      "entitlements": "Entitlements-macOS.plist"
+      "entitlements": "Entitlements-macOS.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Vinyl Vault uses the camera to scan vinyl record labels for recognition."
+      }
     },
     "publisher": "gsaraiva2109",
     "category": "Music",

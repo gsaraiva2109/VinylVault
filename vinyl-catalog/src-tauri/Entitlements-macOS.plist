@@ -10,5 +10,11 @@
         unexpanded, which causes Security.framework to apply an invalid group
         filter on reads even though writes succeed.
     -->
+
+    <!-- Required for navigator.mediaDevices.getUserMedia() to be exposed in the
+         WebKit WebView under Hardened Runtime. Without this entitlement the API
+         is undefined regardless of System Preferences camera permission. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
 </dict>
 </plist>
