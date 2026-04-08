@@ -8,8 +8,9 @@
     "dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri dev",
     "vite": "vite",
     "build": "vite build",
-    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
-    "build:mac": "tauri build --target aarch64-apple-darwin",
+    "build:frontend": "bash scripts/build-frontend.sh",
+    "build:linux": "pnpm build:frontend && tauri build --target x86_64-unknown-linux-gnu",
+    "build:mac": "pnpm build:frontend && tauri build --target aarch64-apple-darwin",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"

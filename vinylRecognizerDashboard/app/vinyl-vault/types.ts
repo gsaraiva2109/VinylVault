@@ -37,9 +37,12 @@ export interface CollectionStats {
 }
 
 export interface ScanState {
-  status: "idle" | "scanning" | "success" | "error"
+  status: "idle" | "scanning" | "selecting" | "success" | "error" | "cropping"
   scannedRecord?: VinylRecord
+  candidates?: VinylRecord[]
   errorMessage?: string
+  capturedImage?: string
+  rawImageUrl?: string
 }
 
 export type ViewMode = "grid" | "list"
@@ -62,4 +65,12 @@ export interface ApiKeys {
 export interface SortOptions {
   sortBy: SortOption
   direction: SortDirection
+}
+
+export interface ScanErrorEntry {
+  id: string
+  timestamp: string
+  message: string
+  provider?: string
+  capturedImage?: string
 }

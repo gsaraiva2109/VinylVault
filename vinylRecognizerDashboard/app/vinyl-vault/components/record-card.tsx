@@ -21,7 +21,7 @@ export function RecordCard({ record, className }: RecordCardProps) {
   return (
     <button
       onClick={handleClick}
-      className={`vinyl-card group relative flex flex-col overflow-hidden rounded-xl text-left cursor-pointer ${className ?? ""}`}
+      className={`vinyl-card group relative flex flex-col overflow-hidden rounded-xl text-left cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_32px_rgba(40,215,104,0.18)] ${className ?? ""}`}
     >
       {/* Cover Image */}
       <div
@@ -30,7 +30,7 @@ export function RecordCard({ record, className }: RecordCardProps) {
       >
         {record.coverUrl && (
           <div
-            className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
             style={{ backgroundImage: `url(${record.coverUrl})` }}
           />
         )}

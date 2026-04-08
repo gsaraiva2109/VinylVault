@@ -8,6 +8,9 @@ pub struct OcrSettings {
     pub threshold: f32,
 }
 
+fn default_local_max_dim() -> u32 { 512 }
+fn default_cloud_max_dim() -> u32 { 1024 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmSettings {
@@ -15,6 +18,10 @@ pub struct LlmSettings {
     pub ollama_model: String,
     pub cloud_provider: String,
     pub cloud_model: String,
+    #[serde(default = "default_local_max_dim")]
+    pub local_max_dim: u32,
+    #[serde(default = "default_cloud_max_dim")]
+    pub cloud_max_dim: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +42,8 @@ impl Default for AppSettings {
                 ollama_model: "".into(),
                 cloud_provider: "openai".into(),
                 cloud_model: "gpt-4o".into(),
+                local_max_dim: 512,
+                cloud_max_dim: 1024,
             },
         }
     }

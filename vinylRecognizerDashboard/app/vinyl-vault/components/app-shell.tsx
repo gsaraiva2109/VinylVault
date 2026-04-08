@@ -11,6 +11,7 @@ import { StatsScreen } from "./screens/stats-screen"
 import { SettingsScreen } from "./screens/settings-screen"
 import { AccountScreen } from "./screens/account-screen"
 import { RecordDetailModal } from "./record-detail-modal"
+import { CameraProvider } from "../context/camera-context"
 
 export function AppShell() {
   const { activeScreen } = useVinylVault()
@@ -35,7 +36,7 @@ export function AppShell() {
       <main className="flex-1 overflow-auto">
         <div key={activeScreen} style={{ animation: "screen-fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1)", height: "100%" }}>
           {activeScreen === "collection" && <CollectionScreen />}
-          {activeScreen === "scan" && <ScanScreen />}
+          {activeScreen === "scan" && <CameraProvider><ScanScreen /></CameraProvider>}
           {activeScreen === "stats" && <StatsScreen />}
           {activeScreen === "settings" && <SettingsScreen />}
           {activeScreen === "account" && <AccountScreen />}

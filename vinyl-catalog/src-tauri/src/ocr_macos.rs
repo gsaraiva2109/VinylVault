@@ -58,6 +58,6 @@ pub fn recognize_text(image_data: &[u8]) -> Result<String, String> {
             }
         }
 
-        Ok(texts.join(" "))
+        Ok(texts.join("\n"))
     }
 }

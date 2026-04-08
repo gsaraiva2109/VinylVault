@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react"
 import { toast } from "sonner"
-import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, Condition } from "./types"
+import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, Condition, ScanErrorEntry } from "./types"
 import { filterRecords, sortRecords } from "./data"
 import { api, UnauthorizedError, isTokenExpired } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
@@ -28,6 +28,10 @@ interface VinylVaultContextType {
   filteredRecords: VinylRecord[]
   selectedRecord: VinylRecord | null
   setSelectedRecord: (record: VinylRecord | null) => void
+
+  // Settings
+  autoSkipEnabled: boolean
+  setAutoSkipEnabled: (enabled: boolean) => void
 
   // Loading state
   isLoading: boolean
@@ -65,6 +69,11 @@ interface VinylVaultContextType {
 
   // Trash
   trashedRecords: VinylRecord[]
+
+  // Scan error history
+  scanErrors: ScanErrorEntry[]
+  addScanError: (message: string, provider?: string, capturedImage?: string) => void
+  clearScanErrors: () => void
 }
 
 const VinylVaultContext = createContext<VinylVaultContextType | undefined>(undefined)
@@ -83,7 +92,9 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
   const [activeScreen, setActiveScreen] = useState<Screen>("collection")
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [autoSkipEnabled, setAutoSkipEnabledState] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [scanErrors, setScanErrors] = useState<ScanErrorEntry[]>([])
 
   const { accessToken: token, status, signOut } = useTauriAuth()
 
@@ -100,6 +111,23 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   const refreshCollection = useCallback(() => {
     setRefreshTick((prev) => prev + 1)
+  }, [])
+
+  // Hydrate autoSkipEnabled
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vinyl_vault_auto_skip")
+      if (saved !== null) {
+        setAutoSkipEnabledState(saved === "true")
+      }
+    }
+  }, [])
+
+  const setAutoSkipEnabled = useCallback((enabled: boolean) => {
+    setAutoSkipEnabledState(enabled)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("vinyl_vault_auto_skip", String(enabled))
+    }
   }, [])
 
   const updateRecord = useCallback(async (id: string, patch: Partial<VinylRecord>): Promise<void> => {
@@ -320,6 +348,19 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
     setFiltersState({})
   }, [])
 
+  const addScanError = useCallback((message: string, provider?: string, capturedImage?: string) => {
+    const entry: ScanErrorEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      message,
+      provider,
+      capturedImage,
+    }
+    setScanErrors((prev) => [entry, ...prev].slice(0, 20))
+  }, [])
+
+  const clearScanErrors = useCallback(() => setScanErrors([]), [])
+
   const setSorting = useCallback((newSortBy: SortOption, newDirection: SortDirection) => {
     setSortBy(newSortBy)
     setSortDirection(newDirection)
@@ -350,6 +391,8 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         setSelectedRecord,
         isLoading,
         error,
+        autoSkipEnabled,
+        setAutoSkipEnabled,
         viewMode,
         setViewMode,
         filters,
@@ -369,6 +412,9 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         permanentlyDeleteRecord,
         isDeleting,
         trashedRecords,
+        scanErrors,
+        addScanError,
+        clearScanErrors,
       }}
     >
       {children}

@@ -11,6 +11,12 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // On Linux/Wayland, WebKitGTK's GPU compositing path can hold the input focus surface,
+    // preventing layer-shell apps (wofi, rofi, fuzzel) from receiving keyboard input.
+    // Disabling compositing mode releases the Wayland input grab properly.
+    #[cfg(target_os = "linux")]
+    std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+
     tauri::Builder::default()
         // ── Plugins ────────────────────────────────────────────────────────
         .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())
@@ -50,13 +56,19 @@ pub fn run() {
             commands::settings::read_settings,
             commands::settings::write_settings,
             commands::keyring::save_api_key,
+            commands::keyring::check_api_key,
             commands::recognize::recognize,
             commands::recognize::get_ollama_models,
+            commands::llm::get_available_cloud_models,
             auth::start_auth_flow,
             auth::get_access_token,
             auth::sign_out,
             commands::discogs::discogs_get_master,
             commands::spotify::spotify_search,
+            commands::scan_log::log_scan_error,
+            commands::scan_log::log_scan_success,
+            commands::scan_log::read_scan_log,
+            commands::scan_log::clear_scan_log,
         ])
         .on_window_event(|window, event| {
             let _ = &window; // only used on Linux; suppress unused warning on other platforms

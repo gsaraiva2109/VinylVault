@@ -1,4 +1,7 @@
 fn main() {
+    // Re-run build whenever the Next.js frontend changes so the new
+    // static files are re-embedded into the binary.
+    println!("cargo:rerun-if-changed=../../vinylRecognizerDashboard/out");
     println!("cargo:rerun-if-changed=.env");
 
     // Load .env file and emit cargo:rustc-env= for each var so env!() works.

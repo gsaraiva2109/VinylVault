@@ -141,35 +141,66 @@ export function StatsScreen() {
           <Panel>
             <PanelHeader icon={Calendar} label="By Decade" />
             <div className="mt-4">
-              <div className="flex h-44 items-end gap-2">
-                {Object.entries(stats.byDecade)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([decade, count]) => {
-                    const maxCount = Math.max(...Object.values(stats.byDecade))
-                    const height = (count / maxCount) * 100
-                    return (
-                      <div key={decade} className="group flex flex-1 flex-col items-center gap-1">
-                        <span
-                          className="text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100"
-                          style={{ color: "var(--app-green)" }}
-                        >
-                          {count}
-                        </span>
-                        <div
-                          className="w-full rounded-t-md transition-opacity"
-                          style={{
-                            height: `${height}%`,
-                            background: "linear-gradient(180deg, var(--app-green) 0%, color-mix(in srgb, var(--app-green) 50%, transparent) 100%)",
-                            opacity: 0.85,
-                          }}
-                        />
-                        <span className="mt-1 text-[10px]" style={{ color: "var(--app-text-3)" }}>
-                          {decade}
-                        </span>
-                      </div>
-                    )
-                  })}
-              </div>
+              {Object.keys(stats.byDecade).length === 0 ? (
+                <div className="flex h-44 items-center justify-center">
+                  <span className="text-sm" style={{ color: "var(--app-text-3)" }}>No data</span>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Gridlines at 25 / 50 / 75 / 100% */}
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-36" aria-hidden="true">
+                    {[75, 50, 25].map((pct) => (
+                      <div
+                        key={pct}
+                        className="absolute inset-x-0 border-t"
+                        style={{
+                          top: `${100 - pct}%`,
+                          borderColor: "var(--app-border)",
+                          opacity: 0.5,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Bars */}
+                  <div className="flex h-36 items-end gap-2">
+                    {Object.entries(stats.byDecade)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([decade, count]) => {
+                        const maxCount = Math.max(...Object.values(stats.byDecade))
+                        const height = (count / maxCount) * 100
+                        return (
+                          <div key={decade} className="flex flex-1 flex-col items-center gap-1">
+                            <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--app-green)" }}>
+                              {count}
+                            </span>
+                            <div
+                              className="w-full rounded-t-sm transition-all duration-300"
+                              style={{
+                                height: `${height}%`,
+                                background: "linear-gradient(180deg, var(--app-green) 0%, color-mix(in srgb, var(--app-green) 40%, transparent) 100%)",
+                                boxShadow: "0 -2px 8px color-mix(in srgb, var(--app-green) 35%, transparent)",
+                              }}
+                            />
+                          </div>
+                        )
+                      })}
+                  </div>
+
+                  {/* Decade labels below bars */}
+                  <div className="mt-1.5 flex gap-2">
+                    {Object.entries(stats.byDecade)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([decade]) => (
+                        <div key={decade} className="flex flex-1 justify-center">
+                          <span className="text-[9px] leading-none" style={{ color: "var(--app-text-3)" }}>
+                            {decade.replace("s", "")}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Panel>
         </div>
@@ -219,13 +250,14 @@ export function StatsScreen() {
                   style={{ border: "1px solid var(--app-border)" }}
                 >
                   <div
-                    className="h-10 w-10 shrink-0 rounded-lg bg-cover bg-center"
-                    style={
-                      record.coverUrl
-                        ? { backgroundImage: `url(${record.coverUrl})` }
-                        : { background: "var(--app-surface-3)" }
-                    }
-                  />
+                    className="h-10 w-10 shrink-0 overflow-hidden rounded-lg"
+                    style={{ background: "var(--app-surface-3)" }}
+                  >
+                    {record.coverUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={record.coverUrl} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </div>
                   <div className="flex-1 overflow-hidden">
                     <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
                       {record.title}
@@ -250,10 +282,10 @@ export function StatsScreen() {
         <div className="mt-5">
           <Panel>
             <PanelHeader icon={DollarSign} label="Most Valuable Records" />
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid gap-3 grid-cols-3">
               {[...activeRecords]
-                .filter((r) => r.discogs?.value)
-                .sort((a, b) => (b.discogs?.value || 0) - (a.discogs?.value || 0))
+                .filter((r) => r.discogs?.value != null)
+                .sort((a, b) => (b.discogs?.value ?? 0) - (a.discogs?.value ?? 0))
                 .slice(0, 3)
                 .map((record, index) => (
                   <div
@@ -268,13 +300,14 @@ export function StatsScreen() {
                       #{index + 1}
                     </div>
                     <div
-                      className="h-12 w-12 shrink-0 rounded-lg bg-cover bg-center"
-                      style={
-                        record.coverUrl
-                          ? { backgroundImage: `url(${record.coverUrl})` }
-                          : { background: "var(--app-surface-3)" }
-                      }
-                    />
+                      className="h-12 w-12 shrink-0 overflow-hidden rounded-lg"
+                      style={{ background: "var(--app-surface-3)" }}
+                    >
+                      {record.coverUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={record.coverUrl} alt="" className="h-full w-full object-cover" />
+                      )}
+                    </div>
                     <div className="flex-1 overflow-hidden">
                       <p className="truncate text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
                         {record.title}
