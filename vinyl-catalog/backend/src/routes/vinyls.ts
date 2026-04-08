@@ -5,6 +5,17 @@ import { broadcast } from '../sse/broadcaster'
 
 const router = Router()
 
+/** postgres-js surfaces unique violations with code '23505'.
+ *  The code can appear as own property or via prototype — check both ways. */
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false
+  const code = (err as Record<string, unknown>)['code']
+  if (code === '23505') return true
+  // Fallback: some versions expose it only on the message
+  if (err instanceof Error && err.message.toLowerCase().includes('unique constraint')) return true
+  return false
+}
+
 const VALID_CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G+', 'G', 'F', 'P'] as const
 
 // Fields callers are allowed to set on create/update
@@ -179,7 +190,13 @@ router.post('/', async (req, res) => {
     const lengthErr = validateStringFields(body)
     if (lengthErr) return res.status(400).json({ error: lengthErr })
 
+    // Coerce year to integer if present
     const fields = pickMutable(body)
+    if (fields.year !== undefined && fields.year !== null) {
+      const yr = Number(fields.year)
+      fields.year = Number.isFinite(yr) ? Math.trunc(yr) : null
+    }
+
     const now = Date.now()
     const [created] = await db
       .insert(schema.vinyls)
@@ -195,6 +212,26 @@ router.post('/', async (req, res) => {
     broadcast('vinyl.created', created)
     res.status(201).json(created)
   } catch (err) {
+    // Unique constraint violation — discogs_id already exists somewhere
+    if (isUniqueViolation(err)) {
+      const discogsId = typeof req.body?.discogsId === 'string' ? req.body.discogsId : null
+      if (discogsId) {
+        try {
+          const [existing] = await db
+            .select({ id: schema.vinyls.id, title: schema.vinyls.title, artist: schema.vinyls.artist, isDeleted: schema.vinyls.isDeleted })
+            .from(schema.vinyls)
+            .where(eq(schema.vinyls.discogsId, discogsId))
+          if (existing?.isDeleted) {
+            return res.status(409).json({
+              error: 'This record is in your trash.',
+              trashedId: existing.id,
+              trashedRecord: { id: existing.id, title: existing.title, artist: existing.artist },
+            })
+          }
+        } catch { /* ignore secondary query failure, fall through to generic message */ }
+      }
+      return res.status(409).json({ error: 'This record is already in your collection' })
+    }
     console.error('[vinyls] POST / error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }

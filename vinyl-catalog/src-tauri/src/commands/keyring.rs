@@ -16,6 +16,12 @@ pub fn get_api_key(provider: &str) -> Option<String> {
     entry(provider).ok()?.get_password().ok()
 }
 
+/// Tauri command: returns true if a key is stored for the given provider.
+#[tauri::command]
+pub fn check_api_key(provider: String) -> bool {
+    get_api_key(&provider).is_some()
+}
+
 /// Store auth tokens — used by auth.rs.
 pub fn store_token(account: &str, value: &str) -> Result<(), String> {
     Entry::new(SERVICE, account)

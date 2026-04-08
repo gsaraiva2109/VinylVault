@@ -2,6 +2,18 @@ import https from 'https'
 import { eq, and, isNull, isNotNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '../db'
 
+/** Maps our condition codes to Discogs price_suggestions response keys */
+const CONDITION_KEY_MAP: Record<string, string> = {
+  M:    'Mint (M)',
+  NM:   'Near Mint (NM or M-)',
+  'VG+': 'Very Good Plus (VG+)',
+  VG:   'Very Good (VG)',
+  'G+': 'Good Plus (G+)',
+  G:    'Good (G)',
+  F:    'Fair (F)',
+  P:    'Poor (P)',
+}
+
 const DISCOGS_BASE = 'https://api.discogs.com'
 const USER_AGENT = 'VinylVaultApp/0.1 +https://github.com/gsaraiva2109/VinylVault'
 
@@ -57,7 +69,7 @@ export async function refreshStalePrices(
   const staleThreshold = Date.now() - stalePeriodMs
 
   const stale = await db
-    .select({ id: schema.vinyls.id, discogsId: schema.vinyls.discogsId })
+    .select({ id: schema.vinyls.id, discogsId: schema.vinyls.discogsId, condition: schema.vinyls.condition })
     .from(schema.vinyls)
     .where(
       and(
@@ -75,13 +87,31 @@ export async function refreshStalePrices(
 
   for (const vinyl of stale) {
     try {
-      // Use marketplace/stats — lighter call, returns only pricing data
-      const data = (await discogsGet(`/marketplace/stats/${vinyl.discogsId}`)) as any
-      const lowestPrice: number | null = data.lowest_price?.value ?? null
+      let conditionPrice: number | null = null
+
+      // Primary: price_suggestions gives per-condition market value
+      if (vinyl.condition) {
+        const suggestionsKey = CONDITION_KEY_MAP[vinyl.condition]
+        if (suggestionsKey) {
+          try {
+            const suggestions = (await discogsGet(`/marketplace/price_suggestions/${vinyl.discogsId}`)) as any
+            conditionPrice = suggestions[suggestionsKey]?.value ?? null
+          } catch {
+            // price_suggestions may 404 for releases with no marketplace history — fall through
+          }
+        }
+      }
+
+      // Fallback: lowest listed price from marketplace/stats
+      if (conditionPrice === null) {
+        const stats = (await discogsGet(`/marketplace/stats/${vinyl.discogsId}`)) as any
+        conditionPrice = stats.lowest_price?.value ?? null
+        await sleep(1100) // extra delay for the second request
+      }
 
       await db
         .update(schema.vinyls)
-        .set({ currentValue: lowestPrice, valueUpdatedAt: Date.now(), updatedAt: Date.now() })
+        .set({ currentValue: conditionPrice, valueUpdatedAt: Date.now(), updatedAt: Date.now() })
         .where(eq(schema.vinyls.id, vinyl.id))
 
       updated++
