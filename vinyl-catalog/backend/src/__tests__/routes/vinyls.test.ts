@@ -187,6 +187,83 @@ describe('POST /', () => {
     expect(res.status).toBe(400)
     expect(res.body.error).toContain('title exceeds maximum length')
   })
+
+  it('returns 409 with generic message on unique violation when no discogsId provided', async () => {
+    const uniqueErr = Object.assign(new Error('duplicate key'), { code: '23505' })
+    db.insert.mockReturnValue({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockRejectedValue(uniqueErr),
+      }),
+    })
+
+    const res = await request(makeApp())
+      .post('/')
+      .send({ title: 'Duplicate', artist: 'Artist' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toHaveProperty('error', 'This record is already in your collection')
+  })
+
+  it('returns 409 with trashedId and trashedRecord when the duplicate is in trash', async () => {
+    const uniqueErr = Object.assign(new Error('duplicate key'), { code: '23505' })
+    db.insert.mockReturnValue({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockRejectedValue(uniqueErr),
+      }),
+    })
+    // Secondary SELECT to find the trashed record
+    const trashedVinyl = { id: 7, title: 'Trashed Vinyl', artist: 'Artist', isDeleted: true }
+    const whereMock = jest.fn().mockResolvedValue([trashedVinyl])
+    const fromMock = jest.fn().mockReturnValue({ where: whereMock })
+    db.select.mockReturnValue({ from: fromMock })
+
+    const res = await request(makeApp())
+      .post('/')
+      .send({ title: 'Trashed Vinyl', artist: 'Artist', discogsId: 'disc-123' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toHaveProperty('error', 'This record is in your trash.')
+    expect(res.body).toHaveProperty('trashedId', 7)
+    expect(res.body.trashedRecord).toMatchObject({ id: 7, title: 'Trashed Vinyl', artist: 'Artist' })
+  })
+
+  it('returns 409 with generic message when duplicate discogsId is not in trash', async () => {
+    const uniqueErr = Object.assign(new Error('duplicate key'), { code: '23505' })
+    db.insert.mockReturnValue({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockRejectedValue(uniqueErr),
+      }),
+    })
+    // Secondary SELECT finds a non-deleted record
+    const activeVinyl = { id: 3, title: 'Active Vinyl', artist: 'Artist', isDeleted: false }
+    const whereMock = jest.fn().mockResolvedValue([activeVinyl])
+    const fromMock = jest.fn().mockReturnValue({ where: whereMock })
+    db.select.mockReturnValue({ from: fromMock })
+
+    const res = await request(makeApp())
+      .post('/')
+      .send({ title: 'Active Vinyl', artist: 'Artist', discogsId: 'disc-456' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toHaveProperty('error', 'This record is already in your collection')
+    expect(res.body).not.toHaveProperty('trashedId')
+  })
+
+  it('returns 409 with generic message when unique violation message contains "unique constraint"', async () => {
+    const uniqueErr = new Error('unique constraint violated on discogs_id')
+    db.insert.mockReturnValue({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockRejectedValue(uniqueErr),
+      }),
+    })
+
+    const res = await request(makeApp())
+      .post('/')
+      .send({ title: 'Duplicate', artist: 'Artist' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toHaveProperty('error', 'This record is already in your collection')
+  })
 })
 
 describe('PATCH /:id', () => {

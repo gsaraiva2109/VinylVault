@@ -41,7 +41,7 @@ export function mapBackendVinyl(raw: BackendVinyl): VinylRecord {
     year: raw.year,
     genre: raw.genre,
     condition,
-    coverUrl: raw.coverImageUrl ?? "",
+    coverUrl: raw.coverImageUrl ? raw.coverImageUrl.replace(/^http:\/\//i, "https://") : "",
     notes: raw.notes ?? undefined,
     dateAdded: raw.createdAt
       ? (typeof raw.createdAt === "string"

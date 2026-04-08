@@ -9,6 +9,17 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  trashedId?: number
+  trashedRecord?: { id: number; title: string; artist: string }
+  constructor(message: string, trashedId?: number, trashedRecord?: { id: number; title: string; artist: string }) {
+    super(message)
+    this.name = 'ConflictError'
+    this.trashedId = trashedId
+    this.trashedRecord = trashedRecord
+  }
+}
+
 export function isTokenExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
@@ -33,6 +44,12 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
 
   if (response.status === 401) {
     throw new UnauthorizedError()
+  }
+
+  if (response.status === 409) {
+    let body: { error?: string; trashedId?: number; trashedRecord?: { id: number; title: string; artist: string } } = {}
+    try { body = await response.json() } catch { /* ignore */ }
+    throw new ConflictError(body.error ?? 'Conflict', body.trashedId, body.trashedRecord)
   }
 
   if (!response.ok) {

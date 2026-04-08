@@ -6,7 +6,7 @@ import {
   X, Calendar, Music, StickyNote, ExternalLink, Play,
   DollarSign, Edit3, Check, ChevronDown, Loader2, Trash2,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import type { Condition } from "../types"
 import { DeleteConfirmModal } from "./delete-confirm-modal"
 
@@ -26,6 +26,7 @@ export function RecordDetailModal() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
@@ -48,12 +49,22 @@ export function RecordDetailModal() {
     setIsEditing(false)
   }, [selectedRecord])
 
+  const triggerClose = useCallback(() => {
+    if (isClosing) return
+    setIsClosing(true)
+    setTimeout(() => {
+      setIsDetailOpen(false)
+      setSelectedRecord(null)
+      setIsClosing(false)
+    }, 240)
+  }, [isClosing, setIsDetailOpen, setSelectedRecord])
+
   // Close on escape
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === "Escape") {
         if (isEditing) { setIsEditing(false); return }
-        setIsDetailOpen(false)
+        triggerClose()
       }
     }
     if (isDetailOpen) {
@@ -64,20 +75,28 @@ export function RecordDetailModal() {
       document.removeEventListener("keydown", handleEscape)
       document.body.style.overflow = ""
     }
-  }, [isDetailOpen, isEditing, setIsDetailOpen])
+  }, [isDetailOpen, isEditing, triggerClose])
 
   if (!isDetailOpen || !selectedRecord) return null
+
+  // ── Neon glow helpers for edit inputs ──────────────────────────────────────
+  const inputFocusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = "#28d768"
+    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(40,215,104,0.18), 0 0 10px rgba(40,215,104,0.10)"
+  }
+  const inputBlurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = "hsl(var(--border))"
+    e.currentTarget.style.boxShadow = "none"
+  }
 
   const handleDelete = () => {
     deleteRecord(selectedRecord.id)
     setShowDeleteConfirm(false)
-    setIsDetailOpen(false)
-    setSelectedRecord(null)
+    triggerClose()
   }
 
   const handleClose = () => {
-    setIsDetailOpen(false)
-    setSelectedRecord(null)
+    triggerClose()
   }
 
   const handleSave = async () => {
@@ -114,15 +133,47 @@ export function RecordDetailModal() {
 
   return (
     <>
+    <style>{`
+      @keyframes modalSpringIn {
+        0%   { opacity: 0; transform: scale(0.86) translateY(20px); }
+        60%  { opacity: 1; }
+        100% { transform: scale(1) translateY(0); }
+      }
+      @keyframes modalSpringOut {
+        0%   { opacity: 1; transform: scale(1) translateY(0); }
+        100% { opacity: 0; transform: scale(0.92) translateY(12px); }
+      }
+      @keyframes backdropOut {
+        to { opacity: 0; }
+      }
+      @keyframes editReveal {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .edit-field-enter {
+        animation: editReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .edit-field-enter:nth-child(1) { animation-delay: 0ms; }
+      .edit-field-enter:nth-child(2) { animation-delay: 50ms; }
+      .edit-field-enter:nth-child(3) { animation-delay: 100ms; }
+      .edit-field-enter:nth-child(4) { animation-delay: 150ms; }
+      .edit-field-enter:nth-child(5) { animation-delay: 200ms; }
+    `}</style>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
+      {/* Backdrop — severe blur for depth */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/75 backdrop-blur-xl"
+        style={isClosing ? { animation: "backdropOut 0.24s ease forwards" } : undefined}
         onClick={isEditing ? undefined : handleClose}
       />
 
-      {/* Modal */}
-      <div className="relative z-10 mx-4 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900">
+      {/* Modal — 3D spring scale-in / out */}
+      <div
+        className="relative z-10 mx-4 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
+        style={{ animation: isClosing
+          ? "modalSpringOut 0.24s cubic-bezier(0.4, 0, 1, 1) forwards"
+          : "modalSpringIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both" }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -164,30 +215,34 @@ export function RecordDetailModal() {
           {/* Info / Edit form */}
           <div className="mt-6 flex-1 md:mt-0">
             {isEditing ? (
-              <div className="flex flex-col gap-4">
-                <EditField label="Title">
-                  <input
-                    id="edit-title-input"
-                    name="edit-title"
-                    style={fieldStyle}
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
-                  />
-                </EditField>
-                <EditField label="Artist">
-                  <input
-                    id="edit-artist-input"
-                    name="edit-artist"
-                    style={fieldStyle}
-                    value={editArtist}
-                    onChange={(e) => setEditArtist(e.target.value)}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
-                  />
-                </EditField>
-                <div className="grid grid-cols-2 gap-3">
+              <div key="editing" className="flex flex-col gap-4">
+                <div className="edit-field-enter">
+                  <EditField label="Title">
+                    <input
+                      id="edit-title-input"
+                      name="edit-title"
+                      style={fieldStyle}
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onFocus={inputFocusStyle}
+                      onBlur={inputBlurStyle}
+                    />
+                  </EditField>
+                </div>
+                <div className="edit-field-enter">
+                  <EditField label="Artist">
+                    <input
+                      id="edit-artist-input"
+                      name="edit-artist"
+                      style={fieldStyle}
+                      value={editArtist}
+                      onChange={(e) => setEditArtist(e.target.value)}
+                      onFocus={inputFocusStyle}
+                      onBlur={inputBlurStyle}
+                    />
+                  </EditField>
+                </div>
+                <div className="edit-field-enter grid grid-cols-2 gap-3">
                   <EditField label="Year">
                     <input
                       id="edit-year-input"
@@ -195,8 +250,8 @@ export function RecordDetailModal() {
                       style={fieldStyle}
                       value={editYear}
                       onChange={(e) => setEditYear(e.target.value)}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
+                      onFocus={inputFocusStyle}
+                      onBlur={inputBlurStyle}
                     />
                   </EditField>
                   <EditField label="Genre">
@@ -206,43 +261,47 @@ export function RecordDetailModal() {
                       style={fieldStyle}
                       value={editGenre}
                       onChange={(e) => setEditGenre(e.target.value)}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
+                      onFocus={inputFocusStyle}
+                      onBlur={inputBlurStyle}
                     />
                   </EditField>
                 </div>
-                <EditField label="Condition">
-                  <div className="relative">
-                    <select
-                      id="edit-condition-input"
-                      name="edit-condition"
-                      style={{ ...fieldStyle, appearance: "none", paddingRight: "28px" }}
-                      value={editCondition}
-                      onChange={(e) => setEditCondition(e.target.value as Condition)}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
-                    >
-                      {conditions.map((c) => (
-                        <option key={c} value={c}>
-                          {c.charAt(0).toUpperCase() + c.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                  </div>
-                </EditField>
-                <EditField label="Notes">
-                  <textarea
-                    id="edit-notes-input"
-                    name="edit-notes"
-                    style={{ ...fieldStyle, resize: "vertical", minHeight: "72px", lineHeight: "1.5" }}
-                    value={editNotes}
-                    placeholder="Optional notes..."
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green)")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "hsl(var(--border))")}
-                  />
-                </EditField>
+                <div className="edit-field-enter">
+                  <EditField label="Condition">
+                    <div className="relative">
+                      <select
+                        id="edit-condition-input"
+                        name="edit-condition"
+                        style={{ ...fieldStyle, appearance: "none", paddingRight: "28px" }}
+                        value={editCondition}
+                        onChange={(e) => setEditCondition(e.target.value as Condition)}
+                        onFocus={inputFocusStyle}
+                        onBlur={inputBlurStyle}
+                      >
+                        {conditions.map((c) => (
+                          <option key={c} value={c}>
+                            {c.charAt(0).toUpperCase() + c.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    </div>
+                  </EditField>
+                </div>
+                <div className="edit-field-enter">
+                  <EditField label="Notes">
+                    <textarea
+                      id="edit-notes-input"
+                      name="edit-notes"
+                      style={{ ...fieldStyle, resize: "vertical", minHeight: "72px", lineHeight: "1.5" }}
+                      value={editNotes}
+                      placeholder="Optional notes..."
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      onFocus={inputFocusStyle}
+                      onBlur={inputBlurStyle}
+                    />
+                  </EditField>
+                </div>
               </div>
             ) : (
               <>

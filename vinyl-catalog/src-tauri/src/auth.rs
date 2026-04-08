@@ -208,35 +208,52 @@ pub fn sign_out(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Attempts to silently refresh the access token using the stored refresh token.
+async fn try_refresh(refresh_token: &str) -> Result<(String, Option<String>), String> {
+    let client = build_client("http://127.0.0.1/callback").await?;
+    let resp = client
+        .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
+        .request_async(async_http_client)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let new_access = resp.access_token().secret().to_string();
+    let new_refresh = resp.refresh_token().map(|r| r.secret().to_string());
+    Ok((new_access, new_refresh))
+}
+
 #[tauri::command]
 pub async fn get_access_token(_app: AppHandle) -> Result<Option<String>, String> {
     let stored = keyring::load_token("access-token");
 
-    // Fast path: present and not expiring
+    // Fast path: present and not expiring soon — return immediately, no network needed
     if let Some(ref token) = stored {
         if !is_expiring_soon(token) {
             return Ok(stored);
         }
     }
 
-    // Attempt silent refresh using a placeholder redirect URI (not used for refresh)
+    // No refresh token stored — return whatever we have (or None)
     let refresh = match keyring::load_token("refresh-token") {
         Some(r) => r,
-        None => return Ok(None),
+        None => return Ok(stored),
     };
 
-    let client = build_client("http://127.0.0.1/callback").await?;
-    let resp = client
-        .exchange_refresh_token(&RefreshToken::new(refresh))
-        .request_async(async_http_client)
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-
-    let new_access = resp.access_token().secret().to_string();
-    keyring::store_token("access-token", &new_access)?;
-    if let Some(new_refresh) = resp.refresh_token() {
-        keyring::store_token("refresh-token", new_refresh.secret())?;
+    // Attempt silent refresh
+    match try_refresh(&refresh).await {
+        Ok((new_access, new_refresh_opt)) => {
+            keyring::store_token("access-token", &new_access)?;
+            if let Some(new_refresh) = new_refresh_opt {
+                keyring::store_token("refresh-token", &new_refresh)?;
+            }
+            Ok(Some(new_access))
+        }
+        Err(e) => {
+            // Refresh failed (network issue, Authentik unreachable, etc.).
+            // Fall back to the cached token so the app can still start.
+            // If the token is truly expired, the first API call will return 401
+            // and the context layer will prompt re-login gracefully.
+            log::warn!("[auth] Token refresh failed ({}); using cached token as fallback", e);
+            Ok(stored)
+        }
     }
-
-    Ok(Some(new_access))
 }

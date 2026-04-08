@@ -33,6 +33,7 @@ openidconnect = { version = "3", default-features = false, features = ["reqwest"
 url        = "2"
 base64     = "0.22"
 urlencoding = "2"
+chrono     = { version = "0.4", features = ["clock"] }
 
 # Linux: webkit2gtk for camera permission handler
 [target.'cfg(target_os = "linux")'.dependencies]

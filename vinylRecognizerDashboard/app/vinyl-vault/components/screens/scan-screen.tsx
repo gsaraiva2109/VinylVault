@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useVinylVault } from "../../context"
 import { useRecognition } from "../../../../hooks/use-recognition"
-import { ConditionBadge } from "../condition-badge"
 import { ManualAddModal } from "../manual-add-modal"
-import { useTauriAuth } from "@/lib/tauri-auth"
-import { api } from "@/lib/api"
+import { api, ConflictError } from "@/lib/api"
+import ReactCrop, { type Crop } from "react-image-crop"
+import "react-image-crop/dist/ReactCrop.css"
 import {
   Camera,
   Loader2,
@@ -21,87 +21,145 @@ import {
   Disc3,
   CloudLightning,
   Music2,
+  SquareDashedMousePointer
 } from "lucide-react"
 import type { VinylRecord } from "../../types"
+import { VinylCard } from "@/components/ui/vinyl-card"
+import { useCameraContext } from "../../context/camera-context"
 
 export function ScanScreen() {
-  const { state: scanState, captureAndRecognize, reset } = useRecognition()
-  const [canUseCamera, setCanUseCamera] = useState<boolean | null>(null)
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [cameraError, setCameraError] = useState<string | null>(null)
-  const [showFallback, setShowFallback] = useState(false)
+  const { addScanError } = useVinylVault()
+  const { state: scanState, captureFromVideo, recognizeFromCrop, retryWithCloud, setStatus, selectCandidate, reset } = useRecognition(addScanError)
+  const { stream, canUseCamera } = useCameraContext()
+  const [flash, setFlash] = useState(false)
   const [manualAddOpen, setManualAddOpen] = useState(false)
+  const [aiProvider, setAiProvider] = useState<"auto" | "local" | "cloud">("local")
+  const [cloudConfigured, setCloudConfigured] = useState(false)
+  const [scanningWithCloud, setScanningWithCloud] = useState(false)
+  const [localMaxDim, setLocalMaxDim] = useState(512)
+  const [cloudMaxDim, setCloudMaxDim] = useState(1024)
   const capturedBufferRef = useRef<ArrayBuffer | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
+  // Read AI provider settings + cloud key status on mount
   useEffect(() => {
-    // Camera is available when running inside Tauri or in local dev
-    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    const isLocalDev =
-      typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1" ||
-        window.location.hostname.startsWith("192.168."))
-    setCanUseCamera(isTauri || isLocalDev)
+    async function loadAiConfig() {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        const settings = await invoke<{
+          llm: { provider: string; cloudProvider: string; localMaxDim?: number; cloudMaxDim?: number }
+        }>("read_settings")
+        setAiProvider(settings.llm.provider as "auto" | "local" | "cloud")
+        setLocalMaxDim(settings.llm.localMaxDim ?? 512)
+        setCloudMaxDim(settings.llm.cloudMaxDim ?? 1024)
+        const cloudKey = settings.llm.cloudProvider === "gemini" ? "gemini" : "openai"
+        const isSet = await invoke<boolean>("check_api_key", { provider: cloudKey })
+        setCloudConfigured(isSet)
+      } catch { /* not in Tauri context */ }
+    }
+    loadAiConfig()
   }, [])
 
+  // Reset cloud-retry flag once scan finishes
   useEffect(() => {
-    if (!canUseCamera) return
+    if (scanState.status !== "scanning") setScanningWithCloud(false)
+  }, [scanState.status])
 
-    let active = true
-    let activeStream: MediaStream | null = null
+  const handleRetryWithCloud = useCallback(() => {
+    setScanningWithCloud(true)
+    retryWithCloud()
+  }, [retryWithCloud])
 
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" } })
-      .then((s) => {
-        if (!active) {
-          s.getTracks().forEach((t) => t.stop())
-          return
-        }
-        activeStream = s
-        setStream(s)
-        if (videoRef.current) {
-          videoRef.current.srcObject = s
-        }
+  const handleChangeImageSize = useCallback(async (type: "local" | "cloud", dim: number) => {
+    if (type === "local") setLocalMaxDim(dim)
+    else setCloudMaxDim(dim)
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      const current = await invoke<{
+        ocr: { enabled: boolean; threshold: number }
+        llm: { provider: string; ollamaModel: string; cloudProvider: string; cloudModel: string; localMaxDim?: number; cloudMaxDim?: number }
+      }>("read_settings")
+      await invoke("write_settings", {
+        settings: {
+          ...current,
+          llm: {
+            ...current.llm,
+            localMaxDim: type === "local" ? dim : (current.llm.localMaxDim ?? 512),
+            cloudMaxDim: type === "cloud" ? dim : (current.llm.cloudMaxDim ?? 1024),
+          },
+        },
       })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : "Camera access denied"
-        setCameraError(
-          msg.includes("Permission") || msg.includes("NotAllowed")
-            ? "Camera permission denied. Please allow camera access in your browser settings."
-            : "Could not start camera. Make sure no other app is using it."
-        )
-      })
+    } catch { /* ignore */ }
+  }, [])
 
-    return () => {
-      active = false
-      if (activeStream) {
-        activeStream.getTracks().forEach((t) => t.stop())
-      }
+  // Attach stream to video element
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
     }
-  }, [canUseCamera])
+  }, [stream])
 
-  // Reset fallback when scan state resets to idle
+  // Reset captured buffer when scan state resets to idle
   useEffect(() => {
     if (scanState.status === "idle") {
-      setShowFallback(false)
       capturedBufferRef.current = null
     }
   }, [scanState.status])
 
+  const playShutterSound = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextClass) return
+      
+      const ctx = new AudioContextClass()
+      // Mechanical snap pop
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      
+      osc.type = "square"
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      
+      // Pitch drop
+      osc.frequency.setValueAtTime(150, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.05)
+      
+      // Amplitude envelope
+      gain.gain.setValueAtTime(0, ctx.currentTime)
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08)
+      
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.1)
+      
+      // Haptic
+      if (navigator.vibrate) {
+        navigator.vibrate([30])
+      }
+    } catch { /* Suppress audio context errors */ }
+  }, [])
+
   const handleScan = useCallback(() => {
     if (videoRef.current) {
-      setShowFallback(false)
-      captureAndRecognize(videoRef.current)
+      playShutterSound()
+      setFlash(true)
+      setTimeout(() => setFlash(false), 200)
+      captureFromVideo(videoRef.current, aiProvider !== "auto" ? aiProvider : undefined)
     }
-  }, [captureAndRecognize])
+  }, [captureFromVideo, playShutterSound, aiProvider])
 
-  const handleCloudAI = useCallback(async () => {
-    // Stub: connect to cloud vision endpoint when available
-    // capturedBufferRef.current contains the last captured image buffer
-    console.warn("Cloud AI endpoint not yet configured")
-    setShowFallback(true)
-  }, [])
+  // Global Spacebar listener for capturing frame
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && scanState.status === "idle" && stream) {
+        e.preventDefault()
+        handleScan()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [scanState.status, stream, handleScan])
+
 
   if (canUseCamera === null) return null
 
@@ -114,7 +172,7 @@ export function ScanScreen() {
     )
   }
 
-  const isScanning = scanState.status === "scanning"
+  const isScanning = scanState.status === "scanning" || scanState.status === "selecting"
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -127,9 +185,65 @@ export function ScanScreen() {
           muted
           playsInline
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-            stream ? "opacity-100" : "opacity-0"
+            stream && scanState.status === "idle" ? "opacity-100" : "opacity-0"
           }`}
         />
+
+        {/* Retina Flash Overlay */}
+        <div 
+          className="pointer-events-none absolute inset-0 z-40 bg-white transition-opacity duration-200"
+          style={{ opacity: flash ? 1 : 0 }} 
+        />
+
+        {/* Film Grain Texture Overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 z-30 mix-blend-overlay opacity-30"
+          style={{
+            backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")',
+          }}
+        />
+
+        {/* Frozen Captured Image Overlay / Fullscreen Crop */}
+        {scanState.rawImageUrl && scanState.status !== "idle" && (
+           <div className="absolute inset-0 z-20 flex bg-black transition-opacity duration-500">
+             {scanState.status === "cropping" ? (
+               <CropPanel
+                 rawImageUrl={scanState.rawImageUrl}
+                 onApplyCrop={(blob, dataUrl, rawImageUrl) =>
+                   recognizeFromCrop(blob, dataUrl, rawImageUrl, aiProvider !== "auto" ? aiProvider : undefined)
+                 }
+                 onCancel={() => setStatus("error")}
+               />
+             ) : (
+               <div className="relative h-full w-full flex items-center justify-center">
+                 {/* eslint-disable-next-line @next/next/no-img-element */}
+                 <img src={scanState.rawImageUrl} className="absolute inset-0 h-full w-full object-cover opacity-60" alt="Captured Frame" />
+                 {scanState.status === "scanning" && (
+                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <div className="relative aspect-square h-[60%] border-2 border-[#28d768] shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] animate-pulse" />
+                   </div>
+                 )}
+               </div>
+             )}
+           </div>
+        )}
+
+        {/* Action Panels Overlays (Selection / Success) */}
+        {scanState.status === "selecting" && scanState.candidates && (
+          <SelectionPanel
+            candidates={scanState.candidates}
+            onSelect={selectCandidate}
+            onReset={reset}
+            canTryCloud={aiProvider !== "cloud" && cloudConfigured}
+            onTryCloud={handleRetryWithCloud}
+          />
+        )}
+        {scanState.status === "success" && scanState.scannedRecord && (
+          <SuccessPanel
+            record={scanState.scannedRecord}
+            onReset={reset}
+          />
+        )}
 
         {/* Camera loading / error state */}
         {!stream && (
@@ -137,23 +251,21 @@ export function ScanScreen() {
             <div
               className="flex h-20 w-20 items-center justify-center rounded-full"
               style={{
-                background: cameraError
-                  ? "rgba(245,47,18,0.10)"
-                  : "rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.06)",
               }}
             >
               <Camera
                 className="h-9 w-9"
                 style={{
-                  color: cameraError ? "#f52f12" : "rgba(255,255,255,0.25)",
+                  color: "rgba(255,255,255,0.25)",
                 }}
               />
             </div>
             <p
               className="max-w-xs text-center text-sm"
-              style={{ color: cameraError ? "#f52f12" : "rgba(255,255,255,0.30)" }}
+              style={{ color: "rgba(255,255,255,0.30)" }}
             >
-              {cameraError ?? "Starting camera..."}
+              Starting camera...
             </p>
           </div>
         )}
@@ -234,7 +346,7 @@ export function ScanScreen() {
         >
           <Sparkles className="h-3 w-3" style={{ color: "#28d768" }} />
           <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.40)" }}>
-            Discogs + Ollama Vision
+            {aiProvider === "cloud" ? "Discogs + Cloud AI" : aiProvider === "local" ? "Discogs + Ollama Vision" : "Discogs + AI Vision"}
           </span>
         </div>
       </div>
@@ -252,23 +364,28 @@ export function ScanScreen() {
           <IdlePanel hasStream={!!stream} onManualAdd={() => setManualAddOpen(true)} />
         )}
         {scanState.status === "scanning" && (
-          <ScanningPanel />
-        )}
-        {scanState.status === "success" && scanState.scannedRecord && (
-          <SuccessPanel
-            record={scanState.scannedRecord}
-            onReset={reset}
-            onCloudAI={handleCloudAI}
+          <ScanningPanel
+             rawImageUrl={scanState.rawImageUrl}
+             onAdjustCrop={() => setStatus("cropping")}
+             aiProvider={scanningWithCloud ? "cloud" : aiProvider}
           />
         )}
+        {/* Overlays were moved to the fullscreen left overlay */}
         {scanState.status === "error" && (
           <ErrorPanel
             message={scanState.errorMessage}
+            capturedImage={scanState.capturedImage}
+            hasRawImage={!!scanState.rawImageUrl}
             onRetry={handleScan}
             onReset={reset}
-            showFallback={showFallback}
-            onShowFallback={() => setShowFallback(true)}
+            aiProvider={aiProvider}
+            cloudConfigured={cloudConfigured}
+            onRetryWithCloud={handleRetryWithCloud}
             onManualAdd={() => setManualAddOpen(true)}
+            onAdjustCrop={() => setStatus("cropping")}
+            localMaxDim={localMaxDim}
+            cloudMaxDim={cloudMaxDim}
+            onChangeImageSize={handleChangeImageSize}
           />
         )}
       </div>
@@ -379,43 +496,152 @@ function IdlePanel({ hasStream, onManualAdd }: { hasStream: boolean; onManualAdd
 
 // ── Panel: Scanning ───────────────────────────────────────────────────────────
 
-function ScanningPanel() {
+function ScanningPanel({
+  rawImageUrl,
+  onAdjustCrop,
+  aiProvider,
+}: {
+  rawImageUrl?: string
+  onAdjustCrop?: () => void
+  aiProvider?: "auto" | "local" | "cloud"
+}) {
+  const processingLabel =
+    aiProvider === "cloud" ? "Processing with Cloud AI..." :
+    aiProvider === "local" ? "Processing with Ollama Vision..." :
+    "Processing with AI Vision..."
   return (
     <div className="flex flex-1 flex-col p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--app-text-1)" }}>
-          Analyzing Cover...
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: "var(--app-text-3)" }}>
-          AI is identifying your record
-        </p>
+      <div className="mb-6 flex items-center gap-3">
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          style={{ background: "rgba(40,215,104,0.12)" }}
+        >
+          <Camera className="h-4 w-4" style={{ color: "#28d768" }} />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold leading-tight" style={{ color: "var(--app-text-1)" }}>
+            Analyzing Cover
+          </h2>
+          <p className="text-xs" style={{ color: "var(--app-text-3)" }}>
+            Hold still while we scan
+          </p>
+        </div>
       </div>
 
-      {/* Cover placeholder (dimmed) */}
-      <div
-        className="mb-5 flex aspect-square w-full items-center justify-center rounded-xl opacity-40"
-        style={{
-          background: "rgba(40,215,104,0.04)",
-          border: "1px solid rgba(40,215,104,0.12)",
-        }}
-      >
-        <Loader2 className="h-10 w-10 animate-spin" style={{ color: "#28d768" }} />
+      {/* Processing Loader */}
+      <div className="flex justify-center py-6">
+        <Loader2 
+          className="h-10 w-10 animate-spin" 
+          style={{ 
+            color: "#28d768",
+            filter: "drop-shadow(0 0 12px rgba(40,215,104,0.6))"
+          }} 
+        />
       </div>
-
-      {/* Skeleton fields */}
-      <PlaceholderFields dimmed />
 
       {/* Step progress */}
-      <div className="mt-6 flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5">
         <StepRow label="Image captured" done />
-        <StepRow label="Processing with Ollama Vision..." active />
+        <StepRow label={processingLabel} active />
         <StepRow label="Searching Discogs database" pending />
       </div>
 
-      {/* Actions (disabled) */}
+      {/* Actions */}
       <div className="mt-auto pt-6 flex flex-col gap-3">
-        <GreenPrimaryButton state="scanning" onClick={() => {}} disabled />
+        {onAdjustCrop && rawImageUrl && (
+          <button
+            onClick={onAdjustCrop}
+            className="flex items-center justify-center gap-2 rounded-xl border border-[#28d768]/30 bg-[#28d768]/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-[#28d768] transition-colors hover:bg-[#28d768]/20"
+          >
+            <SquareDashedMousePointer className="h-4 w-4" />
+            Wait, I&apos;ll Manually Crop
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Panel: Selection ─────────────────────────────────────────────────────────
+
+function SelectionPanel({
+  candidates,
+  onSelect,
+  onReset,
+  canTryCloud,
+  onTryCloud,
+}: {
+  candidates: VinylRecord[]
+  onSelect: (record: VinylRecord) => void
+  onReset: () => void
+  canTryCloud?: boolean
+  onTryCloud?: () => void
+}) {
+  // Enter key to confirm selection implicitly if confident, but wait, SuccessPanel handles final enter.
+  // We can let SelectionPanel use Enter for selecting the first candidate.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && candidates.length > 0) {
+        e.preventDefault()
+        onSelect(candidates[0])
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [candidates, onSelect])
+
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-6 backdrop-blur-md">
+      {/* Header */}
+      <div className="mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <h2 className="text-3xl font-black uppercase tracking-widest text-[#28d768] drop-shadow-[0_0_15px_rgba(40,215,104,0.4)]">
+          Select Match
+        </h2>
+        <p className="mt-2 text-sm font-medium uppercase tracking-widest text-white/50">
+          {candidates.length} potential matches {candidates.length === 1 ? 'was' : 'were'} identified
+        </p>
+      </div>
+
+      {/* Cards container */}
+      <div className="flex w-full max-w-[90vw] snap-x snap-mandatory items-center justify-start gap-8 overflow-x-auto px-8 py-8 sm:justify-center animate-in fade-in zoom-in-95 fill-mode-both duration-700 delay-150 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {candidates.map((record, i) => (
+          <div key={record.id} className="snap-center shrink-0">
+            <VinylCard
+              imageUrl={record.coverUrl || ""}
+              title={record.title}
+              artist={record.artist}
+              year={record.year}
+              rank={i + 1}
+              stats={[
+                { label: "Year", value: record.year || "N/A" },
+                { label: "Genre", value: record.genre || "N/A" },
+              ]}
+              actionLabel="Select Record"
+              onActionClick={() => onSelect(record)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Secondary Actions */}
+      <div className="mt-8 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-4 fill-mode-both duration-500 delay-300">
+        {canTryCloud && onTryCloud && (
+          <button
+            onClick={onTryCloud}
+            className="flex items-center justify-center gap-2 rounded-full border border-[#28d768]/40 bg-[#28d768]/10 px-8 py-3.5 text-xs font-bold uppercase tracking-widest text-[#28d768]/70 transition-all hover:border-[#28d768] hover:bg-[#28d768]/20 hover:text-[#28d768] hover:shadow-[0_0_15px_rgba(40,215,104,0.3)] cursor-pointer"
+          >
+            <CloudLightning className="h-4 w-4" />
+            None match — Try Cloud AI
+          </button>
+        )}
+        <button
+          onClick={onReset}
+          className="flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-xs font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#f87171] hover:bg-[#f87171]/20 hover:text-[#f87171] hover:shadow-[0_0_15px_rgba(248,113,113,0.3)] cursor-pointer"
+        >
+          <XCircle className="h-4 w-4" />
+          Deny all options
+        </button>
       </div>
     </div>
   )
@@ -426,155 +652,248 @@ function ScanningPanel() {
 function SuccessPanel({
   record,
   onReset,
-  onCloudAI,
 }: {
   record: VinylRecord
   onReset: () => void
-  onCloudAI: () => void
 }) {
   const { refreshCollection, setActiveScreen } = useVinylVault()
-  const { accessToken: token } = useTauriAuth()
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [trashedRecord, setTrashedRecord] = useState<{ id: number; title: string; artist: string } | null>(null)
 
-  const handleConfirm = async () => {
+  // Full condition ladder, worst → best so common grades (VG, VG+) sit in the middle
+  const CONDITIONS: VinylRecord["condition"][] = ["P", "F", "G", "G+", "VG", "VG+", "NM", "M"]
+  const [selectedCondition, setSelectedCondition] = useState(record.condition || "VG")
+
+  const getFreshToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      return await invoke<string | null>("get_access_token")
+    } catch { return null }
+  }, [])
+
+  const handleConfirm = useCallback(async () => {
     setIsAdding(true)
     setError(null)
+    setTrashedRecord(null)
     try {
+      const freshToken = await getFreshToken()
+      // If scan-time enrichment missed Spotify (e.g. user selected non-first candidate),
+      // attempt a last-chance lookup via Tauri keyring before persisting.
+      let spotifyUrl = record.spotify?.albumId
+        ? `https://open.spotify.com/album/${record.spotify.albumId}`
+        : null
+      if (!spotifyUrl) {
+        try {
+          const { invoke: inv } = await import("@tauri-apps/api/core")
+          const q = `${record.artist} ${record.title}`.trim()
+          const spotData = await inv<{ albumId: string }>("spotify_search", { q })
+          if (spotData.albumId) spotifyUrl = `https://open.spotify.com/album/${spotData.albumId}`
+        } catch { /* not in Tauri or keys not configured — skip */ }
+      }
+
       const payload = {
         title: record.title,
         artist: record.artist,
         year: record.year,
         genre: record.genre,
-        condition: record.condition,
+        condition: selectedCondition,
         coverImageUrl: record.coverUrl,
         discogsId: record.discogs?.releaseId ? String(record.discogs.releaseId) : null,
         discogsUrl: record.discogsUrl || null,
-        spotifyUrl: record.spotify?.albumId ? `https://open.spotify.com/album/${record.spotify.albumId}` : null,
+        spotifyUrl,
       }
-      console.log("Confirming vinyl with payload:", payload)
-      await api.vinyls.create(payload, token ?? undefined)
+      await api.vinyls.create(payload, freshToken ?? undefined)
+
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        await invoke("log_scan_success", { artist: record.artist, album: record.title, source: "manual-confirm" })
+      } catch { /* not in Tauri or log failed — ignore */ }
+
       refreshCollection()
       setActiveScreen("collection")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add record")
+      if (err instanceof ConflictError && err.trashedRecord) {
+        setTrashedRecord(err.trashedRecord)
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to add record")
+      }
     } finally {
       setIsAdding(false)
     }
-  }
+  }, [record, selectedCondition, getFreshToken, refreshCollection, setActiveScreen])
+
+  const handleRestoreFromTrash = useCallback(async () => {
+    if (!trashedRecord) return
+    setIsAdding(true)
+    setError(null)
+    try {
+      const freshToken = await getFreshToken()
+      await api.vinyls.recover(trashedRecord.id, freshToken ?? undefined)
+
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        await invoke("log_scan_success", { artist: trashedRecord.artist, album: trashedRecord.title, source: "restore-from-trash" })
+      } catch { /* ignore */ }
+
+      refreshCollection()
+      setActiveScreen("collection")
+    } catch (err) {
+      if (err instanceof ConflictError) {
+        setTrashedRecord(null)
+        setError("This record is already in your collection.")
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to restore record")
+      }
+    } finally {
+      setIsAdding(false)
+    }
+  }, [trashedRecord, getFreshToken, refreshCollection, setActiveScreen])
+
+  // Enter key listener for condition confirmation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !isAdding) {
+        e.preventDefault()
+        handleConfirm()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleConfirm, isAdding])
 
   return (
-    <div className="flex flex-1 flex-col p-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-3">
-        <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-          style={{ background: "rgba(40,215,104,0.12)" }}
-        >
-          <CheckCircle2 className="h-4 w-4" style={{ color: "#28d768" }} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold leading-tight" style={{ color: "var(--app-text-1)" }}>
-            Record Identified
-          </h2>
-          <p className="text-xs" style={{ color: "var(--app-text-3)" }}>
-            Verify the details below
-          </p>
-        </div>
-      </div>
-
-      {/* Album cover */}
-      <div
-        className="mb-5 aspect-square w-full overflow-hidden rounded-xl bg-cover bg-center"
-        style={{
-          backgroundImage: record.coverUrl ? `url(${record.coverUrl})` : undefined,
-          background: record.coverUrl ? undefined : "#1a1a1a",
-          border: "1px solid var(--app-border)",
-        }}
-      >
-        {!record.coverUrl && (
-          <div className="flex h-full items-center justify-center">
-            <Music2 className="h-10 w-10" style={{ color: "rgba(255,255,255,0.15)" }} />
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-md">
+      <div className="flex w-[460px] max-w-full flex-col overflow-hidden rounded-2xl border-2 border-[#28d768] bg-[#0a0a0a] shadow-[0_0_40px_rgba(40,215,104,0.15)] animate-in zoom-in-95 duration-300">
+        
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-white/10 bg-white/5 p-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#28d768]/10">
+            <CheckCircle2 className="h-5 w-5 text-[#28d768]" />
           </div>
-        )}
-      </div>
-
-      {/* Filled fields */}
-      <div className="flex flex-col gap-3">
-        <RecordField label="Title" value={record.title} />
-        <RecordField label="Artist" value={record.artist} />
-        <div className="grid grid-cols-2 gap-3">
-          <RecordField label="Year" value={String(record.year)} />
-          <RecordField label="Genre" value={record.genre} />
-        </div>
-        <div>
-          <p className="mb-1.5 text-xs font-medium" style={{ color: "var(--app-text-3)" }}>
-            Condition
-          </p>
-          <ConditionBadge condition={record.condition} />
-        </div>
-      </div>
-
-      {error && (
-        <div
-          className="mt-4 rounded-lg p-3 text-sm"
-          style={{
-            background: "rgba(245,47,18,0.08)",
-            color: "#f52f12",
-            border: "1px solid rgba(245,47,18,0.18)",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="mt-auto pt-6 flex flex-col gap-3">
-        <GreenPrimaryButton state="success" onClick={handleConfirm} disabled={isAdding} isLoading={isAdding} />
-
-        <div className="flex gap-2">
-          <button
-            onClick={onReset}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"
-            style={{
-              border: "1px solid var(--app-border)",
-              color: "var(--app-text-2)",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--app-text-1)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-2)")}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Scan Again
-          </button>
-
-          {record.discogs && (
-            <a
-              href={record.discogsUrl || `https://www.discogs.com/release/${record.discogs.releaseId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"
-              style={{
-                border: "1px solid var(--app-border)",
-                color: "var(--app-text-2)",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--app-text-1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-2)")}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Discogs
-            </a>
-          )}
+          <div>
+            <h2 className="text-xl font-bold leading-tight text-white uppercase tracking-wider">
+              Define Condition
+            </h2>
+            <p className="text-xs uppercase tracking-widest text-[#28d768]">
+              Final details for the vault
+            </p>
+          </div>
         </div>
 
-        {/* Cloud AI fallback link */}
-        <button
-          onClick={onCloudAI}
-          className="flex items-center justify-center gap-1.5 py-1 text-xs transition-opacity cursor-pointer opacity-50 hover:opacity-80"
-          style={{ color: "var(--app-text-3)" }}
-        >
-          <CloudLightning className="h-3 w-3" />
-          Incorrect data? Try Cloud AI
-        </button>
+        {/* Content */}
+        <div className="flex flex-col p-6">
+           <div className="flex gap-5 mb-6">
+             {/* Album cover */}
+             <div
+               className="aspect-square w-28 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-black/40"
+             >
+               {record.coverUrl ? (
+                 <>
+                   {/* eslint-disable-next-line @next/next/no-img-element */}
+                   <img src={record.coverUrl} className="h-full w-full object-cover" alt="Cover" />
+                 </>
+               ) : (
+                 <div className="flex h-full items-center justify-center">
+                   <Music2 className="h-8 w-8 text-white/20" />
+                 </div>
+               )}
+             </div>
+
+             {/* Auto-filled details */}
+             <div className="flex flex-col justify-center gap-3 min-w-0">
+               <div>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40">Title</p>
+                  <p className="truncate text-base font-bold text-white max-w-full" title={record.title}>{record.title}</p>
+               </div>
+               <div>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40">Artist / Year</p>
+                  <p className="truncate text-sm font-medium text-white/80">{record.artist} • {record.year}</p>
+               </div>
+             </div>
+           </div>
+
+           {/* Manual Condition Selector */}
+           <div className="mb-8 rounded-xl border border-white/10 bg-white/5 p-4 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-white/60">
+               Select Record Condition
+             </p>
+             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+               {CONDITIONS.map((cond) => (
+                 <button
+                   key={cond}
+                   onClick={() => setSelectedCondition(cond)}
+                   className={`flex h-10 items-center justify-center rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                     selectedCondition === cond
+                       ? "border-[#28d768] bg-[#28d768]/20 text-[#28d768] shadow-[0_0_10px_rgba(40,215,104,0.3)]"
+                       : "border-white/10 bg-black/40 text-white/50 hover:border-white/30 hover:text-white/80"
+                   }`}
+                 >
+                   {cond}
+                 </button>
+               ))}
+             </div>
+           </div>
+
+           {trashedRecord && (
+             <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-300">
+               <p className="font-semibold mb-2">This record is in your trash</p>
+               <p className="text-yellow-300/70 text-xs mb-3">
+                 &ldquo;{trashedRecord.title}&rdquo; by {trashedRecord.artist} was previously deleted.
+                 Restore it or cancel.
+               </p>
+               <div className="flex gap-2">
+                 <button
+                   onClick={handleRestoreFromTrash}
+                   disabled={isAdding}
+                   className="flex-1 rounded-lg bg-yellow-500/20 border border-yellow-500/40 py-2 text-xs font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/30 transition-colors cursor-pointer disabled:opacity-50"
+                 >
+                   Restore from Trash
+                 </button>
+                 <button
+                   onClick={() => setTrashedRecord(null)}
+                   disabled={isAdding}
+                   className="flex-1 rounded-lg border border-white/10 py-2 text-xs font-bold uppercase tracking-widest text-white/50 hover:bg-white/5 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                 >
+                   Cancel
+                 </button>
+               </div>
+             </div>
+           )}
+
+           {error && (
+             <div className="mb-4 rounded-lg border border-[#f52f12]/30 bg-[#f52f12]/10 p-3 text-sm text-[#f52f12]">
+               {error}
+             </div>
+           )}
+
+           {/* Actions */}
+           <div className="flex flex-col gap-3 mt-auto">
+             <GreenPrimaryButton state="success" onClick={handleConfirm} disabled={isAdding || !!trashedRecord} isLoading={isAdding} />
+             
+             <div className="flex gap-2">
+               <button
+                 onClick={onReset}
+                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 py-3 text-xs font-bold uppercase tracking-widest text-white/50 transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+               >
+                 <RefreshCw className="h-3.5 w-3.5" />
+                 Scan Again
+               </button>
+
+               {record.discogs && (
+                 <a
+                   href={record.discogsUrl || `https://www.discogs.com/release/${record.discogs.releaseId}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 py-3 text-xs font-bold uppercase tracking-widest text-[#60a5fa]/70 transition-colors hover:bg-[#60a5fa]/10 hover:border-[#60a5fa]/50 hover:text-[#60a5fa] cursor-pointer"
+                 >
+                   <ExternalLink className="h-3.5 w-3.5" />
+                   Discogs Info
+                 </a>
+               )}
+             </div>
+           </div>
+        </div>
       </div>
     </div>
   )
@@ -582,21 +901,42 @@ function SuccessPanel({
 
 // ── Panel: Error / Fallback ───────────────────────────────────────────────────
 
+const IMAGE_SIZE_OPTIONS_LOCAL = [256, 384, 512, 672, 768, 1024, 1280]
+const IMAGE_SIZE_OPTIONS_CLOUD = [512, 768, 1024, 1280, 1536, 2048]
+
 function ErrorPanel({
   message,
+  capturedImage,
+  hasRawImage,
   onRetry,
   onReset,
-  showFallback,
-  onShowFallback,
+  aiProvider,
+  cloudConfigured,
+  onRetryWithCloud,
   onManualAdd,
+  onAdjustCrop,
+  localMaxDim,
+  cloudMaxDim,
+  onChangeImageSize,
 }: {
   message?: string
+  capturedImage?: string
+  hasRawImage?: boolean
   onRetry: () => void
   onReset: () => void
-  showFallback: boolean
-  onShowFallback: () => void
+  aiProvider: "auto" | "local" | "cloud"
+  cloudConfigured: boolean
+  onRetryWithCloud: () => void
   onManualAdd: () => void
+  onAdjustCrop: () => void
+  localMaxDim: number
+  cloudMaxDim: number
+  onChangeImageSize: (type: "local" | "cloud", dim: number) => void
 }) {
+  const { setActiveScreen } = useVinylVault()
+  const isCloudFailed = aiProvider === "cloud"
+  const canTryCloud = !isCloudFailed && cloudConfigured
+
   return (
     <div className="flex flex-1 flex-col p-6">
       {/* Header */}
@@ -609,59 +949,86 @@ function ErrorPanel({
         </div>
         <div>
           <h2 className="text-lg font-semibold leading-tight" style={{ color: "var(--app-text-1)" }}>
-            {showFallback ? "Cloud AI Analysis" : "Recognition Failed"}
+            {isCloudFailed ? "Cloud AI Failed" : "Recognition Failed"}
           </h2>
           <p className="text-xs" style={{ color: "var(--app-text-3)" }}>
-            {showFallback ? "Deeper analysis via cloud model" : "Could not identify this record"}
+            {isCloudFailed ? "Cloud model could not identify this record" : "Could not identify this record"}
           </p>
         </div>
       </div>
 
       {/* Cover placeholder */}
       <div
-        className="mb-5 flex aspect-square w-full items-center justify-center rounded-xl"
+        className="mb-5 flex aspect-square w-full items-center justify-center rounded-xl overflow-hidden relative"
         style={{
           background: "rgba(245,47,18,0.04)",
           border: "1px solid rgba(245,47,18,0.10)",
         }}
       >
-        <XCircle className="h-10 w-10" style={{ color: "rgba(245,47,18,0.25)" }} />
+        {capturedImage && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={capturedImage}
+              className="absolute inset-0 h-full w-full object-cover opacity-40 grayscale filter contrast-125 mix-blend-luminosity"
+              alt="Failed capture"
+            />
+          </>
+        )}
+        <XCircle className="h-10 w-10 z-10" style={{ color: "rgba(245,47,18,0.6)" }} />
       </div>
 
       {/* Error message */}
-      {!showFallback && (
-        <div
-          className="mb-4 rounded-xl p-4"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid var(--app-border)",
-          }}
-        >
-          <p className="text-sm" style={{ color: "var(--app-text-2)" }}>
-            {message || "We couldn't identify this record. Please try again."}
-          </p>
+      <div
+        className="mb-4 rounded-xl p-4"
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid var(--app-border)",
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--app-text-2)" }}>
+          {message || (isCloudFailed
+            ? "The cloud model couldn't identify this record. Try cropping or scanning again."
+            : "We couldn't identify this record. Please try again.")}
+        </p>
+        {!isCloudFailed && (
           <ul className="mt-3 space-y-1 text-xs" style={{ color: "var(--app-text-3)" }}>
             <li>• Ensure good lighting on the cover</li>
             <li>• Avoid glare and reflections</li>
             <li>• Keep the cover flat and centered</li>
           </ul>
+        )}
+      </div>
+
+      {/* Image size quick-adjust */}
+      {(aiProvider === "local" || aiProvider === "auto") && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--app-border)" }}>
+          <span className="text-xs" style={{ color: "var(--app-text-3)" }}>Local image size</span>
+          <select
+            value={localMaxDim}
+            onChange={(e) => onChangeImageSize("local", Number(e.target.value))}
+            className="rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: "var(--app-surface-3)", border: "1px solid var(--app-border)", color: "var(--app-text-2)" }}
+          >
+            {IMAGE_SIZE_OPTIONS_LOCAL.map((px) => (
+              <option key={px} value={px}>{px}px</option>
+            ))}
+          </select>
         </div>
       )}
-
-      {showFallback && (
-        <div
-          className="mb-4 rounded-xl p-4"
-          style={{
-            background: "rgba(40,215,104,0.04)",
-            border: "1px solid rgba(40,215,104,0.12)",
-          }}
-        >
-          <p className="text-sm" style={{ color: "var(--app-text-2)" }}>
-            Cloud AI will perform a deeper visual analysis of your album cover using an online model.
-          </p>
-          <p className="mt-2 text-xs" style={{ color: "var(--app-text-3)" }}>
-            Note: Cloud AI endpoint is not yet configured.
-          </p>
+      {(aiProvider === "cloud" || aiProvider === "auto") && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--app-border)" }}>
+          <span className="text-xs" style={{ color: "var(--app-text-3)" }}>Cloud image size</span>
+          <select
+            value={cloudMaxDim}
+            onChange={(e) => onChangeImageSize("cloud", Number(e.target.value))}
+            className="rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: "var(--app-surface-3)", border: "1px solid var(--app-border)", color: "var(--app-text-2)" }}
+          >
+            {IMAGE_SIZE_OPTIONS_CLOUD.map((px) => (
+              <option key={px} value={px}>{px}px</option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -670,10 +1037,10 @@ function ErrorPanel({
         {/* Primary: Manually Add */}
         <GreenPrimaryButton state="idle" onClick={onManualAdd} />
 
-        {/* Cloud AI button */}
-        {!showFallback ? (
+        {/* Cloud AI button — only shown when not already using cloud */}
+        {canTryCloud && (
           <button
-            onClick={onShowFallback}
+            onClick={onRetryWithCloud}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all cursor-pointer"
             style={{
               border: "1px solid rgba(40,215,104,0.30)",
@@ -692,23 +1059,53 @@ function ErrorPanel({
             <CloudLightning className="h-4 w-4" />
             Try Cloud AI Analysis
           </button>
-        ) : (
+        )}
+
+        {/* Not using cloud, cloud not configured → offer to set it up */}
+        {!isCloudFailed && !cloudConfigured && (
           <button
-            onClick={() => {}}
-            className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all cursor-pointer opacity-50"
+            onClick={() => setActiveScreen("settings")}
+            className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all cursor-pointer"
             style={{
-              border: "1px solid rgba(40,215,104,0.30)",
-              color: "#28d768",
-              background: "rgba(40,215,104,0.05)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: "var(--app-text-3)",
+              background: "transparent",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.20)"
+              e.currentTarget.style.color = "var(--app-text-2)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"
+              e.currentTarget.style.color = "var(--app-text-3)"
             }}
           >
             <CloudLightning className="h-4 w-4" />
-            Cloud AI Not Configured
+            Set Up Cloud AI
           </button>
         )}
 
         {/* Try Again / Cancel row */}
         <div className="flex gap-2">
+          {hasRawImage && (
+            <button
+              onClick={onAdjustCrop}
+              className="flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+              style={{
+                border: "1px solid rgba(40,215,104,0.40)",
+                color: "#28d768",
+                background: "rgba(40,215,104,0.05)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(40,215,104,0.10)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(40,215,104,0.05)"
+              }}
+            >
+              Adjust Crop
+            </button>
+          )}
           <button
             onClick={onRetry}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"
@@ -719,8 +1116,8 @@ function ErrorPanel({
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--app-text-1)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-2)")}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Try Again
+            <Camera className="h-3.5 w-3.5" />
+            Rescan
           </button>
           <button
             onClick={onReset}
@@ -831,26 +1228,7 @@ function SkeletonField({
   )
 }
 
-function RecordField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-xs font-medium" style={{ color: "var(--app-text-3)" }}>
-        {label}
-      </p>
-      <div
-        className="flex h-8 items-center rounded-lg px-3"
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid var(--app-border)",
-        }}
-      >
-        <span className="truncate text-sm" style={{ color: "var(--app-text-1)" }}>
-          {value}
-        </span>
-      </div>
-    </div>
-  )
-}
+
 
 function StepRow({
   label,
@@ -880,6 +1258,168 @@ function StepRow({
       >
         {label}
       </span>
+    </div>
+  )
+}
+
+// ── Panel: Crop ───────────────────────────────────────────────────────────────
+
+function CropPanel({
+  rawImageUrl,
+  onApplyCrop,
+  onCancel,
+}: {
+  rawImageUrl: string
+  onApplyCrop: (blob: Blob, capturedImage: string, rawImageUrl: string) => void
+  onCancel: () => void
+}) {
+  const [crop, setCrop] = useState<Crop>({
+    unit: "%",
+    width: 50,
+    height: 50,
+    x: 25,
+    y: 25,
+  })
+  const [completedCrop, setCompletedCrop] = useState<Crop | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerHeight, setContainerHeight] = useState(0)
+  const [isApplying, setIsApplying] = useState(false)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      setContainerHeight(entries[0].contentRect.height)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const handleApply = useCallback(async () => {
+    if (!imgRef.current) return
+    setIsApplying(true)
+
+    try {
+      const image = imgRef.current
+      const scaleX = image.naturalWidth / image.width
+      const scaleY = image.naturalHeight / image.height
+
+      // react-image-crop v11: onComplete gives PixelCrop (display-space px).
+      // If the user never dragged, completedCrop is null — fall back to the
+      // current percent crop converted to natural pixels.
+      let sx: number, sy: number, sw: number, sh: number
+      if (completedCrop && completedCrop.width > 0 && completedCrop.height > 0) {
+        // completedCrop is in display pixels → scale to natural pixels
+        sx = completedCrop.x * scaleX
+        sy = completedCrop.y * scaleY
+        sw = completedCrop.width * scaleX
+        sh = completedCrop.height * scaleY
+      } else {
+        // Percent crop → natural pixels
+        sx = (crop.x / 100) * image.naturalWidth
+        sy = (crop.y / 100) * image.naturalHeight
+        sw = (crop.width / 100) * image.naturalWidth
+        sh = (crop.height / 100) * image.naturalHeight
+      }
+
+      const canvas = document.createElement("canvas")
+      canvas.width = sw
+      canvas.height = sh
+      const ctx = canvas.getContext("2d")!
+      ctx.imageSmoothingQuality = "high"
+      ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh)
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.9)
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9)
+      )
+      onApplyCrop(blob, dataUrl, rawImageUrl)
+    } finally {
+      setIsApplying(false)
+    }
+  }, [completedCrop, crop, onApplyCrop, rawImageUrl])
+
+  // Enter key listener for manual crop apply
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !isApplying) {
+        e.preventDefault()
+        handleApply()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleApply, isApplying])
+
+  return (
+    <div className="absolute inset-0 flex flex-col p-8 z-50 bg-[#050505]">
+      {/* Header & Actions */}
+      <div className="mb-6 shrink-0 flex items-center justify-between w-full animate-in slide-in-from-top-4">
+        <div>
+          <h2 className="text-3xl font-black uppercase tracking-widest text-[#28d768]">
+            Adjust Crop
+          </h2>
+          <p className="mt-2 text-sm text-white/50 uppercase tracking-widest">
+            Drag the square to cover the album art completely
+          </p>
+        </div>
+        
+        <div className="flex gap-4">
+          <button
+            onClick={onCancel}
+            className="flex items-center justify-center gap-2 rounded-full border border-white/20 bg-black/50 px-8 py-3 text-xs font-bold uppercase tracking-widest text-white/50 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={isApplying}
+            className="flex items-center justify-center gap-2 rounded-full border-2 border-[#28d768] bg-[#28d768]/10 px-8 py-3 text-xs font-bold uppercase tracking-widest text-[#28d768] transition-all hover:bg-[#28d768]/20 disabled:opacity-40 cursor-pointer"
+          >
+            {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {isApplying ? "Applying..." : "Confirm & Rescan"}
+          </button>
+        </div>
+      </div>
+
+      {/* Editor */}
+      <div ref={containerRef} className="flex-1 min-h-0 relative flex items-center justify-center animate-in zoom-in-95 duration-500">
+        <ReactCrop
+          crop={crop}
+          onChange={(newCrop) => setCrop(newCrop)}
+          onComplete={(c) => setCompletedCrop(c)}
+          className="max-w-full shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={imgRef}
+            src={rawImageUrl}
+            alt="Raw camera capture"
+            style={{
+              display: "block",
+              maxWidth: "100%",
+              maxHeight: containerHeight > 0 ? `${containerHeight}px` : "none",
+            }}
+          />
+        </ReactCrop>
+      </div>
+      
+      <style>{`
+        /* Overriding ReactCrop WITHOUT massive box-shadow lag */
+        .ReactCrop__crop-selection {
+          border: 2px solid #28d768 !important;
+          border-radius: 4px;
+          background: rgba(40,215,104,0.05);
+        }
+        .ReactCrop__drag-handle {
+          width: 14px !important;
+          height: 14px !important;
+          background-color: #28d768 !important;
+          border: 2px solid #000 !important;
+          border-radius: 50% !important;
+        }
+      `}</style>
     </div>
   )
 }
