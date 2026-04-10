@@ -185,7 +185,7 @@ git add \
   vinyl-catalog/package.json \
   vinyl-catalog/backend/package.json
 
-git commit -m "chore: release v${NEW} [skip ci]"
+git commit -m "chore: release v${NEW}"
 git tag "v${NEW}"
 
 # ── Push branch + tag in one command ─────────────────────────────────────────
