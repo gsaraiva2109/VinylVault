@@ -1,6 +1,6 @@
 [package]
 name = "vinyl-vault"
-version = "2.0.2"
+version = "2.1.0"
 description = "Vinyl Vault — Tauri desktop app"
 authors = ["gsaraiva2109"]
 license = ""
