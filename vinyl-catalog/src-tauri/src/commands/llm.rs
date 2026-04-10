@@ -6,9 +6,33 @@
  */
 
 use base64::{engine::general_purpose, Engine as _};
+use image::imageops::FilterType;
 use serde_json::json;
 
 use crate::commands::recognize::RecognitionResult;
+
+// ── Image resize helper ──────────────────────────────────────────────────────
+
+/// Downscales JPEG bytes so neither dimension exceeds `max_dim`.
+/// Returns the original bytes if already within bounds or if decoding fails.
+fn resize_if_needed(bytes: &[u8], max_dim: u32) -> Vec<u8> {
+    if max_dim == 0 {
+        return bytes.to_vec();
+    }
+    let img = match image::load_from_memory(bytes) {
+        Ok(i) => i,
+        Err(_) => return bytes.to_vec(),
+    };
+    if img.width() <= max_dim && img.height() <= max_dim {
+        return bytes.to_vec();
+    }
+    let resized = img.resize(max_dim, max_dim, FilterType::Lanczos3);
+    let mut buf = Vec::new();
+    resized
+        .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Jpeg)
+        .unwrap_or_default();
+    if buf.is_empty() { bytes.to_vec() } else { buf }
+}
 
 const PROMPT: &str = "You are identifying a vinyl record from its album artwork.\n\
     Examine the cover image and find the artist name and album title text.\n\
@@ -68,11 +92,12 @@ pub fn parse_llm_response(text: &str) -> Result<(String, String), String> {
 
 // ── Ollama ───────────────────────────────────────────────────────────────────
 
-pub async fn call_ollama(image_bytes: &[u8], model: &str) -> Result<RecognitionResult, String> {
+pub async fn call_ollama(image_bytes: &[u8], model: &str, max_dim: u32) -> Result<RecognitionResult, String> {
     if model.is_empty() {
         return Err("no ollama model configured".into());
     }
-    let b64 = general_purpose::STANDARD.encode(image_bytes);
+    let resized = resize_if_needed(image_bytes, max_dim);
+    let b64 = general_purpose::STANDARD.encode(&resized);
     let body = json!({
         "model": model,
         "prompt": PROMPT,
@@ -122,8 +147,10 @@ pub async fn call_openai(
     image_bytes: &[u8],
     api_key: &str,
     model: &str,
+    max_dim: u32,
 ) -> Result<RecognitionResult, String> {
-    let b64 = general_purpose::STANDARD.encode(image_bytes);
+    let resized = resize_if_needed(image_bytes, max_dim);
+    let b64 = general_purpose::STANDARD.encode(&resized);
     let body = json!({
         "model": model,
         "messages": [{
@@ -133,7 +160,6 @@ pub async fn call_openai(
                 {"type": "image_url", "image_url": {"url": format!("data:image/jpeg;base64,{b64}")}}
             ]
         }],
-        "max_tokens": 100
     });
     let client = reqwest::Client::new();
     let resp = client
@@ -168,8 +194,10 @@ pub async fn call_gemini(
     image_bytes: &[u8],
     api_key: &str,
     model: &str,
+    max_dim: u32,
 ) -> Result<RecognitionResult, String> {
-    let b64 = general_purpose::STANDARD.encode(image_bytes);
+    let resized = resize_if_needed(image_bytes, max_dim);
+    let b64 = general_purpose::STANDARD.encode(&resized);
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     );
@@ -179,7 +207,7 @@ pub async fn call_gemini(
                 {"text": PROMPT},
                 {"inlineData": {"mimeType": "image/jpeg", "data": b64}}
             ]
-        }]
+        }],
     });
     let client = reqwest::Client::new();
 
