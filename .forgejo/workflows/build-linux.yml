@@ -141,11 +141,6 @@ jobs:
           apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
           apt-get clean
-      - name: Create dummy sidecar
-        run: |
-          mkdir -p vinyl-catalog/src-tauri/binaries
-          touch vinyl-catalog/src-tauri/binaries/sidecar-x86_64-unknown-linux-gnu
-          chmod +x vinyl-catalog/src-tauri/binaries/sidecar-x86_64-unknown-linux-gnu
       - name: Cargo check
         working-directory: vinyl-catalog/src-tauri
         env:
@@ -323,22 +318,6 @@ jobs:
           # Next.js 15 requires force-static for routes during static export.
           # We sed this at build time so the Web version stays dynamic.
           sed -i 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
-
-      - name: Cache pip packages
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('vinyl-catalog/sidecar/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Build Python sidecar
-        working-directory: vinyl-catalog/sidecar
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet --cache-dir ~/.cache/pip -r requirements.txt pyinstaller
-          .venv/bin/pyinstaller --clean --onefile --name sidecar --distpath ../src-tauri/binaries main.py
-          mv ../src-tauri/binaries/sidecar ../src-tauri/binaries/sidecar-x86_64-unknown-linux-gnu
 
       - name: Build Tauri AppImage
         working-directory: vinyl-catalog

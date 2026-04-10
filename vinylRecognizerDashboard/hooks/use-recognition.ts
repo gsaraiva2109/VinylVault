@@ -237,7 +237,6 @@ export function useRecognition(onScanError?: (message: string, provider?: string
     if (!capturedImage) return
     setState({ status: "scanning", capturedImage, rawImageUrl })
     try {
-      // Convert data URL to Blob directly (fetch() on data: URLs is unreliable in Tauri WebView)
       const [header, b64] = capturedImage.split(",")
       const mimeType = header.match(/:(.*?);/)?.[1] ?? "image/jpeg"
       const binary = atob(b64)
@@ -255,6 +254,63 @@ export function useRecognition(onScanError?: (message: string, provider?: string
     }
   }, [state, performRecognition])
 
+  // Re-run recognition on the stored raw frame, re-reading current maxDim settings.
+  // This lets the user change the image size dropdown and retry without re-taking a photo.
+  const retryWithSameImage = useCallback(async (forceProvider?: string) => {
+    const s = state
+    const capturedImage = "capturedImage" in s ? (s as { capturedImage?: string }).capturedImage : undefined
+    const rawImageUrl = "rawImageUrl" in s ? (s as { rawImageUrl?: string }).rawImageUrl : undefined
+    // Need at least a captured image to retry
+    const sourceUrl = rawImageUrl || capturedImage
+    if (!sourceUrl) return
+
+    setState({ status: "scanning", capturedImage, rawImageUrl })
+    try {
+      // Load the raw frame into an offscreen image so we can re-scale it
+      const img = new Image()
+      img.src = sourceUrl
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error("Failed to load image for retry"))
+      })
+
+      // Read fresh settings — picks up any dim change the user just made
+      let localMaxDim = 512
+      let cloudMaxDim = 1024
+      try {
+        const { invoke: inv } = await import("@tauri-apps/api/core")
+        const settings = await inv<{ llm: { localMaxDim?: number; cloudMaxDim?: number } }>("read_settings")
+        localMaxDim = settings.llm.localMaxDim ?? 512
+        cloudMaxDim = settings.llm.cloudMaxDim ?? 1024
+      } catch { /* not in Tauri or unavailable — use defaults */ }
+
+      const MAX_DIM = forceProvider === "cloud" ? cloudMaxDim : localMaxDim
+      const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height))
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext("2d")!
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("Canvas toBlob failed"))),
+          "image/jpeg",
+          0.85
+        )
+      )
+
+      await performRecognition(blob, capturedImage || sourceUrl, rawImageUrl, forceProvider)
+    } catch (err) {
+      setState({
+        status: "error",
+        errorMessage: err instanceof Error ? err.message : "Recognition failed",
+        capturedImage,
+        rawImageUrl,
+      })
+    }
+  }, [state, performRecognition])
+
   const setStatus = useCallback((status: ScanState["status"]) => {
     setState(s => ({ ...s, status }))
   }, [])
@@ -265,5 +321,5 @@ export function useRecognition(onScanError?: (message: string, provider?: string
 
   const reset = useCallback(() => setState({ status: "idle" }), [])
 
-  return { state, captureFromVideo, recognizeFromCrop, retryWithCloud, setStatus, selectCandidate, reset }
+  return { state, captureFromVideo, recognizeFromCrop, retryWithCloud, retryWithSameImage, setStatus, selectCandidate, reset }
 }
