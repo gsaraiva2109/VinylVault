@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::commands::{keyring, llm, settings::read_settings};
+use crate::{cache, vram};
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -76,14 +77,34 @@ async fn platform_ocr_fallback(_image_data: &[u8]) -> Result<RecognitionResult, 
 async fn try_ollama(
     image_data: &[u8],
     model: &str,
+    max_dim: u32,
 ) -> Result<RecognitionResult, String> {
-    llm::call_ollama(image_data, model).await
+    let effective_model = match vram::query_vram() {
+        Some(info) => {
+            let ratio = info.free_mb as f64 / info.total_mb as f64;
+            if ratio < 0.25 {
+                return Err(format!(
+                    "VRAM too low ({}/{} MB free) — skipping local inference",
+                    info.free_mb, info.total_mb
+                ));
+            } else if ratio < 0.50 {
+                vram::ensure_optimized_model(model, info.total_mb)
+                    .await
+                    .unwrap_or_else(|_| model.to_string())
+            } else {
+                model.to_string()
+            }
+        }
+        None => model.to_string(),
+    };
+    llm::call_ollama(image_data, &effective_model, max_dim).await
 }
 
 async fn try_cloud(
     image_data: &[u8],
     settings: &crate::commands::settings::AppSettings,
 ) -> Result<RecognitionResult, String> {
+    let max_dim = settings.llm.cloud_max_dim;
     match settings.llm.cloud_provider.as_str() {
         "gemini" => {
             let key = keyring::get_api_key("gemini")
@@ -94,7 +115,7 @@ async fn try_cloud(
             } else {
                 "gemini-2.5-flash"
             };
-            llm::call_gemini(image_data, &key, model).await
+            llm::call_gemini(image_data, &key, model, max_dim).await
         }
         _ => {
             // default: openai
@@ -106,7 +127,7 @@ async fn try_cloud(
             } else {
                 settings.llm.cloud_model.as_str()
             };
-            llm::call_openai(image_data, &key, model).await
+            llm::call_openai(image_data, &key, model, max_dim).await
         }
     }
 }
@@ -115,11 +136,17 @@ async fn try_cloud(
 
 #[tauri::command]
 pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Option<String>) -> Result<RecognitionResult, String> {
-    let settings = read_settings(app);
+    // ── Cache check — skip LLM entirely for recently-seen covers ─────────────
+    if let Some(cached) = cache::lookup(&app, &image_data) {
+        return Ok(cached);
+    }
+
+    let settings = read_settings(app.clone());
     let provider = force_provider.as_deref()
         .unwrap_or(settings.llm.provider.as_str())
         .to_string();
-    let ollama_model = settings.llm.ollama_model.clone();
+    let ollama_model   = settings.llm.ollama_model.clone();
+    let local_max_dim  = settings.llm.local_max_dim;
 
     // Guard: check that at least one AI provider is actually configured
     let has_ollama = !ollama_model.is_empty();
@@ -143,40 +170,48 @@ pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Opti
 
     #[cfg(target_os = "macos")]
     {
-        match provider.as_str() {
+        let result = match provider.as_str() {
             // Explicit provider choices: return the result directly (success or error).
-            "local" => try_ollama(&image_data, &ollama_model).await,
+            "local" => try_ollama(&image_data, &ollama_model, local_max_dim).await,
             "cloud" => try_cloud(&image_data, &settings).await,
             // "auto": try everything in order, Vision OCR as last resort
             _ => {
-                if let Ok(r) = try_ollama(&image_data, &ollama_model).await {
+                if let Ok(r) = try_ollama(&image_data, &ollama_model, local_max_dim).await {
+                    cache::store(&app, &image_data, &r);
                     return Ok(r);
                 }
                 if let Ok(r) = try_cloud(&image_data, &settings).await {
+                    cache::store(&app, &image_data, &r);
                     return Ok(r);
                 }
                 platform_ocr_fallback(&image_data)
             }
-        }
+        };
+        if let Ok(ref r) = result { cache::store(&app, &image_data, r); }
+        result
     }
     #[cfg(target_os = "linux")]
     {
-        match provider.as_str() {
+        let result = match provider.as_str() {
             // Explicit provider choices: return the result directly (success or error).
             // Do NOT fall back to OCR sidecar — that would hide the real failure reason.
-            "local" => try_ollama(&image_data, &ollama_model).await,
+            "local" => try_ollama(&image_data, &ollama_model, local_max_dim).await,
             "cloud" => try_cloud(&image_data, &settings).await,
             // "auto": try everything in order, OCR sidecar as last resort
             _ => {
-                if let Ok(r) = try_ollama(&image_data, &ollama_model).await {
+                if let Ok(r) = try_ollama(&image_data, &ollama_model, local_max_dim).await {
+                    cache::store(&app, &image_data, &r);
                     return Ok(r);
                 }
                 if let Ok(r) = try_cloud(&image_data, &settings).await {
+                    cache::store(&app, &image_data, &r);
                     return Ok(r);
                 }
                 platform_ocr_fallback(&image_data).await
             }
-        }
+        };
+        if let Ok(ref r) = result { cache::store(&app, &image_data, r); }
+        result
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {

@@ -1,6 +1,6 @@
 [package]
 name = "vinyl-vault"
-version = "2.0.1"
+version = "2.0.2"
 description = "Vinyl Vault — Tauri desktop app"
 authors = ["gsaraiva2109"]
 license = ""
@@ -34,6 +34,9 @@ url        = "2"
 base64     = "0.22"
 urlencoding = "2"
 chrono     = { version = "0.4", features = ["clock"] }
+blake3   = "1.8.4"
+rusqlite = { version = "0.39.0", features = ["bundled"] }
+image    = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 # Linux: webkit2gtk for camera permission handler
 [target.'cfg(target_os = "linux")'.dependencies]
