@@ -57,22 +57,22 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             email: String(claims.email ?? ""),
           }
 
-          if (status !== "authenticated") setStatus("authenticated")
-          if (accessToken !== token) setAccessToken(token)
-          if (user?.email !== newUser.email || user?.name !== newUser.name) setUser(newUser)
+          setStatus("authenticated")
+          setAccessToken(token)
+          setUser(newUser)
         } else {
-          if (accessToken !== null) setAccessToken(null)
-          if (user !== null) setUser(null)
-          if (status !== "unauthenticated") setStatus("unauthenticated")
+          setAccessToken(null)
+          setUser(null)
+          setStatus("unauthenticated")
         }
       } else {
         // Handle web version via NextAuth
         if (nextAuthStatus === "authenticated" && session) {
           // Refresh token also expired — force re-login
           if (session.error === "RefreshAccessTokenError") {
-            if (accessToken !== null) setAccessToken(null)
-            if (user !== null) setUser(null)
-            if (status !== "unauthenticated") setStatus("unauthenticated")
+            setAccessToken(null)
+            setUser(null)
+            setStatus("unauthenticated")
             nextAuthSignOut()
             return
           }
@@ -84,41 +84,45 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             image: session.user?.image ?? undefined,
           }
 
-          if (accessToken !== newAccessToken) setAccessToken(newAccessToken)
-          if (user?.email !== newUser.email || user?.name !== newUser.name) setUser(newUser)
-          if (status !== "authenticated") setStatus("authenticated")
+          setAccessToken(newAccessToken)
+          setUser(newUser)
+          setStatus("authenticated")
         } else if (nextAuthStatus === "unauthenticated") {
-          if (accessToken !== null) setAccessToken(null)
-          if (user !== null) setUser(null)
-          if (status !== "unauthenticated") setStatus("unauthenticated")
+          setAccessToken(null)
+          setUser(null)
+          setStatus("unauthenticated")
         } else {
-          if (status !== "loading") setStatus("loading")
+          setStatus("loading")
         }
       }
     } catch {
       // Not running inside Tauri (browser preview etc.)
-      if (accessToken !== null) setAccessToken(null)
-      if (user !== null) setUser(null)
-      if (status !== "unauthenticated") setStatus("unauthenticated")
+      setAccessToken(null)
+      setUser(null)
+      setStatus("unauthenticated")
     }
-  }, [nextAuthStatus, session, status, accessToken, user])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextAuthStatus, session]) // Only re-create when NextAuth state changes, NOT on local state
 
-  // Always hold the latest refreshAuthState in a ref so the Tauri event
-  // listener (registered once) can call the current version without capturing
-  // a stale closure — avoids re-subscription races on macOS.
+  // Stable ref so the Tauri IPC listener (registered once) always calls the
+  // latest version of refreshAuthState without capturing a stale closure.
   const refreshAuthStateRef = useRef(refreshAuthState)
   useEffect(() => {
     refreshAuthStateRef.current = refreshAuthState
   }, [refreshAuthState])
 
-  // Register the Tauri IPC listener ONCE (empty deps) using the stable ref.
-  // This prevents the brief subscription gap caused by re-running the effect
-  // every time refreshAuthState is recreated due to state changes.
+  // Web (non-Tauri) path: re-sync auth state whenever NextAuth session changes.
+  // This effect must depend on nextAuthStatus/session so it fires when NextAuth
+  // resolves from "loading" → "authenticated" / "unauthenticated".
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) {
-      refreshAuthStateRef.current()
-      return
-    }
+    if (typeof window === 'undefined' || window.__TAURI_INTERNALS__) return
+    refreshAuthState()
+  }, [refreshAuthState]) // refreshAuthState itself only changes when nextAuthStatus/session changes
+
+  // Tauri path: register the IPC event listener ONCE (empty deps) using the
+  // stable ref. This prevents re-subscription races on macOS.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) return
 
     refreshAuthStateRef.current()
 
@@ -144,7 +148,7 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       unlisten?.()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally empty — uses ref to access latest refreshAuthState
+  }, []) // intentionally empty — Tauri IPC listener registered once; uses ref for latest state
 
   const signIn = useCallback(async () => {
     if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {

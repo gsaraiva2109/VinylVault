@@ -7,6 +7,9 @@ docs/
 .claude/
 .agents/
 .serena/
+.context.xml
+.signatures.md
+scripts/map-signatures.sh
 
 # Build output
 dist/

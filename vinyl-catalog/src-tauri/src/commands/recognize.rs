@@ -67,43 +67,8 @@ fn platform_ocr_fallback(image_data: &[u8]) -> Result<RecognitionResult, String>
 }
 
 #[cfg(target_os = "linux")]
-async fn platform_ocr_fallback(image_data: &[u8]) -> Result<RecognitionResult, String> {
-    call_sidecar_recognize(image_data).await
-}
-
-// ── Linux: delegate to the RapidOCR Python sidecar ─────────────────────────
-
-#[cfg(target_os = "linux")]
-async fn call_sidecar_recognize(image_data: &[u8]) -> Result<RecognitionResult, String> {
-    let openai_key = keyring::get_api_key("openai");
-    let gemini_key = keyring::get_api_key("gemini");
-
-    let client = reqwest::Client::new();
-    let mut form = reqwest::multipart::Form::new().part(
-        "image",
-        reqwest::multipart::Part::bytes(image_data.to_vec())
-            .file_name("frame.jpg")
-            .mime_str("image/jpeg")
-            .map_err(|e| e.to_string())?,
-    );
-
-    if let Some(key) = openai_key {
-        form = form.text("openaiApiKey", key);
-    }
-    if let Some(key) = gemini_key {
-        form = form.text("geminiApiKey", key);
-    }
-
-    let resp = client
-        .post("http://127.0.0.1:8765/recognize")
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    resp.json::<RecognitionResult>()
-        .await
-        .map_err(|e| e.to_string())
+async fn platform_ocr_fallback(_image_data: &[u8]) -> Result<RecognitionResult, String> {
+    Err("Optical Character Recognition (OCR) fallback is currently unavailable on Linux. Please configure an AI Provider (Ollama or Cloud AI) in Settings.".into())
 }
 
 // ── LLM cascade helpers ──────────────────────────────────────────────────────

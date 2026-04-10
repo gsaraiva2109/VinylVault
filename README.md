@@ -7,7 +7,7 @@ Built as a personal project for two people sharing one collection across two mac
 ## How it works
 
 - Scan a vinyl cover → OCR extracts text → Discogs search returns metadata and pricing
-- Linux uses a Python/FastAPI sidecar (EasyOCR + LLM fallback); macOS uses native Vision.framework
+- Linux uses Ollama/Cloud LLMs (with a future Rust native OCR planned); macOS uses native Vision.framework
 - Collection stored in PostgreSQL on the homelab, accessible from any device
 - Available as a web app (browser) and a native desktop app (Tauri v2)
 
@@ -19,7 +19,7 @@ Built as a personal project for two people sharing one collection across two mac
 | Backend API | Node.js, Express, TypeScript, Drizzle ORM |
 | Database | PostgreSQL 16 (Docker, internal network only) |
 | Auth | Authentik OIDC (system browser flow via Tauri) |
-| OCR — Linux | Python FastAPI sidecar, EasyOCR, Ollama / OpenAI / Gemini fallback |
+| OCR — Linux | Ollama (Vision) / OpenAI / Gemini (with Rust fallback planned) |
 | OCR — macOS | Native Vision.framework via Rust FFI |
 | Desktop | Tauri v2 (bundles the Next.js frontend as a static export) |
 | Deployment | Docker Compose, Dokploy, Traefik |
@@ -32,7 +32,6 @@ vinyl-catalog/
                       Drizzle ORM → PostgreSQL
                       Migrations run on startup (no CI/CD DB access)
   src-tauri/          Rust — Tauri v2 shell, OCR commands, OIDC auth
-  sidecar/            Python FastAPI OCR sidecar (Linux only)
 
 vinylRecognizerDashboard/
                       Next.js 15 frontend
@@ -52,7 +51,7 @@ Docker internal network (never exposed)
 
 Tauri desktop app
   └─► embeds the Next.js frontend as a static export (out/)
-      OCR commands call the Python sidecar (Linux) or Vision.framework (macOS)
+      OCR commands call native Vision.framework (macOS) or external APIs (Linux)
       Auth uses Authentik OIDC via the system browser
 ```
 
@@ -196,7 +195,7 @@ pnpm install
 pnpm dev               # starts Tauri dev window (loads http://localhost:3000)
 ```
 
-The Python OCR sidecar (Linux) starts automatically. On macOS, Vision.framework is used natively.
+On macOS, Vision.framework is used natively. On Linux/Windows, ensure you have an AI provider configured (Ollama/OpenAI/Gemini).
 
 ## License
 

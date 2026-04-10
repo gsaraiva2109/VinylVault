@@ -29,7 +29,7 @@ import { useCameraContext } from "../../context/camera-context"
 
 export function ScanScreen() {
   const { addScanError } = useVinylVault()
-  const { state: scanState, captureFromVideo, recognizeFromCrop, retryWithCloud, setStatus, selectCandidate, reset } = useRecognition(addScanError)
+  const { state: scanState, captureFromVideo, recognizeFromCrop, retryWithCloud, retryWithSameImage, setStatus, selectCandidate, reset } = useRecognition(addScanError)
   const { stream, canUseCamera } = useCameraContext()
   const [flash, setFlash] = useState(false)
   const [manualAddOpen, setManualAddOpen] = useState(false)
@@ -60,15 +60,24 @@ export function ScanScreen() {
     loadAiConfig()
   }, [])
 
-  // Reset cloud-retry flag once scan finishes
+  // Reset cloud-retry flag when scan resolves (error or success)
   useEffect(() => {
-    if (scanState.status !== "scanning") setScanningWithCloud(false)
+    if (scanState.status === "error" || scanState.status === "success" || scanState.status === "idle") {
+      setScanningWithCloud(false)
+    }
   }, [scanState.status])
 
   const handleRetryWithCloud = useCallback(() => {
     setScanningWithCloud(true)
     retryWithCloud()
   }, [retryWithCloud])
+
+  // Retry recognition on the same captured frame, re-reading the current maxDim setting.
+  // The image size dropdowns write to Tauri settings; this fn re-reads them before re-scaling.
+  const handleRetryWithSameImage = useCallback(() => {
+    const provider = scanningWithCloud ? "cloud" : aiProvider !== "auto" ? aiProvider : undefined
+    retryWithSameImage(provider)
+  }, [retryWithSameImage, scanningWithCloud, aiProvider])
 
   const handleChangeImageSize = useCallback(async (type: "local" | "cloud", dim: number) => {
     if (type === "local") setLocalMaxDim(dim)
@@ -234,7 +243,7 @@ export function ScanScreen() {
             candidates={scanState.candidates}
             onSelect={selectCandidate}
             onReset={reset}
-            canTryCloud={aiProvider !== "cloud" && cloudConfigured}
+            canTryCloud={aiProvider !== "cloud" && cloudConfigured && !scanningWithCloud}
             onTryCloud={handleRetryWithCloud}
           />
         )}
@@ -375,10 +384,12 @@ export function ScanScreen() {
           <ErrorPanel
             message={scanState.errorMessage}
             capturedImage={scanState.capturedImage}
+            hasCapturedImage={!!scanState.capturedImage || !!scanState.rawImageUrl}
             hasRawImage={!!scanState.rawImageUrl}
-            onRetry={handleScan}
+            onRetry={handleRetryWithSameImage}
+            onNewScan={handleScan}
             onReset={reset}
-            aiProvider={aiProvider}
+            aiProvider={scanningWithCloud ? "cloud" : aiProvider}
             cloudConfigured={cloudConfigured}
             onRetryWithCloud={handleRetryWithCloud}
             onManualAdd={() => setManualAddOpen(true)}
@@ -705,6 +716,12 @@ function SuccessPanel({
       }
       await api.vinyls.create(payload, freshToken ?? undefined)
 
+      // Trigger price sync immediately after adding so the collection value
+      // updates without waiting for the next scheduled run.
+      try {
+        await api.discogs.refreshPrices(freshToken ?? undefined)
+      } catch { /* price sync is best-effort — don't block navigation */ }
+
       try {
         const { invoke } = await import("@tauri-apps/api/core")
         await invoke("log_scan_success", { artist: record.artist, album: record.title, source: "manual-confirm" })
@@ -907,8 +924,10 @@ const IMAGE_SIZE_OPTIONS_CLOUD = [512, 768, 1024, 1280, 1536, 2048]
 function ErrorPanel({
   message,
   capturedImage,
+  hasCapturedImage,
   hasRawImage,
   onRetry,
+  onNewScan,
   onReset,
   aiProvider,
   cloudConfigured,
@@ -921,8 +940,10 @@ function ErrorPanel({
 }: {
   message?: string
   capturedImage?: string
+  hasCapturedImage?: boolean
   hasRawImage?: boolean
   onRetry: () => void
+  onNewScan: () => void
   onReset: () => void
   aiProvider: "auto" | "local" | "cloud"
   cloudConfigured: boolean
@@ -1037,6 +1058,32 @@ function ErrorPanel({
         {/* Primary: Manually Add */}
         <GreenPrimaryButton state="idle" onClick={onManualAdd} />
 
+        {/* ── Primary Retry button ── */}
+        {hasCapturedImage && (
+          <button
+            onClick={onRetry}
+            className="group relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl py-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer"
+            style={{
+              background: "var(--app-surface-2)",
+              border: "1px solid rgba(40,215,104,0.35)",
+              color: "var(--app-green)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(40,215,104,0.08)"
+              e.currentTarget.style.borderColor = "rgba(40,215,104,0.65)"
+              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(40,215,104,0.12)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--app-surface-2)"
+              e.currentTarget.style.borderColor = "rgba(40,215,104,0.35)"
+              e.currentTarget.style.boxShadow = "none"
+            }}
+          >
+            <RefreshCw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
+            Retry
+          </button>
+        )}
+
         {/* Cloud AI button — only shown when not already using cloud */}
         {canTryCloud && (
           <button
@@ -1085,7 +1132,7 @@ function ErrorPanel({
           </button>
         )}
 
-        {/* Try Again / Cancel row */}
+        {/* Secondary row: crop adjust + new photo + cancel */}
         <div className="flex gap-2">
           {hasRawImage && (
             <button
@@ -1103,12 +1150,13 @@ function ErrorPanel({
                 e.currentTarget.style.background = "rgba(40,215,104,0.05)"
               }}
             >
-              Adjust Crop
+              <SquareDashedMousePointer className="h-3.5 w-3.5" />
+              Crop
             </button>
           )}
           <button
-            onClick={onRetry}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"
+            onClick={onNewScan}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium transition-colors cursor-pointer"
             style={{
               border: "1px solid var(--app-border)",
               color: "var(--app-text-2)",
@@ -1117,11 +1165,11 @@ function ErrorPanel({
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-2)")}
           >
             <Camera className="h-3.5 w-3.5" />
-            Rescan
+            New Photo
           </button>
           <button
             onClick={onReset}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition-colors cursor-pointer"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium transition-colors cursor-pointer"
             style={{
               border: "1px solid var(--app-border)",
               color: "var(--app-text-2)",

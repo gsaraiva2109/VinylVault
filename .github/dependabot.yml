@@ -7,7 +7,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "electron"
     groups:
       all:
         patterns:
