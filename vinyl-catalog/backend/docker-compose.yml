@@ -14,6 +14,7 @@ services:
       AUTHENTIK_JWKS_URL: ${AUTHENTIK_JWKS_URL}
       AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
       DISCOGS_TOKEN: ${DISCOGS_TOKEN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     networks:
       - internal
       - dokploy-network
