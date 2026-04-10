@@ -49,10 +49,7 @@
       "infoPlist": "Info.plist"
     },
     "publisher": "gsaraiva2109",
-    "category": "Music",
-    "externalBin": [
-      "binaries/sidecar"
-    ]
+    "category": "Music"
   },
   "plugins": {
     "deep-link": {

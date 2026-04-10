@@ -1,6 +1,5 @@
 mod auth;
 mod commands;
-mod sidecar;
 mod updater;
 
 #[cfg(target_os = "macos")]
@@ -26,7 +25,6 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // ── Managed state ─────────────────────────────────────────────────
         .manage(auth::AuthState::new())
-        .manage(sidecar::SidecarState::new())
         // ── Setup ──────────────────────────────────────────────────────────
         .setup(|app| {
             // Grant camera/microphone permission requests on Linux (WebKitGTK denies by default)
@@ -41,10 +39,6 @@ pub fn run() {
                     });
                 });
             }
-
-            // Start Python sidecar on Linux
-            #[cfg(target_os = "linux")]
-            sidecar::start(app.handle());
 
             // Start auto-updater (no-op in debug builds)
             updater::start(app.handle().clone());
@@ -70,12 +64,9 @@ pub fn run() {
             commands::scan_log::read_scan_log,
             commands::scan_log::clear_scan_log,
         ])
-        .on_window_event(|window, event| {
-            let _ = &window; // only used on Linux; suppress unused warning on other platforms
+        .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Stop sidecar when the last window closes
-                #[cfg(target_os = "linux")]
-                sidecar::stop(window.app_handle());
+                // Future native teardown logic
             }
         })
         .run(tauri::generate_context!())

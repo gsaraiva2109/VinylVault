@@ -20,6 +20,6 @@ backend/dist/
 backend/node_modules/
 backend/data/
 
-# Electron
+# Icons
 resources/icon.icns
 resources/icon.png
