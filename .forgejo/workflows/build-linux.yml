@@ -15,6 +15,10 @@ jobs:
   detect-changes:
     name: Detect Changes
     runs-on: light-node
+    # On a tag push the workflow fires once (correct).
+    # On a branch push caused by a release commit the workflow also fires — skip it
+    # here so the heavyweight jobs below are never duplicated.
+    if: startsWith(github.ref, 'refs/tags/') || !startsWith(github.event.head_commit.message, 'chore: release v')
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
@@ -157,7 +161,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() and manual check of failure to handle skipped jobs
-    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ always() && needs.detect-changes.result != 'skipped' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     strategy:
       fail-fast: true
       matrix:
@@ -269,7 +273,7 @@ jobs:
     container: localhost:5000/vinyl-vault-builder:latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     # FIX: Use always() to allow building even if checks were skipped
-    if: ${{ always() && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ always() && needs.detect-changes.result != 'skipped' && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install pnpm
