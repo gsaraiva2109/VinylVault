@@ -7,7 +7,7 @@
     "frontendDist": "../../vinylRecognizerDashboard/out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "cd ../vinylRecognizerDashboard && pnpm dev --turbopack",
-    "beforeBuildCommand": "cd ../vinylRecognizerDashboard && pnpm build"
+    "beforeBuildCommand": "bash scripts/build-frontend.sh"
   },
   "app": {
     "windows": [
