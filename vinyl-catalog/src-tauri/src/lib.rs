@@ -1,6 +1,8 @@
 mod auth;
+mod cache;
 mod commands;
 mod updater;
+mod vram;
 
 #[cfg(target_os = "macos")]
 mod ocr_macos;
