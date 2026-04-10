@@ -41,6 +41,10 @@ pub fn load_token(account: &str) -> Option<String> {
 
     match entry.get_password() {
         Ok(pw) => Some(pw),
+        Err(keyring::Error::NoEntry) => {
+            log::debug!("[keyring] No entry for {account} (not yet stored)");
+            None
+        }
         Err(e) => {
             log::error!("[keyring] Failed to read password for {account}: {e}");
             None
