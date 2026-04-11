@@ -18,7 +18,7 @@ jobs:
     # On a tag push the workflow fires once (correct).
     # On a branch push caused by a release commit the workflow also fires — skip it
     # here so the heavyweight jobs below are never duplicated.
-    if: startsWith(github.ref, 'refs/tags/') || !startsWith(github.event.head_commit.message, 'chore: release v')
+    if: "startsWith(github.ref, 'refs/tags/') || !startsWith(github.event.head_commit.message, 'chore: release v')"
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
