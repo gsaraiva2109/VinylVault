@@ -24,13 +24,16 @@ cd "$REPO_ROOT"
 BUMP="${1:-}"
 DRY_RUN=false
 SKIP_CI_CHECK=false
+COMMIT_MESSAGE=""
+shift || true
 for arg in "$@"; do
-  [[ "$arg" == "--dry-run" ]]       && DRY_RUN=true
-  [[ "$arg" == "--skip-ci-check" ]] && SKIP_CI_CHECK=true
+  [[ "$arg" == "--dry-run" ]]       && DRY_RUN=true && continue
+  [[ "$arg" == "--skip-ci-check" ]] && SKIP_CI_CHECK=true && continue
+  COMMIT_MESSAGE="$arg"
 done
 
 if [[ -z "$BUMP" || "$BUMP" == "--dry-run" || "$BUMP" == "--skip-ci-check" ]]; then
-  echo "Usage: $0 [patch|minor|major|X.Y.Z] [--dry-run] [--skip-ci-check]"
+  echo "Usage: $0 [patch|minor|major|X.Y.Z] [COMMIT_MESSAGE] [--dry-run] [--skip-ci-check]"
   exit 1
 fi
 
@@ -58,6 +61,11 @@ esac
 echo ""
 echo "  ${CURRENT}  →  ${NEW}  (${BUMP})"
 echo ""
+
+# Default commit message if not provided
+if [[ -z "$COMMIT_MESSAGE" ]]; then
+  COMMIT_MESSAGE="chore: release v${NEW}"
+fi
 
 # ── Check Forgejo CI status ───────────────────────────────────────────────────
 if ! $SKIP_CI_CHECK && ! $DRY_RUN; then
@@ -124,7 +132,6 @@ if $DRY_RUN; then
   echo "  vinyl-catalog/src-tauri/Cargo.toml"
   echo "  vinyl-catalog/src-tauri/tauri.conf.json"
   echo "  vinyl-catalog/backend/src/swagger.ts"
-  echo "  vinyl-catalog/sidecar/main.py"
   echo ""
   PENDING=$(git status --porcelain | grep -v '^??' | wc -l | tr -d ' ')
   if [[ "$PENDING" -gt 0 ]]; then
@@ -161,9 +168,6 @@ mv "$tmp" vinyl-catalog/src-tauri/tauri.conf.json
 sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
   vinyl-catalog/backend/src/swagger.ts
 
-sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
-  vinyl-catalog/sidecar/main.py
-
 # Update package.json files
 for pkg_json in vinylRecognizerDashboard/package.json vinyl-catalog/package.json vinyl-catalog/backend/package.json; do
   if [ -f "$pkg_json" ]; then
@@ -180,12 +184,11 @@ git add \
   vinyl-catalog/src-tauri/Cargo.toml \
   vinyl-catalog/src-tauri/tauri.conf.json \
   vinyl-catalog/backend/src/swagger.ts \
-  vinyl-catalog/sidecar/main.py \
   vinylRecognizerDashboard/package.json \
   vinyl-catalog/package.json \
   vinyl-catalog/backend/package.json
 
-git commit -m "chore: release v${NEW}"
+git commit -m "${COMMIT_MESSAGE}"
 git tag "v${NEW}"
 
 # ── Push branch + tag in one command ─────────────────────────────────────────
