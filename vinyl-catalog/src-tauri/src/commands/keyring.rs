@@ -46,7 +46,15 @@ pub fn load_token(account: &str) -> Option<String> {
             None
         }
         Err(e) => {
-            log::error!("[keyring] Failed to read password for {account}: {e}");
+            // On Linux (secret-service backend) "no entry" surfaces as a generic
+            // error rather than keyring::Error::NoEntry — treat it as debug-level
+            // since it is expected before the user has ever logged in.
+            let msg = e.to_string();
+            if msg.to_lowercase().contains("no matching entry") || msg.to_lowercase().contains("no such") {
+                log::debug!("[keyring] No entry for {account} (not yet stored): {e}");
+            } else {
+                log::error!("[keyring] Failed to read password for {account}: {e}");
+            }
             None
         }
     }
