@@ -37,10 +37,16 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
     ...options.headers as Record<string, string>,
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(`Cannot reach API server (${API_URL}): ${msg}`)
+  }
 
   if (response.status === 401) {
     throw new UnauthorizedError()
