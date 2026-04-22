@@ -1,6 +1,6 @@
 {
   "name": "vinyl-vault",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "scripts": {
     "build": "next build",
     "dev": "next dev --turbopack",
