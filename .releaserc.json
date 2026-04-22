@@ -51,7 +51,10 @@
     ],
     [
       "@semantic-release/github",
-      { "assets": [] }
+      {
+        "githubUrl": "https://github.com",
+        "assets": []
+      }
     ]
   ]
 }
