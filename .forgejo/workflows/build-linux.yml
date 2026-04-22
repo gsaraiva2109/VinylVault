@@ -190,7 +190,7 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITEA_URL: https://git.gsaraiva.com.br
-          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_URL: https://github.com
           GIT_AUTHOR_NAME: gsaraiva2109
           GIT_AUTHOR_EMAIL: gsaraiva2109@gmail.com
