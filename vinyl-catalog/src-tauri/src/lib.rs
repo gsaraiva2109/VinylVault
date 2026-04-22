@@ -42,6 +42,28 @@ pub fn run() {
                 });
             }
 
+            // Seed Spotify credentials from build-time env vars (SPOTIFY_CLIENT_ID /
+            // SPOTIFY_CLIENT_SECRET). Only writes if the env var was set at compile time;
+            // existing keyring values are overwritten so the build-baked creds always win.
+            if let Some(id) = option_env!("SPOTIFY_CLIENT_ID") {
+                if !id.is_empty() {
+                    if let Err(e) = commands::keyring::store_credential("spotify-client-id", id) {
+                        log::error!("[startup] Failed to seed spotify-client-id into keyring: {e}");
+                    } else {
+                        log::info!("[startup] Seeded spotify-client-id into keyring");
+                    }
+                }
+            }
+            if let Some(secret) = option_env!("SPOTIFY_CLIENT_SECRET") {
+                if !secret.is_empty() {
+                    if let Err(e) = commands::keyring::store_credential("spotify-client-secret", secret) {
+                        log::error!("[startup] Failed to seed spotify-client-secret into keyring: {e}");
+                    } else {
+                        log::info!("[startup] Seeded spotify-client-secret into keyring");
+                    }
+                }
+            }
+
             // Start auto-updater (no-op in debug builds)
             updater::start(app.handle().clone());
 
