@@ -176,7 +176,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GHCR_TOKEN }}
       - name: Cache npm store
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
@@ -189,14 +189,14 @@ jobs:
       - name: Run semantic-release
         id: sr
         env:
-          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITEA_URL: https://git.gsaraiva.com.br
           GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
           GITHUB_URL: https://github.com
-          GIT_AUTHOR_NAME: semantic-release-bot
-          GIT_AUTHOR_EMAIL: semantic-release-bot@noreply.git.gsaraiva.com.br
-          GIT_COMMITTER_NAME: semantic-release-bot
-          GIT_COMMITTER_EMAIL: semantic-release-bot@noreply.git.gsaraiva.com.br
+          GIT_AUTHOR_NAME: gsaraiva2109
+          GIT_AUTHOR_EMAIL: gsaraiva2109@gmail.com
+          GIT_COMMITTER_NAME: gsaraiva2109
+          GIT_COMMITTER_EMAIL: gsaraiva2109@gmail.com
         run: npx semantic-release
 
   # ── Docker Build & Push ───────────────────────────────────────────────────
