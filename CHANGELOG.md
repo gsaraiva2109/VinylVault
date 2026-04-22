@@ -1,3 +1,9 @@
+## [2.2.0](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.1.2...v2.2.0) (2026-04-22)
+
+### Features
+
+* **spotify:** seed build-time credentials into keyring at startup and add credentials UI in settings ([1422f53](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/1422f5392d9842c16f2436730151af2518321350))
+
 ## [2.1.2](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.1.1...v2.1.2) (2026-04-22)
 
 ### Bug Fixes
