@@ -1,3 +1,9 @@
+## [2.2.2](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.1...v2.2.2) (2026-04-22)
+
+### Bug Fixes
+
+* **ci:** capture semantic-release output into GITHUB_OUTPUT so downstream jobs can detect new release ([f400889](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/f400889a70fc842b6734cf73f672444cc75bb924))
+
 ## [2.2.1](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.0...v2.2.1) (2026-04-22)
 
 ### Bug Fixes
