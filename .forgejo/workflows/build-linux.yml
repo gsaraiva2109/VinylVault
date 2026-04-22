@@ -183,7 +183,17 @@ jobs:
           GIT_AUTHOR_EMAIL: gsaraiva2109@gmail.com
           GIT_COMMITTER_NAME: gsaraiva2109
           GIT_COMMITTER_EMAIL: gsaraiva2109@gmail.com
-        run: npx semantic-release
+        run: |
+          BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          npx semantic-release
+          git fetch --tags
+          AFTER=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$AFTER" ] && [ "$BEFORE" != "$AFTER" ]; then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            echo "new_release_version=${AFTER#v}" >> $GITHUB_OUTPUT
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+          fi
 
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
