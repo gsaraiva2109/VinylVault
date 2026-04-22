@@ -452,6 +452,10 @@ jobs:
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
 
+          # Extract changelog body for this version
+          CHANGELOG_BODY=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -80)
+          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$CHANGELOG_BODY")
+
           # Get or create GitHub release
           FETCH_RESP=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
@@ -467,7 +471,7 @@ jobs:
               -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               -H "Content-Type: application/json" \
               "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"target_commitish\":\"main\",\"body\":\"See CHANGELOG.md for details.\",\"draft\":false,\"prerelease\":false}")
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
             CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
             CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
             RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
