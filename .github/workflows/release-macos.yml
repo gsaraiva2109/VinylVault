@@ -81,14 +81,6 @@ jobs:
           NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg
 
-      - name: Ad-hoc sign macOS app bundle
-        run: |
-          APP=$(find vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/macos \
-            -maxdepth 1 -name "*.app" | head -1)
-          echo "Signing: $APP"
-          codesign --force --deep --sign - "$APP"
-          codesign --verify --verbose "$APP"
-
       - name: Upload macOS App Artifact (Manual Triggers)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
