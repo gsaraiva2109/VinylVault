@@ -46,7 +46,8 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       expiresAt: Math.floor(Date.now() / 1000) + (refreshed.expires_in as number),
       error: undefined,
     };
-  } catch {
+  } catch (e) {
+    console.error("[auth] Token refresh failed:", e);
     return { ...token, error: "RefreshAccessTokenError" };
   }
 }
@@ -59,6 +60,10 @@ export const authOptions: NextAuthOptions = {
       issuer: process.env.AUTHENTIK_ISSUER!,
     }),
   ],
+  session: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 60 * 60, // re-issue session cookie every hour
+  },
   callbacks: {
     async jwt({ token, account }) {
       // Initial sign-in — store access token, refresh token, and expiry
@@ -71,8 +76,8 @@ export const authOptions: NextAuthOptions = {
         };
       }
 
-      // Token still valid (with 60s buffer) — return as-is
-      if (token.expiresAt && Date.now() / 1000 < token.expiresAt - 60) {
+      // Token still valid (with 300s buffer) — return as-is
+      if (token.expiresAt && Date.now() / 1000 < token.expiresAt - 300) {
         return token;
       }
 

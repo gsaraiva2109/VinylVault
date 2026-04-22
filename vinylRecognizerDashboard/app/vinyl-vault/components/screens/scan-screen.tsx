@@ -362,7 +362,7 @@ export function ScanScreen() {
 
       {/* ── RIGHT: Info Panel ── */}
       <div
-        className="flex w-[340px] shrink-0 flex-col overflow-y-auto"
+        className="flex w-full max-w-[340px] shrink-0 flex-col overflow-y-auto"
         style={{
           background: "var(--app-glass)",
           backdropFilter: "blur(28px) saturate(200%)",
@@ -781,7 +781,7 @@ function SuccessPanel({
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-md">
-      <div className="flex w-[460px] max-w-full flex-col overflow-hidden rounded-2xl border-2 border-[#28d768] bg-[#0a0a0a] shadow-[0_0_40px_rgba(40,215,104,0.15)] animate-in zoom-in-95 duration-300">
+      <div className="flex w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border-2 border-[#28d768] bg-[#0a0a0a] shadow-[0_0_40px_rgba(40,215,104,0.15)] animate-in zoom-in-95 duration-300">
         
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-white/10 bg-white/5 p-5">
