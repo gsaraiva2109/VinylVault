@@ -453,20 +453,25 @@ jobs:
           fi
 
           # Get or create GitHub release
-          RELEASE_ID=$(curl -sf \
+          FETCH_RESP=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
-            | jq -r '.id // empty')
+            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}")
+          FETCH_HTTP=$(echo "$FETCH_RESP" | tail -1)
+          FETCH_BODY=$(echo "$FETCH_RESP" | head -n -1)
+          RELEASE_ID=$(echo "$FETCH_BODY" | jq -r '.id // empty')
 
           if [ -z "$RELEASE_ID" ]; then
-            echo "GitHub release ${TAG} not found — creating it..."
-            RELEASE_ID=$(curl -sf \
+            echo "GitHub release ${TAG} not found (HTTP $FETCH_HTTP) — creating it..."
+            CREATE_RESP=$(curl -s -w "\n%{http_code}" \
               -X POST \
               -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               -H "Content-Type: application/json" \
               "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"See CHANGELOG.md for details.\",\"draft\":false,\"prerelease\":false}" \
-              | jq -r '.id')
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"target_commitish\":\"main\",\"body\":\"See CHANGELOG.md for details.\",\"draft\":false,\"prerelease\":false}")
+            CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
+            CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
+            RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
+            echo "Create release HTTP $CREATE_HTTP — body: $CREATE_BODY"
           fi
 
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
@@ -480,13 +485,18 @@ jobs:
             local file="$1" display_name="$2" content_type="$3"
             local encoded_name
             encoded_name=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$display_name")
-            HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+            RESP=$(curl -s -w "\n%{http_code}" \
               -X POST \
               -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               -H "Content-Type: ${content_type}" \
               "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=${encoded_name}" \
               --data-binary @"${file}")
+            HTTP=$(echo "$RESP" | tail -1)
             echo "Uploaded ${display_name}: HTTP $HTTP"
+            if [ "$HTTP" -lt 200 ] || [ "$HTTP" -ge 300 ]; then
+              echo "::error::Upload failed for ${display_name}: $(echo "$RESP" | head -n -1)"
+              return 1
+            fi
           }
           upload_asset "$APPIMAGE" "$APPIMAGE_NAME" "application/octet-stream"
           if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
