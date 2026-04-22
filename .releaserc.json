@@ -1,0 +1,57 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "feat",     "release": "minor" },
+          { "type": "fix",      "release": "patch" },
+          { "type": "refactor", "release": "patch" },
+          { "type": "perf",     "release": "patch" },
+          { "breaking": true,   "release": "major" }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      { "preset": "conventionalcommits" }
+    ],
+    [
+      "@semantic-release/changelog",
+      { "changelogFile": "CHANGELOG.md" }
+    ],
+    [
+      "@semantic-release/exec",
+      { "prepareCmd": "scripts/sr-bump-version.sh ${nextRelease.version}" }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "VERSION",
+          "vinyl-catalog/src-tauri/Cargo.toml",
+          "vinyl-catalog/src-tauri/tauri.conf.json",
+          "vinyl-catalog/backend/src/swagger.ts",
+          "vinylRecognizerDashboard/package.json",
+          "vinyl-catalog/package.json",
+          "vinyl-catalog/backend/package.json"
+        ],
+        "message": "chore: release v${nextRelease.version} [skip ci]"
+      }
+    ],
+    [
+      "@saithodev/semantic-release-gitea",
+      {
+        "gitea_url": "https://git.gsaraiva.com.br",
+        "assets": []
+      }
+    ],
+    [
+      "@semantic-release/github",
+      { "assets": [] }
+    ]
+  ]
+}

@@ -50,3 +50,6 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Apps
+lazygit
