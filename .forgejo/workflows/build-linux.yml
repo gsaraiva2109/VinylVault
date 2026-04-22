@@ -3,7 +3,6 @@ name: Build Linux
 on:
   push:
     branches: [main, dev]
-    tags: ['v*']
   workflow_dispatch: {}
 
 concurrency:
@@ -159,13 +158,51 @@ jobs:
           CARGO_BUILD_JOBS: '16'
         run: cargo check --no-default-features
 
+  # ── Semantic Release ─────────────────────────────────────────────────────
+  release:
+    name: Semantic Release
+    runs-on: light-node
+    needs: [detect-changes, check-frontend, check-backend, check-rust]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.result != 'skipped' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    outputs:
+      released: ${{ steps.sr.outputs.new_release_published }}
+      version: ${{ steps.sr.outputs.new_release_version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache npm store
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-semantic-release-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-semantic-release-
+      - name: Install semantic-release deps
+        run: npm install
+      - name: Run semantic-release
+        id: sr
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          GIT_AUTHOR_NAME: semantic-release-bot
+          GIT_AUTHOR_EMAIL: semantic-release-bot@noreply.git.gsaraiva.com.br
+          GIT_COMMITTER_NAME: semantic-release-bot
+          GIT_COMMITTER_EMAIL: semantic-release-bot@noreply.git.gsaraiva.com.br
+        run: npx semantic-release
+
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
     name: Build & Push — ${{ matrix.image }}
     runs-on: ${{ matrix.runner }}
-    needs: [detect-changes, check-frontend, check-backend, check-rust]
-    # FIX: Use always() and manual check of failure to handle skipped jobs
-    if: ${{ always() && needs.detect-changes.result != 'skipped' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    needs: [detect-changes, check-frontend, check-backend, check-rust, release]
+    if: ${{ always() && needs.detect-changes.result != 'skipped' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     strategy:
       fail-fast: true
       matrix:
@@ -184,7 +221,7 @@ jobs:
       - name: Check if image needs building
         id: check_skip
         run: |
-          if [[ "${{ github.ref }}" != refs/tags/v* ]] && [[ "${{ needs.detect-changes.outputs[matrix.filter] }}" != 'true' ]] && [[ "${{ needs.detect-changes.outputs.ci }}" != 'true' ]]; then
+          if [[ "${{ needs.detect-changes.outputs[matrix.filter] }}" != 'true' ]] && [[ "${{ needs.detect-changes.outputs.ci }}" != 'true' ]] && [[ "${{ needs.release.outputs.released }}" != 'true' ]]; then
             echo "SKIP=true" >> $GITHUB_OUTPUT
           else
             echo "SKIP=false" >> $GITHUB_OUTPUT
@@ -196,7 +233,12 @@ jobs:
       - name: Read version
         if: steps.check_skip.outputs.SKIP != 'true'
         id: version
-        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "${{ needs.release.outputs.released }}" == "true" ]]; then
+            echo "version=${{ needs.release.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Docker Buildx
         if: steps.check_skip.outputs.SKIP != 'true'
@@ -221,9 +263,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ !contains(steps.version.outputs.version, '-') }}
-            type=raw,value=${{ steps.version.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.released == 'true' && !contains(steps.version.outputs.version, '-') }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
 
       - name: Resolve build args
         if: steps.check_skip.outputs.SKIP != 'true'
@@ -275,9 +316,8 @@ jobs:
     # Rust, system libs, and Python are pre-baked in the builder image stored
     # on the local homelab registry (bypasses Cloudflare 413 limit).
     container: localhost:5000/vinyl-vault-builder:latest
-    needs: [detect-changes, check-frontend, check-backend, check-rust]
-    # FIX: Use always() to allow building even if checks were skipped
-    if: ${{ always() && needs.detect-changes.result != 'skipped' && (needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    needs: [detect-changes, check-frontend, check-backend, check-rust, release]
+    if: ${{ always() && needs.release.outputs.released == 'true' && needs.release.result == 'success' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install pnpm
@@ -336,6 +376,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          NEXT_PUBLIC_SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           APPIMAGE_BUNDLE_GSTREAMER: '0'
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
@@ -354,14 +398,14 @@ jobs:
             vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
 
-  # ── Create GitHub Release ─────────────────────────────────────────────────
-  # Code mirroring is handled by Forgejo's native push mirror (repo settings).
-  # This job only creates the GitHub release and uploads the AppImage artifact.
+  # ── Upload Release Assets to GitHub ──────────────────────────────────────
+  # GitHub release is created by semantic-release. This job uploads binary
+  # artifacts (AppImage, updater bundle) and dispatches the macOS build.
   push-to-github:
-    name: Create GitHub Release
+    name: Upload Release Assets
     runs-on: light-ubuntu
-    needs: [build-tauri-linux]
-    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.build-tauri-linux.result == 'success' }}
+    needs: [build-tauri-linux, release]
+    if: ${{ needs.build-tauri-linux.result == 'success' && needs.release.outputs.released == 'true' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
@@ -373,19 +417,17 @@ jobs:
           name: vinyl-vault-linux-appimage
           path: dist/
 
-      - name: Create GitHub Release and upload AppImage
+      - name: Upload AppImage and dispatch macOS build
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
         run: |
-          TAG="${{ github.ref_name }}"
-          # Strip leading 'v' for version number in latest.json
-          VERSION="${TAG#v}"
+          TAG="v${{ needs.release.outputs.version }}"
+          VERSION="${{ needs.release.outputs.version }}"
 
           echo "DEBUG: Listing files in dist/:"
           ls -R dist/
 
-          # Tauri v2 updater generates a .tar.gz and .tar.gz.sig for Linux AppImages
           APPIMAGE=$(find dist/ -type f -name "*.AppImage" | head -1)
           UPDATER_BUNDLE=$(find dist/ -type f -name "*.tar.gz" | head -1)
           SIG_FILE=$(find dist/ -type f -name "*.sig" | head -1)
@@ -394,8 +436,6 @@ jobs:
             echo "::error::No raw AppImage found in dist/"
             exit 1
           fi
-          # Tauri v2 may sign the AppImage directly instead of wrapping it in a .tar.gz.
-          # Fall back to using the AppImage itself as the updater bundle.
           if [ -z "$UPDATER_BUNDLE" ]; then
             UPDATER_BUNDLE="$APPIMAGE"
             echo "No .tar.gz found; using AppImage directly as updater bundle (Tauri v2 direct signing)"
@@ -409,55 +449,19 @@ jobs:
           UPDATER_NAME=$(basename "$UPDATER_BUNDLE")
           SIG_NAME=$(basename "$SIG_FILE")
 
-          # Checksums
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
           if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
 
-          # Generate changelog from commits since previous tag (exclude version bumps)
-          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..${TAG}" \
-              | grep -v "\[skip ci\]" \
-              | grep -v "^- chore: release" \
-              | head -30)
-            [ -z "$CHANGELOG" ] && CHANGELOG="- Maintenance and dependency updates"
-          else
-            CHANGELOG="- Initial release"
-          fi
-
-          BODY="$(printf '## Changelog\n\n%s\n\n---\n\n### Install\n\n**Linux (x86_64)** — download the `.AppImage` below:\n```bash\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** — download the `.dmg`, open it, drag to Applications.' "$CHANGELOG")"
-          PAYLOAD=$(jq -n \
-            --arg tag  "$TAG" \
-            --arg name "Vinyl Vault $TAG" \
-            --arg body "$BODY" \
-            '{tag_name: $tag, name: $name, body: $body}')
-
-          RESP=$(curl -s -o /tmp/release.json -w "%{http_code}" \
-            -X POST \
+          # Fetch release ID — semantic-release already created the release
+          RELEASE_ID=$(curl -sf \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-            -d "$PAYLOAD")
-          echo "GitHub release API: HTTP $RESP"
-          cat /tmp/release.json
-
-          if [ "$RESP" = "422" ]; then
-            # Release already exists — fetch its ID
-            RELEASE_ID=$(curl -sf \
-              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-              "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
-              | jq -r '.id')
-          elif [ "$RESP" = "201" ]; then
-            RELEASE_ID=$(jq -r '.id' /tmp/release.json)
-          else
-            echo "::error::Unexpected GitHub API response: HTTP $RESP"
-            exit 1
-          fi
+            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
+            | jq -r '.id')
 
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "::error::Failed to resolve release ID"
+            echo "::error::GitHub release ${TAG} not found — ensure semantic-release ran successfully"
             exit 1
           fi
           echo "Release ID: $RELEASE_ID"
@@ -480,17 +484,16 @@ jobs:
             upload_asset "$UPDATER_BUNDLE" "$UPDATER_NAME" "application/gzip"
           fi
           upload_asset "$SIG_FILE" "$SIG_NAME" "text/plain"
-          upload_asset SHA256SUMS.txt    "SHA256SUMS.txt"  "text/plain"
+          upload_asset SHA256SUMS.txt "SHA256SUMS.txt" "text/plain"
 
           # ── Generate latest.json for Tauri auto-updater ───────────────────
-          # URL points to the updater bundle (.tar.gz if present, otherwise the AppImage directly).
           SIGNATURE=$(cat "$SIG_FILE")
           DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${UPDATER_NAME}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           jq -n \
             --arg version   "$VERSION" \
-            --arg notes     "$CHANGELOG" \
+            --arg notes     "See release notes on GitHub" \
             --arg pub_date  "$PUB_DATE" \
             --arg url       "$DOWNLOAD_URL" \
             --arg signature "$SIGNATURE" \
@@ -512,9 +515,7 @@ jobs:
           upload_asset latest.json "latest.json" "application/json"
 
           # ── Trigger macOS release workflow ────────────────────────────────
-          # Forgejo's native push mirror uses a token that GitHub treats as
-          # a bot push, so on: push: tags triggers are suppressed on GitHub.
-          # We fire a repository_dispatch instead to reliably start the macOS job.
+          # GitHub release is guaranteed to exist (created by semantic-release above).
           echo "Dispatching release-macos workflow for tag ${TAG}..."
           DISPATCH_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
