@@ -14,6 +14,12 @@ export function IntegrationsSettings() {
   const [apiKeySaving, setApiKeySaving] = useState(false)
   const [apiKeySaved, setApiKeySaved] = useState(false)
 
+  const [spotifyKeys, setSpotifyKeys] = useState({ clientId: "", clientSecret: "" })
+  const [showSpotifyKeys, setShowSpotifyKeys] = useState({ clientId: false, clientSecret: false })
+  const [spotifyKeySet, setSpotifyKeySet] = useState({ clientId: false, clientSecret: false })
+  const [spotifyKeySaving, setSpotifyKeySaving] = useState(false)
+  const [spotifyKeySaved, setSpotifyKeySaved] = useState(false)
+
   const [ollamaStatus, setOllamaStatus] = useState<"idle" | "checking" | "connected" | "not_found">("idle")
 
   // Check which API keys are already stored and whether Ollama is running
@@ -21,11 +27,14 @@ export function IntegrationsSettings() {
     async function init() {
       try {
         const { invoke } = await import("@tauri-apps/api/core")
-        const [openaiSet, geminiSet] = await Promise.all([
+        const [openaiSet, geminiSet, spotifyIdSet, spotifySecretSet] = await Promise.all([
           invoke<boolean>("check_api_key", { provider: "openai" }),
           invoke<boolean>("check_api_key", { provider: "gemini" }),
+          invoke<boolean>("check_api_key", { provider: "spotify-client-id" }),
+          invoke<boolean>("check_api_key", { provider: "spotify-client-secret" }),
         ])
         setApiKeySet({ openai: openaiSet, gemini: geminiSet })
+        setSpotifyKeySet({ clientId: spotifyIdSet, clientSecret: spotifySecretSet })
 
         // Silently check if Ollama is already running
         const result = await invoke<{ models: string[]; error?: string }>("get_ollama_models")
@@ -56,6 +65,27 @@ export function IntegrationsSettings() {
     setApiKeySaving(false)
     setApiKeySaved(true)
     setTimeout(() => setApiKeySaved(false), 2000)
+  }
+
+  const handleSaveSpotifyKeys = async () => {
+    setSpotifyKeySaving(true)
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      if (spotifyKeys.clientId) {
+        await invoke("save_api_key", { provider: "spotify-client-id", key: spotifyKeys.clientId })
+        setSpotifyKeySet((prev) => ({ ...prev, clientId: true }))
+      }
+      if (spotifyKeys.clientSecret) {
+        await invoke("save_api_key", { provider: "spotify-client-secret", key: spotifyKeys.clientSecret })
+        setSpotifyKeySet((prev) => ({ ...prev, clientSecret: true }))
+      }
+      toast.success("Spotify credentials saved")
+    } catch {
+      toast.error("Failed to save Spotify credentials")
+    }
+    setSpotifyKeySaving(false)
+    setSpotifyKeySaved(true)
+    setTimeout(() => setSpotifyKeySaved(false), 2000)
   }
 
   const handleOllamaConnect = async () => {
@@ -159,6 +189,83 @@ export function IntegrationsSettings() {
               <><Check className="h-3.5 w-3.5" /> Saved</>
             ) : (
               "Save API Keys"
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Spotify credentials */}
+      <div className="mt-4 rounded-xl p-5" style={{ background: "var(--app-surface-3)", border: "1px solid var(--app-border)" }}>
+        <h3 className="mb-1 text-sm font-semibold" style={{ color: "var(--app-text-1)" }}>Spotify Integration</h3>
+        <p className="mb-4 text-xs" style={{ color: "var(--app-text-3)" }}>
+          Client credentials for automatic Spotify album linking on scan.{" "}
+          <a
+            href="https://developer.spotify.com/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+            style={{ color: "var(--app-green)" }}
+          >
+            Get credentials
+          </a>
+        </p>
+        <div className="space-y-3">
+          {(["clientId", "clientSecret"] as const).map((field) => {
+            const isSet = spotifyKeySet[field]
+            const label = field === "clientId" ? "Client ID" : "Client Secret"
+            return (
+              <div key={field}>
+                <label className="mb-1.5 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--app-text-2)" }}>
+                  {label}
+                  {isSet && (
+                    <span className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]"
+                      style={{ background: "var(--app-green-bg)", color: "#28d768" }}>
+                      <Check className="h-2.5 w-2.5" /> Saved
+                    </span>
+                  )}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type={showSpotifyKeys[field] ? "text" : "password"}
+                    value={spotifyKeys[field]}
+                    onChange={(e) => setSpotifyKeys({ ...spotifyKeys, [field]: e.target.value })}
+                    placeholder={isSet ? "••••••••••••••••" : (field === "clientId" ? "abc123..." : "def456...")}
+                    className="h-9 flex-1 rounded-lg px-3 text-sm outline-none transition-colors"
+                    style={{
+                      background: "var(--app-surface-3)",
+                      border: "1px solid var(--app-border)",
+                      color: "var(--app-text-1)",
+                    }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "var(--app-green-border)")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = "var(--app-border)")}
+                  />
+                  <button
+                    onClick={() => setShowSpotifyKeys({ ...showSpotifyKeys, [field]: !showSpotifyKeys[field] })}
+                    className="h-9 rounded-lg px-3 text-xs font-medium transition-colors cursor-pointer"
+                    style={{ border: "1px solid var(--app-border)", color: "var(--app-text-3)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--app-text-1)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--app-text-3)")}
+                  >
+                    {showSpotifyKeys[field] ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+          <button
+            onClick={handleSaveSpotifyKeys}
+            disabled={spotifyKeySaving || (!spotifyKeys.clientId && !spotifyKeys.clientSecret)}
+            className="mt-2 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer disabled:opacity-40"
+            style={{ background: "var(--app-green)", color: "hsl(var(--primary-foreground))" }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            {spotifyKeySaving ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+            ) : spotifyKeySaved ? (
+              <><Check className="h-3.5 w-3.5" /> Saved</>
+            ) : (
+              "Save Spotify Credentials"
             )}
           </button>
         </div>

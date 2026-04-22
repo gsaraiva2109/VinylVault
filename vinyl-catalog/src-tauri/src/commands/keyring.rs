@@ -22,6 +22,12 @@ pub fn check_api_key(provider: String) -> bool {
     get_api_key(&provider).is_some()
 }
 
+/// Store a credential by its exact keyring account name (not the provider-prefixed form).
+/// Used for build-time seeding of known credentials.
+pub fn store_credential(account: &str, value: &str) -> Result<(), String> {
+    entry(account)?.set_password(value).map_err(|e| e.to_string())
+}
+
 /// Store auth tokens — used by auth.rs.
 pub fn store_token(account: &str, value: &str) -> Result<(), String> {
     Entry::new(SERVICE, account)
