@@ -1,3 +1,9 @@
+## [2.2.3](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.2...v2.2.3) (2026-04-22)
+
+### Bug Fixes
+
+* **ci:** improve GitHub release create/upload error visibility, add target_commitish ([c9c8036](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/c9c8036217e4d85088b92ff165566c45b404c636))
+
 ## [2.2.2](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.1...v2.2.2) (2026-04-22)
 
 ### Bug Fixes
