@@ -1,3 +1,9 @@
+## [2.2.4](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.3...v2.2.4) (2026-04-22)
+
+### Bug Fixes
+
+* **ci:** remove dead ad-hoc sign step, extract changelog body for GitHub release ([e6de928](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/e6de928874015a759e77ec57d80d77fe9c3b57d2))
+
 ## [2.2.3](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.2...v2.2.3) (2026-04-22)
 
 ### Bug Fixes
