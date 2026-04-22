@@ -188,10 +188,8 @@ jobs:
       - name: Run semantic-release
         id: sr
         env:
-          GITEA_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.FGJ_TOKEN }}
           GITEA_URL: https://git.gsaraiva.com.br
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          GITHUB_URL: https://github.com
           GIT_AUTHOR_NAME: gsaraiva2109
           GIT_AUTHOR_EMAIL: gsaraiva2109@gmail.com
           GIT_COMMITTER_NAME: gsaraiva2109
@@ -455,14 +453,25 @@ jobs:
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
 
-          # Fetch release ID — semantic-release already created the release
+          # Get or create GitHub release
           RELEASE_ID=$(curl -sf \
             -H "Authorization: Bearer ${MIRROR_TOKEN}" \
             "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}" \
-            | jq -r '.id')
+            | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "GitHub release ${TAG} not found — creating it..."
+            RELEASE_ID=$(curl -sf \
+              -X POST \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/${MIRROR_REPO}/releases" \
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"See CHANGELOG.md for details.\",\"draft\":false,\"prerelease\":false}" \
+              | jq -r '.id')
+          fi
 
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "::error::GitHub release ${TAG} not found — ensure semantic-release ran successfully"
+            echo "::error::Failed to get or create GitHub release ${TAG}"
             exit 1
           fi
           echo "Release ID: $RELEASE_ID"

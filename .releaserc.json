@@ -48,13 +48,6 @@
         "gitea_url": "https://git.gsaraiva.com.br",
         "assets": []
       }
-    ],
-    [
-      "@semantic-release/github",
-      {
-        "githubUrl": "https://github.com",
-        "assets": []
-      }
     ]
   ]
 }
