@@ -1,3 +1,9 @@
+## [2.2.1](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.0...v2.2.1) (2026-04-22)
+
+### Bug Fixes
+
+* window decorations, responsive layout, extend auth session and token refresh buffer ([3ac0d83](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/3ac0d833c2df25787b70f47d234779b71bedb2d6))
+
 ## [2.2.0](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.1.2...v2.2.0) (2026-04-22)
 
 ### Features
