@@ -20,7 +20,7 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "decorations": true
       }
     ],
     "security": {
@@ -44,7 +44,6 @@
       "appimage": {}
     },
     "macOS": {
-      "hardenedRuntime": true,
       "entitlements": "Entitlements-macOS.plist",
       "infoPlist": "Info.plist"
     },

@@ -70,7 +70,7 @@ const VinylCard = React.forwardRef<HTMLDivElement, VinylCardProps>(
       <div
         ref={ref}
         className={cn(
-          "flex w-72 flex-col overflow-hidden rounded-xl border-2 bg-black/90 backdrop-blur-xl transition-all duration-300 hover:scale-[1.02]",
+          "flex w-64 lg:w-72 flex-col overflow-hidden rounded-xl border-2 bg-black/90 backdrop-blur-xl transition-all duration-300 hover:scale-[1.02]",
           colorClass,
           className
         )}
