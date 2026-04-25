@@ -1,15 +1,9 @@
 name: Release macOS
 
-# Triggered when Forgejo mirrors the tag to GitHub.
-# The GitHub Release + Linux AppImage are already created by Forgejo's
-# push-to-github job before this tag arrives. This job just builds the
-# .dmg and uploads it to that existing release.
+# Triggered by Forgejo's push-to-github job via repository_dispatch after
+# Linux artifacts are uploaded. GitHub Release is already created by then.
 on:
-  push:
-    tags:
-      - "v*"
-  # Fired explicitly by the Forgejo push-to-github job via the GitHub API
-  # when GitHub suppresses the push trigger from the mirror token.
+  # Fired explicitly by the Forgejo push-to-github job via the GitHub API.
   repository_dispatch:
     types: [release-macos]
   workflow_dispatch:
