@@ -66,6 +66,9 @@ jobs:
           # macOS uses BSD sed, which requires an empty backup string (-i '') for in-place edits.
           sed -i '' 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Build Tauri macOS .dmg
         working-directory: vinyl-catalog
         env:
@@ -79,6 +82,7 @@ jobs:
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           NEXT_PUBLIC_SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          APPLE_SIGNING_IDENTITY: "-"
         run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg
 
       - name: Upload macOS App Artifact (Manual Triggers)
