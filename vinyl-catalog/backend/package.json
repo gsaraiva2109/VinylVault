@@ -1,6 +1,6 @@
 {
   "name": "vinyl-vault-backend",
-  "version": "2.2.4",
+  "version": "2.2.5",
   "description": "VinylVault homelab backend API",
   "main": "dist/server.js",
   "scripts": {

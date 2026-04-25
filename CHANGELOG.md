@@ -1,3 +1,9 @@
+## [2.2.5](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.4...v2.2.5) (2026-04-25)
+
+### Bug Fixes
+
+* **ci:** add create-dmg install and APPLE_SIGNING_IDENTITY for ad-hoc DMG signing ([eea4d4d](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/eea4d4d93c82e35f5a2f9e19b40ef1cd2582a19c))
+
 ## [2.2.4](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.3...v2.2.4) (2026-04-22)
 
 ### Bug Fixes
