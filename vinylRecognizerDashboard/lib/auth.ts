@@ -6,6 +6,7 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     accessToken?: string;
     error?: "RefreshAccessTokenError";
+    groups?: string[];
   }
 }
 
@@ -15,6 +16,7 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     expiresAt?: number;
     error?: "RefreshAccessTokenError";
+    groups?: string[];
   }
 }
 
@@ -65,14 +67,20 @@ export const authOptions: NextAuthOptions = {
     updateAge: 60 * 60, // re-issue session cookie every hour
   },
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
       // Initial sign-in — store access token, refresh token, and expiry
       if (account) {
+        const profileGroups = Array.isArray(
+          (profile as { groups?: unknown } | undefined)?.groups
+        )
+          ? ((profile as { groups: unknown[] }).groups.map(String))
+          : undefined;
         return {
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
+          groups: profileGroups ?? token.groups,
         };
       }
 
@@ -92,6 +100,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken;
       session.error = token.error;
+      session.groups = token.groups;
       return session;
     },
   },

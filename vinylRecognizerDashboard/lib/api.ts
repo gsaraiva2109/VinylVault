@@ -20,6 +20,22 @@ export class ConflictError extends Error {
   }
 }
 
+export class DemoReadOnlyError extends Error {
+  constructor() {
+    super('Demo accounts cannot modify the shared collection')
+    this.name = 'DemoReadOnlyError'
+  }
+}
+
+export class RefreshCooldownError extends Error {
+  retryAfterSeconds: number
+  constructor(retryAfterSeconds: number) {
+    super(`Price refresh on cooldown — try again in ${retryAfterSeconds}s`)
+    this.name = 'RefreshCooldownError'
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
 export function isTokenExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
@@ -52,10 +68,27 @@ export async function fetchApi(path: string, options: RequestInit = {}, token?: 
     throw new UnauthorizedError()
   }
 
+  if (response.status === 403) {
+    let body: { error?: string; code?: string } = {}
+    try { body = await response.json() } catch { /* ignore */ }
+    if (body.code === 'DEMO_READ_ONLY') {
+      throw new DemoReadOnlyError()
+    }
+    // Fall through to generic error path below for other 403s
+  }
+
   if (response.status === 409) {
     let body: { error?: string; trashedId?: number; trashedRecord?: { id: number; title: string; artist: string } } = {}
     try { body = await response.json() } catch { /* ignore */ }
     throw new ConflictError(body.error ?? 'Conflict', body.trashedId, body.trashedRecord)
+  }
+
+  if (response.status === 429) {
+    let body: { error?: string; code?: string; retryAfterSeconds?: number } = {}
+    try { body = await response.json() } catch { /* ignore */ }
+    if (body.code === 'REFRESH_COOLDOWN') {
+      throw new RefreshCooldownError(body.retryAfterSeconds ?? 60)
+    }
   }
 
   if (!response.ok) {
