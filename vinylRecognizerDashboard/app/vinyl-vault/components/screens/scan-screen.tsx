@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { toast } from "sonner"
 import { useVinylVault } from "../../context"
 import { useRecognition } from "../../../../hooks/use-recognition"
 import { ManualAddModal } from "../manual-add-modal"
@@ -33,7 +34,7 @@ export function ScanScreen() {
   const { stream, canUseCamera } = useCameraContext()
   const [flash, setFlash] = useState(false)
   const [manualAddOpen, setManualAddOpen] = useState(false)
-  const [aiProvider, setAiProvider] = useState<"auto" | "local" | "cloud">("local")
+  const [aiProvider, setAiProvider] = useState<"auto" | "local" | "cloud">("cloud")
   const [cloudConfigured, setCloudConfigured] = useState(false)
   const [scanningWithCloud, setScanningWithCloud] = useState(false)
   const [localMaxDim, setLocalMaxDim] = useState(512)
@@ -346,7 +347,7 @@ export function ScanScreen() {
 
         {/* Branding badge — bottom right */}
         <div
-          className="absolute bottom-8 right-6 flex items-center gap-1.5 rounded-full px-3 py-1.5"
+          className="absolute bottom-8 right-8 flex items-center gap-1.5 rounded-full px-3 py-1.5"
           style={{
             background: "rgba(0,0,0,0.45)",
             backdropFilter: "blur(10px)",
@@ -667,7 +668,7 @@ function SuccessPanel({
   record: VinylRecord
   onReset: () => void
 }) {
-  const { refreshCollection, setActiveScreen } = useVinylVault()
+  const { refreshCollection, setActiveScreen, isDemo, addLocalRecord } = useVinylVault()
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trashedRecord, setTrashedRecord] = useState<{ id: number; title: string; artist: string } | null>(null)
@@ -688,7 +689,6 @@ function SuccessPanel({
     setError(null)
     setTrashedRecord(null)
     try {
-      const freshToken = await getFreshToken()
       // If scan-time enrichment missed Spotify (e.g. user selected non-first candidate),
       // attempt a last-chance lookup via Tauri keyring before persisting.
       let spotifyUrl = record.spotify?.albumId
@@ -703,6 +703,35 @@ function SuccessPanel({
         } catch { /* not in Tauri or keys not configured — skip */ }
       }
 
+      // Demo users: persist locally and surface that this record won't sync.
+      if (isDemo) {
+        addLocalRecord({
+          title: record.title,
+          artist: record.artist,
+          year: record.year,
+          genre: record.genre,
+          condition: selectedCondition,
+          coverUrl: record.coverUrl,
+          dateAdded: new Date().toISOString().split("T")[0],
+          discogsUrl: record.discogsUrl,
+          discogs: record.discogs,
+          spotify: spotifyUrl
+            ? { albumId: spotifyUrl.split("/album/")[1] ?? "" }
+            : undefined,
+        })
+
+        toast.success("Saved locally on this device only", {
+          description:
+            "Demo mode — sign in with a full account to save to the shared collection.",
+          duration: 4500,
+        })
+
+        refreshCollection()
+        setActiveScreen("collection")
+        return
+      }
+
+      const freshToken = await getFreshToken()
       const payload = {
         title: record.title,
         artist: record.artist,
@@ -738,7 +767,7 @@ function SuccessPanel({
     } finally {
       setIsAdding(false)
     }
-  }, [record, selectedCondition, getFreshToken, refreshCollection, setActiveScreen])
+  }, [record, selectedCondition, getFreshToken, refreshCollection, setActiveScreen, isDemo, addLocalRecord])
 
   const handleRestoreFromTrash = useCallback(async () => {
     if (!trashedRecord) return
