@@ -32,12 +32,12 @@
         "assets": [
           "CHANGELOG.md",
           "VERSION",
-          "vinyl-catalog/src-tauri/Cargo.toml",
-          "vinyl-catalog/src-tauri/tauri.conf.json",
-          "vinyl-catalog/backend/src/swagger.ts",
-          "vinylRecognizerDashboard/package.json",
-          "vinyl-catalog/package.json",
-          "vinyl-catalog/backend/package.json"
+          "desktop/src-tauri/Cargo.toml",
+          "desktop/src-tauri/tauri.conf.json",
+          "api/src/swagger.ts",
+          "web/package.json",
+          "desktop/package.json",
+          "api/package.json"
         ],
         "message": "chore: release v${nextRelease.version} [skip ci]"
       }

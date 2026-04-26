@@ -61,19 +61,19 @@ fi
 echo "$NEW" > VERSION
 
 sed -i "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
-  vinyl-catalog/src-tauri/Cargo.toml
+  desktop/src-tauri/Cargo.toml
 
 tmp="$(mktemp)"
-jq --arg v "$NEW" '.version = $v' vinyl-catalog/src-tauri/tauri.conf.json > "$tmp"
-mv "$tmp" vinyl-catalog/src-tauri/tauri.conf.json
+jq --arg v "$NEW" '.version = $v' desktop/src-tauri/tauri.conf.json > "$tmp"
+mv "$tmp" desktop/src-tauri/tauri.conf.json
 
 sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
-  vinyl-catalog/backend/src/swagger.ts
+  api/src/swagger.ts
 
 sed -i "s/version=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/version=\"${NEW}\"/" \
-  vinyl-catalog/sidecar/main.py
+  desktop/sidecar/main.py
 
-for pkg_json in vinylRecognizerDashboard/package.json vinyl-catalog/package.json vinyl-catalog/backend/package.json; do
+for pkg_json in web/package.json desktop/package.json api/package.json; do
   if [ -f "$pkg_json" ]; then
     tmp="$(mktemp)"
     jq --arg v "$NEW" '.version = $v' "$pkg_json" > "$tmp"
@@ -86,13 +86,13 @@ done
 echo "Updated to v${NEW}. Stage and commit:"
 echo ""
 echo "  git add VERSION \\"
-echo "    vinyl-catalog/src-tauri/Cargo.toml \\"
-echo "    vinyl-catalog/src-tauri/tauri.conf.json \\"
-echo "    vinyl-catalog/backend/src/swagger.ts \\"
-echo "    vinyl-catalog/sidecar/main.py \\"
-echo "    vinylRecognizerDashboard/package.json \\"
-echo "    vinyl-catalog/package.json \\"
-echo "    vinyl-catalog/backend/package.json"
+echo "    desktop/src-tauri/Cargo.toml \\"
+echo "    desktop/src-tauri/tauri.conf.json \\"
+echo "    api/src/swagger.ts \\"
+echo "    desktop/sidecar/main.py \\"
+echo "    web/package.json \\"
+echo "    desktop/package.json \\"
+echo "    api/package.json"
 echo ""
 echo "  # Then tag to trigger CI/CD:"
 echo "  git tag v${NEW}"

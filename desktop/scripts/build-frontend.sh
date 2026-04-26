@@ -9,7 +9,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRONTEND_DIR="$(cd "$SCRIPT_DIR/../../vinylRecognizerDashboard" && pwd)"
+FRONTEND_DIR="$(cd "$SCRIPT_DIR/../../web" && pwd)"
 ROUTE_FILE="$FRONTEND_DIR/app/api/auth/[...nextauth]/route.ts"
 BACKUP="/tmp/nextauth-route-$$.ts.bak"
 

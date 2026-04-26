@@ -27,13 +27,13 @@ Built as a personal project for two people sharing one collection across two mac
 ## Repository layout
 
 ```
-vinyl-catalog/
+desktop/
   backend/            Node.js + Express + TypeScript API
                       Drizzle ORM → PostgreSQL
                       Migrations run on startup (no CI/CD DB access)
   src-tauri/          Rust — Tauri v2 shell, OCR commands, OIDC auth
 
-vinylRecognizerDashboard/
+web/
                       Next.js 15 frontend
                       Served as a Docker web app AND bundled into the Tauri binary
 ```
@@ -153,8 +153,8 @@ https://auth.yourdomain.com/application/o/vinyl-vault/
 ### 4. Deploy via Dokploy
 
 Create two **Compose** apps in Dokploy:
-- **API:** points to `vinyl-catalog/backend/docker-compose.yml`
-- **Web:** points to `vinylRecognizerDashboard/docker-compose.yml`
+- **API:** points to `api/docker-compose.yml`
+- **Web:** points to `web/docker-compose.yml`
 
 Dokploy picks up Traefik labels and provisions TLS via Let's Encrypt. Redeployment is triggered by Dokploy webhooks (configure the webhook URLs from Dokploy in your deployment pipeline).
 
@@ -163,7 +163,7 @@ Database migrations run automatically on API container startup — no manual ste
 ### Or run locally
 
 ```bash
-docker compose -f vinyl-catalog/backend/docker-compose.yml up -d
+docker compose -f api/docker-compose.yml up -d
 ```
 
 ## Local Development
@@ -171,7 +171,7 @@ docker compose -f vinyl-catalog/backend/docker-compose.yml up -d
 ### Backend
 
 ```bash
-cd vinyl-catalog/backend
+cd api
 npm install
 cp .env.example .env   # set DATABASE_URL to a local postgres
 npm run dev            # http://localhost:3001
@@ -180,17 +180,17 @@ npm run dev            # http://localhost:3001
 ### Frontend (web)
 
 ```bash
-cd vinylRecognizerDashboard
+cd web
 pnpm install
 pnpm dev               # http://localhost:3000
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `vinylRecognizerDashboard/.env.local`.
+Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `web/.env.local`.
 
 ### Desktop (Tauri)
 
 ```bash
-cd vinyl-catalog
+cd desktop
 pnpm install
 pnpm dev               # starts Tauri dev window (loads http://localhost:3000)
 ```

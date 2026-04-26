@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/vinyl-catalog"
+    directory: "/desktop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -13,7 +13,7 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/vinyl-catalog/backend"
+    directory: "/api"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -26,7 +26,7 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/vinylRecognizerDashboard"
+    directory: "/web"
     schedule:
       interval: "weekly"
       day: "monday"

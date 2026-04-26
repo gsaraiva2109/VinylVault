@@ -34,15 +34,15 @@ jobs:
         with:
           filters: |
             frontend:
-              - 'vinylRecognizerDashboard/**'
+              - 'web/**'
               - 'pnpm-lock.yaml'
             backend:
-              - 'vinyl-catalog/backend/**'
+              - 'api/**'
               - 'package-lock.json'
             rust:
-              - 'vinyl-catalog/src-tauri/**'
-              - 'vinyl-catalog/sidecar/**'
-              - 'vinyl-catalog/package.json'
+              - 'desktop/src-tauri/**'
+              - 'desktop/sidecar/**'
+              - 'desktop/package.json'
             ci:
               - '.forgejo/workflows/**'
               - '.github/workflows/**'
@@ -69,17 +69,17 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-frontend-${{ hashFiles('vinylRecognizerDashboard/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-frontend-${{ hashFiles('web/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-frontend-
       - name: Install Next.js deps
-        working-directory: vinylRecognizerDashboard
+        working-directory: web
         run: pnpm install --frozen-lockfile
       - name: Lint
-        working-directory: vinylRecognizerDashboard
+        working-directory: web
         run: pnpm lint
       - name: TypeScript check
-        working-directory: vinylRecognizerDashboard
+        working-directory: web
         run: pnpm exec tsc --noEmit
 
   # ── Quality Gate: Backend ─────────────────────────────────────────────────
@@ -91,13 +91,13 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
       - name: Install backend deps
-        working-directory: vinyl-catalog/backend
+        working-directory: api
         run: npm ci
       - name: Backend typecheck
-        working-directory: vinyl-catalog/backend
+        working-directory: api
         run: npx tsc --noEmit
       - name: Backend build
-        working-directory: vinyl-catalog/backend
+        working-directory: api
         run: npm run build
 
   # ── Quality Gate: Rust / Tauri ────────────────────────────────────────────
@@ -127,18 +127,18 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-check-reg-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-check-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-check-reg-
       - name: Cache cargo target
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: /tmp/cargo-target
-          key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-check-target-
       - name: Cargo check
-        working-directory: vinyl-catalog/src-tauri
+        working-directory: desktop/src-tauri
         env:
           AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
           AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
@@ -205,12 +205,12 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - context: vinyl-catalog/backend
+          - context: api
             image: vinyl-vault-api
             filter: backend
             has_api_url: 'false'
             runner: light-ubuntu
-          - context: vinylRecognizerDashboard
+          - context: web
             image: vinyl-vault-web
             filter: frontend
             has_api_url: 'true'
@@ -328,7 +328,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-build-${{ hashFiles('vinylRecognizerDashboard/pnpm-lock.yaml', 'vinyl-catalog/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-build-${{ hashFiles('web/pnpm-lock.yaml', 'desktop/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-build-
 
@@ -339,34 +339,34 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-build-reg-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-reg-
 
       - name: Cache cargo target
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
-          path: vinyl-catalog/src-tauri/target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          path: desktop/src-tauri/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-target-
 
       - name: Install Next.js deps
-        working-directory: vinylRecognizerDashboard
+        working-directory: web
         run: pnpm install --frozen-lockfile
 
       - name: Install Tauri CLI deps
-        working-directory: vinyl-catalog
+        working-directory: desktop
         run: pnpm install --frozen-lockfile
 
       - name: Fix Next.js static export for Tauri
         run: |
           # Next.js 15 requires force-static for routes during static export.
           # We sed this at build time so the Web version stays dynamic.
-          sed -i 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
+          sed -i 's/force-dynamic/force-static/' web/app/api/auth/\[...nextauth\]/route.ts
 
       - name: Build Tauri AppImage
-        working-directory: vinyl-catalog
+        working-directory: desktop
         env:
           AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
           AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
@@ -384,16 +384,16 @@ jobs:
       - name: Verify build artifacts
         run: |
           echo "Checking build output directory..."
-          find vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ -type f \( -name "*.AppImage" -o -name "*.tar.gz" -o -name "*.sig" \)
+          find desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ -type f \( -name "*.AppImage" -o -name "*.tar.gz" -o -name "*.sig" \)
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v3
         with:
           name: vinyl-vault-linux-appimage
           path: |
-            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
-            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.tar.gz
-            vinyl-catalog/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
+            desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.tar.gz
+            desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
 
   # ── Upload Release Assets to GitHub ──────────────────────────────────────

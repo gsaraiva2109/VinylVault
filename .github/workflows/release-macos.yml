@@ -28,8 +28,8 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: |
-            vinyl-catalog/pnpm-lock.yaml
-            vinylRecognizerDashboard/pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+            web/pnpm-lock.yaml
 
       # aarch64-apple-darwin targets Apple Silicon (macos-latest is arm64).
       - uses: dtolnay/rust-toolchain@stable
@@ -42,29 +42,29 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-build-macos-${{ hashFiles('vinyl-catalog/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-macos-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-macos-
 
       - name: Install Next.js deps
-        working-directory: vinylRecognizerDashboard
+        working-directory: web
         run: pnpm install --frozen-lockfile
 
       - name: Install Tauri CLI deps
-        working-directory: vinyl-catalog
+        working-directory: desktop
         run: pnpm install --frozen-lockfile
 
       - name: Fix Next.js static export for Tauri
         run: |
           # Next.js 15 requires force-static for routes during static export.
           # macOS uses BSD sed, which requires an empty backup string (-i '') for in-place edits.
-          sed -i '' 's/force-dynamic/force-static/' vinylRecognizerDashboard/app/api/auth/\[...nextauth\]/route.ts
+          sed -i '' 's/force-dynamic/force-static/' web/app/api/auth/\[...nextauth\]/route.ts
 
       - name: Install create-dmg
         run: brew install create-dmg
 
       - name: Build Tauri macOS .dmg
-        working-directory: vinyl-catalog
+        working-directory: desktop
         env:
           AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
           AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
@@ -85,9 +85,9 @@ jobs:
         with:
           name: macOS-Tauri-App
           path: |
-            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
       - name: Wait for Release and Upload
         if: github.event_name != 'workflow_dispatch'
@@ -97,7 +97,7 @@ jobs:
           TAG="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}"
           VERSION="${TAG#v}"
 
-          BUNDLE_DIR="vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle"
+          BUNDLE_DIR="desktop/src-tauri/target/aarch64-apple-darwin/release/bundle"
 
           # Rename: "Vinyl Vault_*" → "Vinyl.Vault_*" (spaces → dots)
           find "$BUNDLE_DIR" -type f | while IFS= read -r f; do

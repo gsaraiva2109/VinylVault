@@ -4,9 +4,9 @@
   "version": "2.2.5",
   "identifier": "com.gsaraiva2109.vinyl-vault",
   "build": {
-    "frontendDist": "../../vinylRecognizerDashboard/out",
+    "frontendDist": "../../web/out",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "cd ../vinylRecognizerDashboard && pnpm dev --turbopack",
+    "beforeDevCommand": "cd ../web && pnpm dev --turbopack",
     "beforeBuildCommand": "bash scripts/build-frontend.sh"
   },
   "app": {

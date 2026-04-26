@@ -36,13 +36,13 @@ The script:
 1. Reads the current version from the root `VERSION` file
 2. Updates all manifests atomically:
    - `VERSION`
-   - `vinyl-catalog/backend/src/swagger.ts`
-   - `vinyl-catalog/sidecar/main.py`
-   - `vinyl-catalog/src-tauri/Cargo.toml`
-   - `vinyl-catalog/src-tauri/tauri.conf.json`
-   - `vinyl-catalog/package.json`
-   - `vinylRecognizerDashboard/package.json` + `package-lock.json`
-   - `vinyl-catalog/backend/package.json` + `package-lock.json`
+   - `api/src/swagger.ts`
+   - `desktop/sidecar/main.py`
+   - `desktop/src-tauri/Cargo.toml`
+   - `desktop/src-tauri/tauri.conf.json`
+   - `desktop/package.json`
+   - `web/package.json` + `package-lock.json`
+   - `api/package.json` + `package-lock.json`
 3. Creates a `chore: bump version to vX.Y.Z [skip ci]` commit
 4. Creates the `vX.Y.Z` git tag
 

@@ -1,8 +1,8 @@
-# vinylRecognizerDashboard: AI Development Rules
+# web: AI Development Rules
 
 ## Build and Check Commands
-- **Rust Backend:** Use `bash vinyl-catalog/backend/scripts/cargo-errors.sh` instead of raw `cargo check` or `cargo build` to capture token-efficient error reports.
-- **Frontend:** Use `pnpm --filter vinyl-catalog run build` for Tauri/React builds.
+- **Rust Backend:** Use `bash api/scripts/cargo-errors.sh` instead of raw `cargo check` or `cargo build` to capture token-efficient error reports.
+- **Frontend:** Use `pnpm --filter desktop run build` for Tauri/React builds.
 
 ## Code Style
 - **Rust:** Prefer `anyhow` for error handling and `drizzle` patterns for DB interactions.
