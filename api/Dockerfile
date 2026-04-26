@@ -1,4 +1,4 @@
-FROM node:24-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN --mount=type=cache,id=npm,target=/root/.npm \
@@ -7,7 +7,7 @@ COPY . .
 # NEW: Bundle almost everything into dist/server.js
 RUN npm run bundle
 # Removed redundant npm prune since we only explicitly copy specific files
-FROM node:24-alpine AS production
+FROM node:25-alpine AS production
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs && \
