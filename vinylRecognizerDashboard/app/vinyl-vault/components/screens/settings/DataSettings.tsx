@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Check, Clock, Trash2, Download, Upload, AlertTriangle, Loader2, RotateCcw, FileJson, FileText } from "lucide-react"
+import { Check, Clock, Trash2, Download, Upload, AlertTriangle, Loader2, RotateCcw, FileJson, FileText, HardDrive } from "lucide-react"
+import { toast } from "sonner"
 import { useVinylVault } from "../../../context"
 import type { VinylRecord } from "../../../types"
 import { SectionHeader, WipTag } from "./shared-components"
@@ -9,7 +10,7 @@ import { SectionHeader, WipTag } from "./shared-components"
 type ExportFormat = "json" | "csv"
 
 export function DataSettings() {
-  const { records, trashedRecords, recoverRecord, permanentlyDeleteRecord } = useVinylVault()
+  const { records, trashedRecords, recoverRecord, permanentlyDeleteRecord, isDemo, demoLocalRecords, clearDemoRecords } = useVinylVault()
   const [exportFormat, setExportFormat] = useState<ExportFormat>("json")
   const [importFormat, setImportFormat] = useState<ExportFormat>("json")
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -193,6 +194,66 @@ export function DataSettings() {
           </button>
         </div>
       </div>
+
+      {/* ── Demo Local Records ── */}
+      {isDemo && (
+        <div className="mt-6">
+          <h3 className="mb-2.5 text-sm font-medium" style={{ color: "var(--app-text-2)" }}>
+            Demo Local Records
+          </h3>
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid var(--app-border)" }}
+          >
+            <div
+              className="flex items-center gap-2.5 px-4 py-3"
+              style={{ background: "var(--app-surface-3)", borderBottom: "1px solid var(--app-border)" }}
+            >
+              <HardDrive className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--app-text-3)" }} />
+              <p className="text-xs" style={{ color: "var(--app-text-3)" }}>
+                Records saved locally on this device. They won&apos;t sync to any account.
+              </p>
+            </div>
+            <div
+              className="flex items-center justify-between gap-4 px-4 py-4"
+              style={{ background: "var(--app-surface-3)" }}
+            >
+              <div>
+                <p className="text-sm font-medium" style={{ color: "var(--app-text-1)" }}>
+                  {demoLocalRecords.length} local record{demoLocalRecords.length !== 1 ? "s" : ""}
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: "var(--app-text-3)" }}>
+                  {demoLocalRecords.length === 0
+                    ? "No demo records saved yet"
+                    : "Permanently stored in your browser's local storage"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (demoLocalRecords.length === 0) return
+                  if (
+                    typeof window !== "undefined" &&
+                    window.confirm(
+                      `Delete all ${demoLocalRecords.length} local demo record${demoLocalRecords.length !== 1 ? "s" : ""}? This cannot be undone.`
+                    )
+                  ) {
+                    clearDemoRecords()
+                    toast.success("Local demo records cleared")
+                  }
+                }}
+                disabled={demoLocalRecords.length === 0}
+                className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40"
+                style={{ background: "rgba(245,47,18,0.10)", color: "#f52f12", border: "1px solid rgba(245,47,18,0.20)" }}
+                onMouseEnter={(e) => { if (demoLocalRecords.length > 0) e.currentTarget.style.background = "rgba(245,47,18,0.18)" }}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(245,47,18,0.10)")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Import ── */}
       <div className="mt-4">
