@@ -426,6 +426,12 @@ jobs:
           echo "DEBUG: Listing files in dist/:"
           ls -R dist/
 
+          # Rename: "Vinyl Vault_*" → "Vinyl.Vault_*" (spaces → dots)
+          find dist/ -type f | while IFS= read -r f; do
+            new="$(echo "$f" | sed 's/ /./g')"
+            [ "$f" != "$new" ] && mv "$f" "$new"
+          done
+
           APPIMAGE=$(find dist/ -type f -name "*.AppImage" | head -1)
           UPDATER_BUNDLE=$(find dist/ -type f -name "*.tar.gz" | head -1)
           SIG_FILE=$(find dist/ -type f -name "*.sig" | head -1)
@@ -452,9 +458,10 @@ jobs:
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
 
-          # Extract changelog body for this version
-          CHANGELOG_BODY=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -80)
-          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$CHANGELOG_BODY")
+          # Build structured release body
+          RAW_CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -80)
+          RELEASE_BODY=$(printf '## Changelog\n\n%s\n\n---\n\n## Install\n\n**Linux (x86_64)** \xe2\x80\x94 download the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** \xe2\x80\x94 download the `.dmg`, open it, drag to Applications.' "$RAW_CHANGELOG")
+          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
 
           # Get or create GitHub release
           FETCH_RESP=$(curl -s -w "\n%{http_code}" \
@@ -471,7 +478,7 @@ jobs:
               -H "Authorization: Bearer ${MIRROR_TOKEN}" \
               -H "Content-Type: application/json" \
               "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"Vinyl Vault ${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
             CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
             CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
             RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')

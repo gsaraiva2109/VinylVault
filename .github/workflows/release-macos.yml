@@ -98,6 +98,13 @@ jobs:
           VERSION="${TAG#v}"
 
           BUNDLE_DIR="vinyl-catalog/src-tauri/target/aarch64-apple-darwin/release/bundle"
+
+          # Rename: "Vinyl Vault_*" → "Vinyl.Vault_*" (spaces → dots)
+          find "$BUNDLE_DIR" -type f | while IFS= read -r f; do
+            new="$(echo "$f" | sed 's/ /./g')"
+            [ "$f" != "$new" ] && mv "$f" "$new"
+          done
+
           DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" | head -1)
           UPDATER_TGZ=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" | head -1)
           UPDATER_SIG=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz.sig" | head -1)
