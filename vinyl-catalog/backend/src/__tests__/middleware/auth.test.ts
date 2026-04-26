@@ -100,7 +100,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req, res, next)
 
       expect(next).toHaveBeenCalledTimes(1)
-      expect((req as any).user).toEqual({ name: 'Developer', sub: 'dev' })
+      expect((req as any).user).toEqual({ name: 'Developer', sub: 'dev', groups: [], isDemo: false })
     })
 
     it('sets req.user to dev and calls next when query param token matches DEV_AUTH_TOKEN', async () => {
@@ -113,7 +113,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req, res, next)
 
       expect(next).toHaveBeenCalledTimes(1)
-      expect((req as any).user).toEqual({ name: 'Developer', sub: 'dev' })
+      expect((req as any).user).toEqual({ name: 'Developer', sub: 'dev', groups: [], isDemo: false })
     })
   })
 
@@ -206,6 +206,8 @@ describe('authMiddleware', () => {
         name: 'Jane Doe',
         sub: 'jane-sub',
         picture: 'https://avatar.url',
+        groups: [],
+        isDemo: false,
       })
     })
 
