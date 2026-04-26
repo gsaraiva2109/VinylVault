@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { eq, and } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { broadcast } from '../sse/broadcaster'
+import { requireWriteAccess } from '../middleware/requireWriteAccess'
 
 const router = Router()
 
@@ -175,7 +176,7 @@ router.get('/:id', async (req, res) => {
  *       201:
  *         description: Created vinyl
  */
-router.post('/', async (req, res) => {
+router.post('/', requireWriteAccess, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>
     if (!body.title || typeof body.title !== 'string') {
@@ -263,7 +264,7 @@ router.post('/', async (req, res) => {
  *       404:
  *         description: Vinyl not found
  */
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireWriteAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
@@ -313,7 +314,7 @@ router.patch('/:id', async (req, res) => {
  *       200:
  *         description: Soft-deleted vinyl
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireWriteAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
@@ -352,7 +353,7 @@ router.delete('/:id', async (req, res) => {
  *       404:
  *         description: Vinyl not found in trash
  */
-router.post('/:id/recover', async (req, res) => {
+router.post('/:id/recover', requireWriteAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
@@ -388,7 +389,7 @@ router.post('/:id/recover', async (req, res) => {
  *       204:
  *         description: Permanently deleted
  */
-router.delete('/:id/permanent', async (req, res) => {
+router.delete('/:id/permanent', requireWriteAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })

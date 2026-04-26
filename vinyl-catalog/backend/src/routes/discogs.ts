@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { discogsGet, refreshStalePrices } from '../services/discogs'
+import { requireWriteAccess } from '../middleware/requireWriteAccess'
+import { priceRefreshCooldown } from '../middleware/refreshCooldown'
 
 const router = Router()
 
@@ -113,7 +115,7 @@ router.get('/release/:id', async (req, res) => {
  *       200:
  *         description: Refresh job started
  */
-router.post('/refresh-prices', async (req, res) => {
+router.post('/refresh-prices', requireWriteAccess, priceRefreshCooldown, async (req, res) => {
   const hours = typeof req.body?.stalePeriodHours === 'number' ? req.body.stalePeriodHours : 24
   const stalePeriodMs = hours * 60 * 60 * 1000
 
