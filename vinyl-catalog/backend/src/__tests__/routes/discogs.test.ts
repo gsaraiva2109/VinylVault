@@ -10,6 +10,7 @@ jest.mock('../../services/discogs', () => ({
 const { discogsGet, refreshStalePrices } = require('../../services/discogs')
 
 import router from '../../routes/discogs'
+import { _resetRefreshCooldownForTests } from '../../middleware/refreshCooldown'
 
 function makeApp() {
   const app = express()
@@ -143,6 +144,10 @@ describe('GET /release/:id', () => {
 })
 
 describe('POST /refresh-prices', () => {
+  beforeEach(() => {
+    _resetRefreshCooldownForTests()
+  })
+
   it('responds immediately with a started message', async () => {
     const res = await request(makeApp()).post('/refresh-prices').send({})
 
