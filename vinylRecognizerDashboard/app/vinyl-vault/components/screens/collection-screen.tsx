@@ -7,7 +7,7 @@ import { FilterBar } from "../filter-bar"
 import { Disc3, Loader2, AlertCircle, RefreshCw, Plus } from "lucide-react"
 
 export function CollectionScreen() {
-  const { filteredRecords, viewMode, filters, isLoading, error, setActiveScreen, refreshCollection } = useVinylVault()
+  const { filteredRecords, viewMode, filters, isLoading, error, setActiveScreen, refreshCollection, isDemo } = useVinylVault()
 
   const hasActiveFilters = filters.genre || filters.decade || filters.condition || filters.artist || filters.searchQuery
 
@@ -47,6 +47,7 @@ export function CollectionScreen() {
 
   return (
     <div className="flex h-full flex-col">
+
       <FilterBar />
 
       {filteredRecords.length === 0 ? (

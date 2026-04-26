@@ -13,10 +13,13 @@ interface RecognitionResult {
 
 export function useRecognition(onScanError?: (message: string, provider?: string, capturedImage?: string) => void) {
   const [state, setState] = useState<ScanState>({ status: "idle" })
-  const { accessToken: token } = useTauriAuth()
+  const { accessToken: token, isDemo } = useTauriAuth()
 
   const tokenRef = useRef(token)
   tokenRef.current = token
+
+  const isDemoRef = useRef(isDemo)
+  isDemoRef.current = isDemo
 
   const performRecognition = useCallback(async (blob: Blob, capturedImage: string, rawImageUrl?: string, forceProvider?: string) => {
     try {
@@ -90,8 +93,10 @@ export function useRecognition(onScanError?: (message: string, provider?: string
               if (spotData.albumId) candidates[i] = { ...candidates[i], spotify: { albumId: spotData.albumId } }
             } catch { /* no match or keys not configured — skip */ }
           }
-        } else {
-          // Web path: obtain one token, then search per candidate
+        } else if (!isDemoRef.current) {
+          // Web path: obtain one token, then search per candidate.
+          // Demo users on web are blocked here so they can't drain the
+          // owner's NEXT_PUBLIC_SPOTIFY_* build-time credentials.
           const spotifyClientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
           const spotifyClientSecret = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET
           if (spotifyClientId && spotifyClientSecret) {

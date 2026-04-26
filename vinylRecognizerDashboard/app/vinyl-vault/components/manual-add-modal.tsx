@@ -28,7 +28,7 @@ function parseDiscogsUrl(url: string): { id: string; type: "release" | "master" 
 }
 
 export function ManualAddModal({ onClose }: ManualAddModalProps) {
-  const { refreshCollection, setActiveScreen } = useVinylVault()
+  const { refreshCollection, setActiveScreen, isDemo, addLocalRecord } = useVinylVault()
   const { accessToken: token } = useTauriAuth()
 
   const [discogsUrl, setDiscogsUrl] = useState("")
@@ -103,6 +103,32 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
 
     setIsSubmitting(true)
     try {
+      // Demo users persist locally only.
+      if (isDemo) {
+        addLocalRecord({
+          title: form.title.trim(),
+          artist: form.artist.trim(),
+          year: parseInt(form.year) || new Date().getFullYear(),
+          genre: form.genre.trim(),
+          condition: form.condition,
+          coverUrl: form.coverUrl.trim(),
+          notes: form.notes.trim() || undefined,
+          dateAdded: new Date().toISOString().split("T")[0],
+          discogsUrl: discogsUrl.trim() || undefined,
+          discogs: fetchedDiscogsId ? { releaseId: String(fetchedDiscogsId) } : undefined,
+          spotify: form.spotifyId ? { albumId: form.spotifyId } : undefined,
+        })
+        toast.success(`"${form.title}" saved locally`, {
+          description:
+            "Demo mode — sign in with a full account to save to the shared collection.",
+          duration: 4500,
+        })
+        refreshCollection()
+        setActiveScreen("collection")
+        onClose()
+        return
+      }
+
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
         artist: form.artist.trim(),
@@ -115,7 +141,7 @@ export function ManualAddModal({ onClose }: ManualAddModalProps) {
         discogsUrl: discogsUrl.trim() || null,
         spotifyUrl: form.spotifyId ? `https://open.spotify.com/album/${form.spotifyId}` : null,
       }
-      
+
       await api.vinyls.create(payload, token ?? undefined)
       toast.success(`"${form.title}" added to your collection`)
       refreshCollection()

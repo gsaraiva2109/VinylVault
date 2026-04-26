@@ -12,10 +12,18 @@ import {
 import { toast } from "sonner"
 import type { VinylRecord, ViewMode, SortOption, SortDirection, FilterOptions, Condition, ScanErrorEntry } from "./types"
 import { filterRecords, sortRecords } from "./data"
-import { api, UnauthorizedError, isTokenExpired } from "@/lib/api"
+import { api, UnauthorizedError, DemoReadOnlyError, isTokenExpired } from "@/lib/api"
 import { mapBackendVinyl, type BackendVinyl } from "@/lib/mappers"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { MOCK_RECORDS } from "./mock-data"
+import {
+  addDemoRecord,
+  clearAllDemoRecords,
+  deleteDemoRecord,
+  isDemoLocalId,
+  readDemoRecords,
+  updateDemoRecord,
+} from "./demo-store"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
@@ -70,6 +78,12 @@ interface VinylVaultContextType {
   // Trash
   trashedRecords: VinylRecord[]
 
+  // Demo mode
+  isDemo: boolean
+  demoLocalRecords: VinylRecord[]
+  addLocalRecord: (record: Omit<VinylRecord, "id"> & { id?: string }) => VinylRecord
+  clearDemoRecords: () => void
+
   // Scan error history
   scanErrors: ScanErrorEntry[]
   addScanError: (message: string, provider?: string, capturedImage?: string) => void
@@ -95,8 +109,37 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
   const [autoSkipEnabled, setAutoSkipEnabledState] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [scanErrors, setScanErrors] = useState<ScanErrorEntry[]>([])
+  const [demoLocalRecords, setDemoLocalRecords] = useState<VinylRecord[]>([])
 
-  const { accessToken: token, status, signOut } = useTauriAuth()
+  const { accessToken: token, status, signOut, isDemo } = useTauriAuth()
+
+  // Hydrate demo records from localStorage when entering demo mode.
+  useEffect(() => {
+    if (!isDemo) {
+      setDemoLocalRecords([])
+      return
+    }
+    setDemoLocalRecords(readDemoRecords())
+    toast.warning("Demo mode active", {
+      id: "demo-mode-warning",
+      description: "Records you add are saved on this device only and will not sync.",
+      duration: 5000,
+    })
+  }, [isDemo])
+
+  const addLocalRecord = useCallback(
+    (record: Omit<VinylRecord, "id"> & { id?: string }): VinylRecord => {
+      const created = addDemoRecord(record)
+      setDemoLocalRecords(readDemoRecords())
+      return created
+    },
+    []
+  )
+
+  const clearDemoRecords = useCallback(() => {
+    clearAllDemoRecords()
+    setDemoLocalRecords([])
+  }, [])
 
   const signingOutRef = useRef(false)
   const handleUnauthorized = useCallback(() => {
@@ -131,6 +174,14 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateRecord = useCallback(async (id: string, patch: Partial<VinylRecord>): Promise<void> => {
+    if (isDemoLocalId(id)) {
+      const updated = updateDemoRecord(id, patch)
+      if (updated) setDemoLocalRecords(readDemoRecords())
+      return
+    }
+    if (isDemo) {
+      throw new DemoReadOnlyError()
+    }
     let original: VinylRecord | undefined
     setRecords((prev) => {
       original = prev.find((r) => r.id === id)
@@ -150,7 +201,7 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [token])
+  }, [token, isDemo])
 
   // status goes "unauthenticated" when the Rust refresh fails; page.tsx will show login screen
 
@@ -255,6 +306,16 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   // Soft-delete: moves to trash via API
   const deleteRecord = useCallback(async (id: string): Promise<void> => {
+    // Demo-local records never enter trash — just remove them outright.
+    if (isDemoLocalId(id)) {
+      const removed = deleteDemoRecord(id)
+      if (removed) setDemoLocalRecords(readDemoRecords())
+      return
+    }
+    if (isDemo) {
+      throw new DemoReadOnlyError()
+    }
+
     const numId = parseInt(id, 10)
     if (isNaN(numId)) return
 
@@ -284,10 +345,12 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         throw err
       }
     }
-  }, [records, token])
+  }, [records, token, isDemo])
 
   // Recover from trash via API
   const recoverRecord = useCallback(async (id: string): Promise<void> => {
+    if (isDemoLocalId(id)) return // demo records never enter trash
+    if (isDemo) throw new DemoReadOnlyError()
     const numId = parseInt(id, 10)
     if (isNaN(numId)) return
 
@@ -316,10 +379,12 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         throw err
       }
     }
-  }, [trashedRecords, token])
+  }, [trashedRecords, token, isDemo])
 
   // Permanent delete via API — removes the DB row entirely
   const permanentlyDeleteRecord = useCallback(async (id: string): Promise<void> => {
+    if (isDemoLocalId(id)) return
+    if (isDemo) throw new DemoReadOnlyError()
     setIsDeleting(true)
     const numId = parseInt(id, 10)
 
@@ -338,7 +403,7 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
       }
     }
     setIsDeleting(false)
-  }, [token, refreshCollection])
+  }, [token, refreshCollection, isDemo])
 
   const setFilters = useCallback((newFilters: FilterOptions) => {
     setFiltersState(newFilters)
@@ -366,8 +431,9 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
     setSortDirection(newDirection)
   }, [])
 
-  // activeRecords = records (backend already filters isDeleted=false)
-  const activeRecords = records
+  // activeRecords = records (backend already filters isDeleted=false).
+  // Demo users see their local-only records merged in front of the shared collection.
+  const activeRecords = isDemo ? [...demoLocalRecords, ...records] : records
 
   const filteredRecords = sortRecords(
     filterRecords(activeRecords, {
@@ -412,6 +478,10 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
         permanentlyDeleteRecord,
         isDeleting,
         trashedRecords,
+        isDemo,
+        demoLocalRecords,
+        addLocalRecord,
+        clearDemoRecords,
         scanErrors,
         addScanError,
         clearScanErrors,

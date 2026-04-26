@@ -9,6 +9,7 @@ import {
 import { useEffect, useState, useCallback } from "react"
 import type { Condition } from "../types"
 import { DeleteConfirmModal } from "./delete-confirm-modal"
+import { isDemoLocalId } from "../demo-store"
 
 function SpotifyIcon() {
   return (
@@ -21,8 +22,13 @@ function SpotifyIcon() {
 const conditions: Condition[] = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"]
 
 export function RecordDetailModal() {
-  const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord, deleteRecord, isDeleting } =
+  const { selectedRecord, isDetailOpen, setIsDetailOpen, setSelectedRecord, updateRecord, deleteRecord, isDeleting, isDemo } =
     useVinylVault()
+
+  // Demo users may only edit/delete their own local records.
+  // Owner records are read-only for them.
+  const canMutate =
+    !isDemo || (selectedRecord != null && isDemoLocalId(selectedRecord.id))
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -460,26 +466,33 @@ export function RecordDetailModal() {
             </>
           ) : (
             <>
-              {/* Delete button — full red, matches danger zone style */}
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer"
-                style={{ background: "#f52f12" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#d92a10")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "#f52f12")}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Record
-              </button>
+              {canMutate ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer"
+                  style={{ background: "#f52f12" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#d92a10")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#f52f12")}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Record
+                </button>
+              ) : (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/60">
+                  Read-only in demo mode
+                </span>
+              )}
 
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  Edit Record
-                </button>
+                {canMutate && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Edit Record
+                  </button>
+                )}
                 <button
                   onClick={handleClose}
                   className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 cursor-pointer"
