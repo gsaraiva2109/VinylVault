@@ -21,11 +21,16 @@ interface TauriAuthContextType {
   user: TauriUser | null
   accessToken: string | null
   status: "loading" | "authenticated" | "unauthenticated"
+  groups: string[]
+  isDemo: boolean
   signIn: () => Promise<void>
   signOut: () => Promise<void>
 }
 
 const TauriAuthContext = createContext<TauriAuthContextType | undefined>(undefined)
+
+const DEMO_GROUP_NAME =
+  process.env.NEXT_PUBLIC_DEMO_GROUP_NAME ?? "demo-users"
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
   try {
@@ -39,11 +44,26 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   }
 }
 
+function normalizeGroups(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === "string") return raw.split(/[\s,]+/).filter(Boolean)
+  return []
+}
+
+function deriveAuthz(token: string | null): { groups: string[]; isDemo: boolean } {
+  if (!token) return { groups: [], isDemo: false }
+  const claims = decodeJwtPayload(token)
+  const groups = normalizeGroups(claims.groups)
+  return { groups, isDemo: groups.includes(DEMO_GROUP_NAME) }
+}
+
 export function TauriAuthProvider({ children }: { children: ReactNode }) {
   const { data: session, status: nextAuthStatus } = useSession()
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [user, setUser] = useState<TauriUser | null>(null)
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
+  const [groups, setGroups] = useState<string[]>([])
+  const [isDemo, setIsDemo] = useState(false)
 
   const refreshAuthState = useCallback(async () => {
     try {
@@ -57,13 +77,18 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             email: String(claims.email ?? ""),
           }
 
+          const authz = deriveAuthz(token)
           setStatus("authenticated")
           setAccessToken(token)
           setUser(newUser)
+          setGroups(authz.groups)
+          setIsDemo(authz.isDemo)
         } else {
           setAccessToken(null)
           setUser(null)
           setStatus("unauthenticated")
+          setGroups([])
+          setIsDemo(false)
         }
       } else {
         // Handle web version via NextAuth
@@ -73,6 +98,8 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             setAccessToken(null)
             setUser(null)
             setStatus("unauthenticated")
+            setGroups([])
+            setIsDemo(false)
             nextAuthSignOut()
             return
           }
@@ -84,13 +111,26 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             image: session.user?.image ?? undefined,
           }
 
+          // Prefer groups from session (NextAuth callback) so we don't depend
+          // on the raw access token format. Falls back to JWT decode.
+          const sessionGroups = normalizeGroups(
+            (session as unknown as { groups?: unknown }).groups
+          )
+          const authz = sessionGroups.length > 0
+            ? { groups: sessionGroups, isDemo: sessionGroups.includes(DEMO_GROUP_NAME) }
+            : deriveAuthz(newAccessToken)
+
           setAccessToken(newAccessToken)
           setUser(newUser)
           setStatus("authenticated")
+          setGroups(authz.groups)
+          setIsDemo(authz.isDemo)
         } else if (nextAuthStatus === "unauthenticated") {
           setAccessToken(null)
           setUser(null)
           setStatus("unauthenticated")
+          setGroups([])
+          setIsDemo(false)
         } else {
           setStatus("loading")
         }
@@ -100,6 +140,8 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null)
       setUser(null)
       setStatus("unauthenticated")
+      setGroups([])
+      setIsDemo(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextAuthStatus, session]) // Only re-create when NextAuth state changes, NOT on local state
@@ -136,6 +178,8 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
             setAccessToken(null)
             setUser(null)
             setStatus("unauthenticated")
+            setGroups([])
+            setIsDemo(false)
           }
         })
       )
@@ -194,11 +238,13 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null)
       setUser(null)
       setStatus("unauthenticated")
+      setGroups([])
+      setIsDemo(false)
     }
   }, [])
 
   return (
-    <TauriAuthContext.Provider value={{ user, accessToken, status, signIn, signOut }}>
+    <TauriAuthContext.Provider value={{ user, accessToken, status, groups, isDemo, signIn, signOut }}>
       {children}
     </TauriAuthContext.Provider>
   )
