@@ -77,7 +77,7 @@ jobs:
           NEXT_PUBLIC_SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           APPLE_SIGNING_IDENTITY: "-"
-        run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg
+        run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg,app
 
       - name: Upload macOS App Artifact (Manual Triggers)
         if: github.event_name == 'workflow_dispatch'
