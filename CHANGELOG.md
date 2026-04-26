@@ -1,3 +1,19 @@
+## [2.3.0](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.5...v2.3.0) (2026-04-26)
+
+### Features
+
+* **backend:** add groups claim and isDemo flag to auth middleware ([ccd2d82](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/ccd2d8271d8804be28cdd697c72778be73d8b436))
+* **backend:** gate write routes with requireWriteAccess and price refresh cooldown ([17b4494](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/17b44946cded4921c3c0d9a1ae6c24e2960c3eaa))
+* **frontend:** demo mode infrastructure — groups claim, isDemo flag, local store, error types ([7435fa2](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/7435fa2018cf1f40819a70287ebaf5d3f8d7e9ac))
+* **frontend:** demo mode UX — local saves, read-only guards, Spotify block for demo users ([8bb9f96](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/8bb9f96b5bb6fdc686900c678f17b385cf931d70))
+* **settings:** move demo records management to data settings ([d2bb915](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/d2bb915893b63cc278f73a445827abe7686021d5))
+* **settings:** web/desktop AI split, real brand logos, Spotify connection monitor, dark/light mode sync ([69c3523](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/69c35234cb0a2137e6e93433aa4063b646cb8893))
+
+### Bug Fixes
+
+* **ci:** remove push-tags trigger to prevent double macOS build on release ([b537596](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/b5375969ca597094b2f7875024159cf31684232c))
+* **lint:** remove unused isDemo import in collection-screen ([3768449](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/commit/37684491f83971f4e405a025c70cf95b8a21f7ff))
+
 ## [2.2.5](https://git.gsaraiva.com.br/gsaraiva2109/vinylvault/compare/v2.2.4...v2.2.5) (2026-04-25)
 
 ### Bug Fixes
