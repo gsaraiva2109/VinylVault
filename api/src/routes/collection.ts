@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 
+// Any future write endpoints in this router must use the requireWriteAccess middleware
+// (see api/src/middleware/requireWriteAccess.ts), as enforced in vinyls.ts and discogs.ts.
 const router = Router()
 
 /**
