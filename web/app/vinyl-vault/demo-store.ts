@@ -19,6 +19,27 @@ export function isDemoLocalId(id: string): boolean {
   return typeof id === "string" && id.startsWith(DEMO_ID_PREFIX)
 }
 
+/**
+ * Three-way discriminator for mutation handlers that need to branch on demo state.
+ *
+ * - `'handled'`     — id is a demo-local record; caller should apply the demo action and return
+ * - `'blocked'`     — user is in demo mode but the record is a real shared record; caller should throw DemoReadOnlyError
+ * - `'passthrough'` — normal authenticated user; caller should proceed with the API call
+ *
+ * Usage in context mutation callbacks:
+ *   const demo = checkDemoMutation(id, isDemo)
+ *   if (demo === 'blocked') throw new DemoReadOnlyError()
+ *   if (demo === 'handled') { ...apply demo-store action...; return }
+ *   // ...API path
+ */
+export type DemoMutationOutcome = 'handled' | 'blocked' | 'passthrough'
+
+export function checkDemoMutation(id: string, isDemo: boolean): DemoMutationOutcome {
+  if (isDemoLocalId(id)) return 'handled'
+  if (isDemo) return 'blocked'
+  return 'passthrough'
+}
+
 export function makeDemoId(): string {
   const random =
     typeof crypto !== "undefined" && "randomUUID" in crypto

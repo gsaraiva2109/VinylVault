@@ -18,9 +18,9 @@ import { useTauriAuth } from "@/lib/tauri-auth"
 import { MOCK_RECORDS } from "./mock-data"
 import {
   addDemoRecord,
+  checkDemoMutation,
   clearAllDemoRecords,
   deleteDemoRecord,
-  isDemoLocalId,
   readDemoRecords,
   updateDemoRecord,
 } from "./demo-store"
@@ -174,13 +174,12 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateRecord = useCallback(async (id: string, patch: Partial<VinylRecord>): Promise<void> => {
-    if (isDemoLocalId(id)) {
+    const demo = checkDemoMutation(id, isDemo)
+    if (demo === 'blocked') throw new DemoReadOnlyError()
+    if (demo === 'handled') {
       const updated = updateDemoRecord(id, patch)
       if (updated) setDemoLocalRecords(readDemoRecords())
       return
-    }
-    if (isDemo) {
-      throw new DemoReadOnlyError()
     }
     let original: VinylRecord | undefined
     setRecords((prev) => {
@@ -306,14 +305,13 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   // Soft-delete: moves to trash via API
   const deleteRecord = useCallback(async (id: string): Promise<void> => {
-    // Demo-local records never enter trash — just remove them outright.
-    if (isDemoLocalId(id)) {
+    const demo = checkDemoMutation(id, isDemo)
+    if (demo === 'blocked') throw new DemoReadOnlyError()
+    if (demo === 'handled') {
+      // Demo-local records never enter trash — remove outright.
       const removed = deleteDemoRecord(id)
       if (removed) setDemoLocalRecords(readDemoRecords())
       return
-    }
-    if (isDemo) {
-      throw new DemoReadOnlyError()
     }
 
     const numId = parseInt(id, 10)
@@ -349,8 +347,9 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   // Recover from trash via API
   const recoverRecord = useCallback(async (id: string): Promise<void> => {
-    if (isDemoLocalId(id)) return // demo records never enter trash
-    if (isDemo) throw new DemoReadOnlyError()
+    const demo = checkDemoMutation(id, isDemo)
+    if (demo === 'blocked') throw new DemoReadOnlyError()
+    if (demo === 'handled') return // demo-local records never enter trash
     const numId = parseInt(id, 10)
     if (isNaN(numId)) return
 
@@ -383,8 +382,9 @@ export function VinylVaultProvider({ children }: { children: ReactNode }) {
 
   // Permanent delete via API — removes the DB row entirely
   const permanentlyDeleteRecord = useCallback(async (id: string): Promise<void> => {
-    if (isDemoLocalId(id)) return
-    if (isDemo) throw new DemoReadOnlyError()
+    const demo = checkDemoMutation(id, isDemo)
+    if (demo === 'blocked') throw new DemoReadOnlyError()
+    if (demo === 'handled') return // demo-local records are not in the DB
     setIsDeleting(true)
     const numId = parseInt(id, 10)
 
