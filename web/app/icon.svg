@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-disc3-icon lucide-disc-3"><circle cx="12" cy="12" r="10"/><path d="M6 12c0-1.7.7-3.2 1.8-4.2"/><circle cx="12" cy="12" r="2"/><path d="M18 12c0 1.7-.7 3.2-1.8 4.2"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" rx="180" fill="#1a1a1a"/>
+  <circle cx="512" cy="512" r="420" fill="#2a2a2a" stroke="#e2e8f0" stroke-width="24"/>
+  <circle cx="512" cy="512" r="340" fill="none" stroke="#3a3a3a" stroke-width="12"/>
+  <circle cx="512" cy="512" r="260" fill="none" stroke="#3a3a3a" stroke-width="12"/>
+  <path d="M 230 512 A 290 290 0 0 1 335 336" fill="none" stroke="#e2e8f0" stroke-width="36" stroke-linecap="round"/>
+  <path d="M 794 512 A 290 290 0 0 1 689 688" fill="none" stroke="#e2e8f0" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="512" cy="512" r="160" fill="#111111"/>
+  <circle cx="512" cy="512" r="48" fill="#1a1a1a"/>
+  <circle cx="512" cy="512" r="48" fill="none" stroke="#e2e8f0" stroke-width="16"/>
+</svg>
