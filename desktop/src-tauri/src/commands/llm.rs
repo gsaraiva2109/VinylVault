@@ -211,7 +211,8 @@ pub async fn call_gemini(
     });
     let client = reqwest::Client::new();
 
-    // Retry up to 3 times on transient errors (503 Service Unavailable, 429 Rate Limit)
+    // Retry up to 3 times on transient errors (503/429). Same pattern as
+    // api/src/services/discogs.ts discogsGet() — keep both in sync.
     let max_attempts = 3u32;
     for attempt in 0..max_attempts {
         let resp = client

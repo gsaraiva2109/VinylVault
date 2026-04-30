@@ -17,6 +17,8 @@ const CONDITION_KEY_MAP: Record<string, string> = {
 const DISCOGS_BASE = 'https://api.discogs.com'
 const USER_AGENT = 'VinylVaultApp/0.1 +https://github.com/gsaraiva2109/VinylVault'
 
+// Same exponential-backoff pattern as Gemini/OpenAI retry in desktop/src-tauri/src/commands/llm.rs —
+// keep both in sync if changing retry strategy.
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 function discogsGetOnce(path: string): Promise<{ status: number; body: unknown }> {
