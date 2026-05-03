@@ -1,4 +1,4 @@
-FROM node:24-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 COPY package*.json pnpm-lock.yaml* ./
 RUN npm install -g pnpm@9
@@ -13,7 +13,7 @@ ENV NEXT_OUTPUT=standalone
 RUN --mount=type=cache,id=nextjs,target=/app/.next/cache \
     pnpm build
 
-FROM node:24-alpine AS production
+FROM node:25-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
