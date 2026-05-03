@@ -7,9 +7,16 @@ docs/
 .claude/
 .agents/
 .serena/
+.verboo/
 .context.xml
 .signatures.md
 scripts/map-signatures.sh
+CLAUDE.md
+swarmvault.*
+wiki
+state
+raw
+inbox
 
 # Build output
 dist/
@@ -53,3 +60,4 @@ Thumbs.db
 
 # Apps
 lazygit
+agent
