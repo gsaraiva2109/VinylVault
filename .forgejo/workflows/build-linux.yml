@@ -215,6 +215,8 @@ jobs:
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         if: steps.check_skip.outputs.SKIP != 'true'
+        with:
+          ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
 
       - name: Read version
         if: steps.check_skip.outputs.SKIP != 'true'
@@ -306,6 +308,8 @@ jobs:
     if: ${{ always() && needs.release.outputs.released == 'true' && needs.release.result == 'success' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+        with:
+          ref: refs/tags/v${{ needs.release.outputs.version }}
       - name: Install pnpm
         run: npm install -g pnpm@9
       - name: Get pnpm store directory
@@ -396,6 +400,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
           fetch-depth: 0
+          ref: refs/tags/v${{ needs.release.outputs.version }}
 
       - name: Download AppImage artifact
         uses: actions/download-artifact@v3
@@ -447,7 +452,8 @@ jobs:
           fi
 
           # Build structured release body
-          RAW_CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -80)
+          GITEA_API_URL="https://git.gsaraiva.com.br/api/v1/repos/${{ github.repository }}/releases/tags/${TAG}"
+          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty' | head -80)
           RELEASE_BODY=$(printf '## Changelog\n\n%s\n\n---\n\n## Install\n\n**Linux (x86_64)** \xe2\x80\x94 download the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** \xe2\x80\x94 download the `.dmg`, open it, drag to Applications.' "$RAW_CHANGELOG")
           CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
 
