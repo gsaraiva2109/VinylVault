@@ -100,9 +100,14 @@ jobs:
           BUNDLE_DIR="desktop/src-tauri/target/aarch64-apple-darwin/release/bundle"
 
           # Rename: "Vinyl Vault_*" → "Vinyl.Vault_*" (spaces → dots)
-          find "$BUNDLE_DIR" -type f | while IFS= read -r f; do
-            new="$(echo "$f" | sed 's/ /./g')"
-            [ "$f" != "$new" ] && mv "$f" "$new"
+          # Only target the artifacts to avoid breaking files inside the .app bundle
+          for f in "$BUNDLE_DIR"/dmg/*.dmg "$BUNDLE_DIR"/macos/*.app.tar.gz "$BUNDLE_DIR"/macos/*.app.tar.gz.sig; do
+            if [ -f "$f" ]; then
+              dir="$(dirname "$f")"
+              base="$(basename "$f")"
+              new_base="$(echo "$base" | sed 's/ /./g')"
+              [ "$base" != "$new_base" ] && mv "$f" "$dir/$new_base"
+            fi
           done
 
           DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" | head -1)
