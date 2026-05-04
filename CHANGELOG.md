@@ -1,3 +1,9 @@
+## [1.0.1](https://git.gsaraiva.com.br/gsaraiva2109/VinylVault/compare/v1.0.0...v1.0.1) (2026-05-04)
+
+### Bug Fixes
+
+* resolve macos dmg rename error ([2f250c9](https://git.gsaraiva.com.br/gsaraiva2109/VinylVault/commit/2f250c9559054aa5fcdc4e79ec55834af780a47e))
+
 ## 1.0.0 (2026-05-03)
 
 ### ⚠ BREAKING CHANGES
