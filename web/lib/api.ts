@@ -113,9 +113,36 @@ export const api = {
     delete: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}`, { method: 'DELETE' }, token),
     recover: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}/recover`, { method: 'POST' }, token),
     permanentlyDelete: (id: number, token?: string) => fetchApi(`/api/vinyls/${id}/permanent`, { method: 'DELETE' }, token),
+    exportCsv: async (token?: string) => {
+      const headers: Record<string, string> = {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      }
+      const response = await fetch(`${API_URL}/api/vinyls/export`, { headers })
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`)
+      return response.blob()
+    },
+    importCsv: async (csvText: string, token?: string) => {
+      const file = new File([csvText], 'import.csv', { type: 'text/csv' })
+      const formData = new FormData()
+      formData.append('file', file)
+      const headers: Record<string, string> = {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      }
+      const response = await fetch(`${API_URL}/api/vinyls/import`, {
+        method: 'POST',
+        body: formData,
+        headers,
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Import failed: ${response.status} - ${errorText}`)
+      }
+      return response.json()
+    },
   },
   collection: {
     getStats: (token?: string) => fetchApi('/api/collection/value', {}, token),
+    getValueHistory: (token?: string) => fetchApi('/api/collection/value/history', {}, token),
   },
   discogs: {
     search: (q: string, token?: string) => fetchApi(`/api/discogs/search?q=${encodeURIComponent(q)}`, {}, token),
