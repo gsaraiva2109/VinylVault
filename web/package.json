@@ -41,6 +41,11 @@
   "overrides": {
     "postcss": "^8.5.14"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
+  },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
     "@types/jest": "^30.0.0",
