@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
@@ -109,7 +111,6 @@ async fn try_cloud(
         "gemini" => {
             let key = keyring::get_api_key("gemini")
                 .ok_or("No Gemini API key configured. Open Settings → AI Provider.")?;
-            // Guard: use a safe default if the stored model looks like an OpenAI model
             let model = if settings.llm.cloud_model.starts_with("gemini") && !settings.llm.cloud_model.is_empty() {
                 settings.llm.cloud_model.as_str()
             } else {
@@ -118,10 +119,8 @@ async fn try_cloud(
             llm::call_gemini(image_data, &key, model, max_dim).await
         }
         _ => {
-            // default: openai
             let key = keyring::get_api_key("openai")
                 .ok_or("No OpenAI API key configured. Open Settings → AI Provider.")?;
-            // Guard: use a safe default if the stored model looks like a Gemini model
             let model = if settings.llm.cloud_model.starts_with("gemini") || settings.llm.cloud_model.is_empty() {
                 "gpt-4o"
             } else {
@@ -132,11 +131,46 @@ async fn try_cloud(
     }
 }
 
+// ── Cascade runner ───────────────────────────────────────────────────────────
+
+async fn run_recognition_cascade<F, Fut>(
+    app: &AppHandle,
+    image_data: &[u8],
+    provider: &str,
+    ollama_model: &str,
+    local_max_dim: u32,
+    settings: &crate::commands::settings::AppSettings,
+    fallback: F,
+) -> Result<RecognitionResult, String>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<RecognitionResult, String>>,
+{
+    let result = match provider {
+        "local" => try_ollama(image_data, ollama_model, local_max_dim).await,
+        "cloud" => try_cloud(image_data, settings).await,
+        _ => {
+            if let Ok(r) = try_ollama(image_data, ollama_model, local_max_dim).await {
+                cache::store(app, image_data, &r);
+                return Ok(r);
+            }
+            if let Ok(r) = try_cloud(image_data, settings).await {
+                cache::store(app, image_data, &r);
+                return Ok(r);
+            }
+            fallback().await
+        }
+    };
+    if let Ok(ref r) = result {
+        cache::store(app, image_data, r);
+    }
+    result
+}
+
 // ── Tauri command: recognize ─────────────────────────────────────────────────
 
 #[tauri::command]
 pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Option<String>) -> Result<RecognitionResult, String> {
-    // ── Cache check — skip LLM entirely for recently-seen covers ─────────────
     if let Some(cached) = cache::lookup(&app, &image_data) {
         return Ok(cached);
     }
@@ -148,7 +182,6 @@ pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Opti
     let ollama_model   = settings.llm.ollama_model.clone();
     let local_max_dim  = settings.llm.local_max_dim;
 
-    // Guard: check that at least one AI provider is actually configured
     let has_ollama = !ollama_model.is_empty();
     let has_cloud = match settings.llm.cloud_provider.as_str() {
         "gemini" => keyring::get_api_key("gemini").is_some(),
@@ -157,7 +190,7 @@ pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Opti
     let any_ai_available = match provider.as_str() {
         "local" => has_ollama,
         "cloud" => has_cloud,
-        _ => has_ollama || has_cloud, // "auto"
+        _ => has_ollama || has_cloud,
     };
     if !any_ai_available {
         let msg = match provider.as_str() {
@@ -170,48 +203,17 @@ pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Opti
 
     #[cfg(target_os = "macos")]
     {
-        let result = match provider.as_str() {
-            // Explicit provider choices: return the result directly (success or error).
-            "local" => try_ollama(&image_data, &ollama_model, local_max_dim).await,
-            "cloud" => try_cloud(&image_data, &settings).await,
-            // "auto": try everything in order, Vision OCR as last resort
-            _ => {
-                if let Ok(r) = try_ollama(&image_data, &ollama_model, local_max_dim).await {
-                    cache::store(&app, &image_data, &r);
-                    return Ok(r);
-                }
-                if let Ok(r) = try_cloud(&image_data, &settings).await {
-                    cache::store(&app, &image_data, &r);
-                    return Ok(r);
-                }
-                platform_ocr_fallback(&image_data)
-            }
-        };
-        if let Ok(ref r) = result { cache::store(&app, &image_data, r); }
-        result
+        run_recognition_cascade(
+            &app, &image_data, &provider, &ollama_model, local_max_dim, &settings,
+            || async { platform_ocr_fallback(&image_data) },
+        ).await
     }
     #[cfg(target_os = "linux")]
     {
-        let result = match provider.as_str() {
-            // Explicit provider choices: return the result directly (success or error).
-            // Do NOT fall back to OCR sidecar — that would hide the real failure reason.
-            "local" => try_ollama(&image_data, &ollama_model, local_max_dim).await,
-            "cloud" => try_cloud(&image_data, &settings).await,
-            // "auto": try everything in order, OCR sidecar as last resort
-            _ => {
-                if let Ok(r) = try_ollama(&image_data, &ollama_model, local_max_dim).await {
-                    cache::store(&app, &image_data, &r);
-                    return Ok(r);
-                }
-                if let Ok(r) = try_cloud(&image_data, &settings).await {
-                    cache::store(&app, &image_data, &r);
-                    return Ok(r);
-                }
-                platform_ocr_fallback(&image_data).await
-            }
-        };
-        if let Ok(ref r) = result { cache::store(&app, &image_data, r); }
-        result
+        run_recognition_cascade(
+            &app, &image_data, &provider, &ollama_model, local_max_dim, &settings,
+            || platform_ocr_fallback(&image_data),
+        ).await
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {

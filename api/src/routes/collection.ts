@@ -1,6 +1,9 @@
 import { Router } from 'express'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'collection' })
 
 // Any future write endpoints in this router must use the requireWriteAccess middleware
 // (see api/src/middleware/requireWriteAccess.ts), as enforced in vinyls.ts and discogs.ts.
@@ -37,7 +40,7 @@ router.get('/value', async (_req, res) => {
 
     res.json({ total, count: vinyls.length, byGenre, byFormat })
   } catch (err) {
-    console.error('[collection] GET /value error:', err)
+    log.error({ err }, 'GET /value error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })

@@ -10,9 +10,14 @@ import { authMiddleware } from './middleware/auth'
 import vinylsRouter from './routes/vinyls'
 import collectionRouter from './routes/collection'
 import discogsRouter from './routes/discogs'
+import spotifyRouter from './routes/spotify'
 import { refreshStalePrices } from './services/discogs'
 import { setupSwagger } from './swagger'
 import { addClient, removeClient } from './sse/broadcaster'
+import { logger } from './logger'
+import { requestIdMiddleware } from './middleware/request-id'
+
+const log = logger.child({ module: 'server' })
 
 // Validate required env vars before starting
 const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
@@ -20,7 +25,7 @@ if (AUTH_ENABLED) {
   const required = ['AUTHENTIK_JWKS_URL', 'AUTHENTIK_ISSUER'] as const
   for (const key of required) {
     if (!process.env[key]) {
-      console.error(`[server] Missing required env var: ${key}`)
+      log.error(`Missing required env var: ${key}`)
       process.exit(1)
     }
   }
@@ -37,6 +42,7 @@ app.use(cors({
 }))
 
 app.use(express.json({ limit: '1mb' }))
+app.use(requestIdMiddleware)
 
 // Health check (no auth)
 app.get('/', (_req, res) => res.json({ service: 'vinyl-vault-api', status: 'ok' }))
@@ -47,6 +53,7 @@ app.use('/api', authMiddleware)
 app.use('/api/vinyls', vinylsRouter)
 app.use('/api/collection', collectionRouter)
 app.use('/api/discogs', discogsRouter)
+app.use('/api/spotify', spotifyRouter)
 
 // Server-Sent Events endpoint for real-time collection sync
 app.get('/api/events', (req, res) => {
@@ -72,29 +79,32 @@ app.get('/api/events', (req, res) => {
 // Daily price refresh cron (3am) — only runs when DISCOGS_TOKEN is set
 cron.schedule('0 3 * * *', () => {
   if (!process.env.DISCOGS_TOKEN) return
-  console.log('[cron] starting nightly Discogs price refresh…')
-  refreshStalePrices().catch((err) => console.error('[cron] price refresh error:', err))
+  log.info('starting nightly Discogs price refresh')
+  refreshStalePrices().catch((err) => log.error({ err }, 'cron price refresh error'))
 })
 
 async function main() {
-  // Run migrations before accepting traffic — exit hard on failure so the
-  // container restarts rather than serving requests against a stale schema.
-  const migrationClient = postgres(process.env.DATABASE_URL!)
+  if (!process.env.DATABASE_URL) {
+    log.fatal('DATABASE_URL environment variable is required')
+    process.exit(1)
+  }
+
+  const migrationClient = postgres(process.env.DATABASE_URL)
   try {
-    console.log('[migrate] running migrations…')
+    log.info('running migrations')
     await migrate(drizzle(migrationClient), {
       migrationsFolder: join(__dirname, '../drizzle'),
     })
-    console.log('[migrate] done')
+    log.info('migrations done')
   } catch (err) {
-    console.error('[migrate] failed:', err)
+    log.error({ err }, 'migration failed')
     process.exit(1)
   } finally {
     await migrationClient.end()
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[server] listening on http://0.0.0.0:${PORT}`)
+    log.info({ port: PORT }, 'listening')
   })
 }
 

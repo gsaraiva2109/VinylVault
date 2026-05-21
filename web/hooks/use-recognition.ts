@@ -94,36 +94,13 @@ export function useRecognition(onScanError?: (message: string, provider?: string
             } catch { /* no match or keys not configured — skip */ }
           }
         } else if (!isDemoRef.current) {
-          // Web path: obtain one token, then search per candidate.
-          // Demo users on web are blocked here so they can't drain the
-          // owner's NEXT_PUBLIC_SPOTIFY_* build-time credentials.
-          const spotifyClientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
-          const spotifyClientSecret = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET
-          if (spotifyClientId && spotifyClientSecret) {
-            const tokenResp = await fetch("https://accounts.spotify.com/api/token", {
-              method: "POST",
-              headers: {
-                Authorization: `Basic ${btoa(`${spotifyClientId}:${spotifyClientSecret}`)}`,
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body: "grant_type=client_credentials",
-            })
-            const tokenData = await tokenResp.json() as { access_token?: string }
-            const access_token = tokenData.access_token
-            if (access_token) {
-              for (let i = 0; i < candidates.length; i++) {
-                try {
-                  const q = encodeURIComponent(`${candidates[i].artist} ${candidates[i].title}`.trim())
-                  const searchResp = await fetch(
-                    `https://api.spotify.com/v1/search?q=${q}&type=album&limit=1`,
-                    { headers: { Authorization: `Bearer ${access_token}` } }
-                  )
-                  const data = await searchResp.json() as { albums?: { items: { id: string }[] } }
-                  const albumId = data.albums?.items?.[0]?.id
-                  if (albumId) candidates[i] = { ...candidates[i], spotify: { albumId } }
-                } catch { /* individual candidate enrichment failed — skip */ }
-              }
-            }
+          // Web path: proxy through backend API (keeps Spotify secrets server-side)
+          for (let i = 0; i < candidates.length; i++) {
+            try {
+              const q = `${candidates[i].artist} ${candidates[i].title}`.trim()
+              const result = await api.spotify.search(q) as { albumId: string | null }
+              if (result?.albumId) candidates[i] = { ...candidates[i], spotify: { albumId: result.albumId } }
+            } catch { /* individual candidate enrichment failed — skip */ }
           }
         }
       } catch { /* Spotify not configured or no match — skip silently */ }

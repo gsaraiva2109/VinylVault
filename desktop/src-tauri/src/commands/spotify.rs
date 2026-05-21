@@ -1,6 +1,11 @@
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use serde::{Deserialize, Serialize};
 
 use crate::commands::keyring;
+
+static TOKEN_CACHE: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
 #[derive(Serialize)]
 pub struct SpotifySearchResult {
@@ -44,16 +49,17 @@ struct SpotifySearchResponse {
     albums: Option<SpotifyAlbums>,
 }
 
-#[tauri::command]
-pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
-    let client_id = keyring::get_api_key("spotify-client-id")
-        .ok_or("Spotify client ID not configured. Use save_api_key('spotify-client-id', '...') to set it.")?;
-    let client_secret = keyring::get_api_key("spotify-client-secret")
-        .ok_or("Spotify client secret not configured. Use save_api_key('spotify-client-secret', '...') to set it.")?;
+async fn get_access_token(client_id: &str, client_secret: &str) -> Result<String, String> {
+    {
+        let cache = TOKEN_CACHE.lock().unwrap();
+        if let Some((token, expires)) = cache.as_ref() {
+            if *expires > Instant::now() + Duration::from_secs(60) {
+                return Ok(token.clone());
+            }
+        }
+    }
 
     let client = reqwest::Client::new();
-
-    // Step 1: Get access token via client credentials
     use base64::{engine::general_purpose::STANDARD, Engine};
     let credentials = STANDARD.encode(format!("{}:{}", client_id, client_secret));
 
@@ -69,7 +75,26 @@ pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
         .await
         .map_err(|_| "Failed to authenticate with Spotify")?;
 
-    // Step 2: Search for the album
+    let expires = Instant::now() + Duration::from_secs(3600);
+    {
+        let mut cache = TOKEN_CACHE.lock().unwrap();
+        *cache = Some((token_resp.access_token.clone(), expires));
+    }
+
+    Ok(token_resp.access_token)
+}
+
+#[tauri::command]
+pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
+    let client_id = keyring::get_api_key("spotify-client-id")
+        .ok_or("Spotify client ID not configured. Use save_api_key('spotify-client-id', '...') to set it.")?;
+    let client_secret = keyring::get_api_key("spotify-client-secret")
+        .ok_or("Spotify client secret not configured. Use save_api_key('spotify-client-secret', '...') to set it.")?;
+
+    let access_token = get_access_token(&client_id, &client_secret).await?;
+
+    let client = reqwest::Client::new();
+
     let search_url = format!(
         "https://api.spotify.com/v1/search?q={}&type=album&limit=1",
         urlencoding::encode(&q)
@@ -77,7 +102,7 @@ pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
 
     let search_resp: SpotifySearchResponse = client
         .get(&search_url)
-        .header("Authorization", format!("Bearer {}", token_resp.access_token))
+        .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await
         .map_err(|e| e.to_string())?

@@ -129,5 +129,9 @@ export const api = {
       return null
     },
     refreshPrices: (token?: string) => fetchApi('/api/discogs/refresh-prices', { method: 'POST' }, token),
-  }
+  },
+  spotify: {
+    search: (q: string, token?: string) =>
+      fetchApi('/api/spotify/search', { method: 'POST', body: JSON.stringify({ q }) }, token),
+  },
 }

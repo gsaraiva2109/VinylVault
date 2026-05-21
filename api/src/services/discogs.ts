@@ -1,6 +1,9 @@
 import https from 'https'
 import { eq, and, isNull, isNotNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'discogs-service' })
 
 /** Maps our condition codes to Discogs price_suggestions response keys */
 const CONDITION_KEY_MAP: Record<string, string> = {
@@ -53,7 +56,7 @@ export async function discogsGet(path: string, retries = 3): Promise<unknown> {
     const { status, body } = await discogsGetOnce(path)
     if (status === 429) {
       const backoffMs = Math.pow(2, attempt) * 2000
-      console.warn(`[discogs] rate limited (429), backing off ${backoffMs}ms`)
+      log.warn(`rate limited (429), backing off ${backoffMs}ms`)
       await sleep(backoffMs)
       continue
     }
@@ -118,7 +121,7 @@ export async function refreshStalePrices(
 
       updated++
     } catch (err) {
-      console.error(`[discogs] price refresh failed for vinyl ${vinyl.id} (${vinyl.discogsId}): ${err}`)
+      log.error({ err }, `price refresh failed for vinyl ${vinyl.id} (${vinyl.discogsId})`)
       errors++
     }
 
@@ -126,6 +129,6 @@ export async function refreshStalePrices(
     await sleep(1100)
   }
 
-  console.log(`[discogs] price refresh complete — updated: ${updated}, errors: ${errors}`)
+  log.info({ updated, errors }, 'price refresh complete')
   return { updated, errors }
 }

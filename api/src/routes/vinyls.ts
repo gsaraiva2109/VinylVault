@@ -3,6 +3,9 @@ import { eq, and } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { broadcast } from '../sse/broadcaster'
 import { requireWriteAccess } from '../middleware/requireWriteAccess'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'vinyls' })
 
 const router = Router()
 
@@ -79,7 +82,7 @@ router.get('/', async (_req, res) => {
       .where(eq(schema.vinyls.isDeleted, false))
     res.json(rows)
   } catch (err) {
-    console.error('[vinyls] GET / error:', err)
+    log.error({ err }, 'GET / error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -105,7 +108,7 @@ router.get('/trash', async (_req, res) => {
       .where(eq(schema.vinyls.isDeleted, true))
     res.json(rows)
   } catch (err) {
-    console.error('[vinyls] GET /trash error:', err)
+    log.error({ err }, 'GET /trash error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -141,7 +144,7 @@ router.get('/:id', async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Not found' })
     res.json(row)
   } catch (err) {
-    console.error('[vinyls] GET /:id error:', err)
+    log.error({ err }, 'GET /:id error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -233,7 +236,7 @@ router.post('/', requireWriteAccess, async (req, res) => {
       }
       return res.status(409).json({ error: 'This record is already in your collection' })
     }
-    console.error('[vinyls] POST / error:', err)
+    log.error({ err }, 'POST / error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -291,7 +294,7 @@ router.patch('/:id', requireWriteAccess, async (req, res) => {
     broadcast('vinyl.updated', updated)
     res.json(updated)
   } catch (err) {
-    console.error('[vinyls] PATCH /:id error:', err)
+    log.error({ err }, 'PATCH /:id error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -328,7 +331,7 @@ router.delete('/:id', requireWriteAccess, async (req, res) => {
     broadcast('vinyl.deleted', updated)
     res.json(updated)
   } catch (err) {
-    console.error('[vinyls] DELETE /:id error:', err)
+    log.error({ err }, 'DELETE /:id error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -366,7 +369,7 @@ router.post('/:id/recover', requireWriteAccess, async (req, res) => {
     broadcast('vinyl.recovered', recovered)
     res.json(recovered)
   } catch (err) {
-    console.error('[vinyls] POST /:id/recover error:', err)
+    log.error({ err }, 'POST /:id/recover error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -399,7 +402,7 @@ router.delete('/:id/permanent', requireWriteAccess, async (req, res) => {
     broadcast('vinyl.permanentlyDeleted', { id })
     res.status(204).end()
   } catch (err) {
-    console.error('[vinyls] DELETE /:id/permanent error:', err)
+    log.error({ err }, 'DELETE /:id/permanent error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })

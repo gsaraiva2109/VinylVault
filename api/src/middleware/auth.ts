@@ -1,5 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'auth' })
 
 const AUTHENTIK_JWKS_URL = process.env.AUTHENTIK_JWKS_URL
 const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
@@ -79,7 +82,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   const keyset = getJwks()
 
   if (!keyset) {
-    console.error('[auth] AUTHENTIK_JWKS_URL not set but AUTH_ENABLED=true — rejecting request')
+    log.error('AUTHENTIK_JWKS_URL not set but AUTH_ENABLED=true — rejecting request')
     return res.status(500).json({ error: 'Internal server error' })
   }
 
@@ -90,8 +93,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     const groups = normalizeGroups((payload as Record<string, unknown>).groups)
     if (groups.length === 0 && !warnedNoGroupsClaim) {
-      console.warn(
-        '[auth] JWT contains no `groups` claim — verify that the Authentik scope mapping is attached to the provider. Demo-user enforcement requires it.'
+      log.warn(
+        'JWT contains no `groups` claim — verify that the Authentik scope mapping is attached to the provider. Demo-user enforcement requires it.'
       )
       warnedNoGroupsClaim = true
     }
@@ -107,7 +110,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     next()
   } catch (err) {
-    console.error('[auth] verification failed:', err)
+    log.error({ err }, 'JWT verification failed')
     return res.status(401).json({ error: 'Invalid or expired token' })
   }
 }

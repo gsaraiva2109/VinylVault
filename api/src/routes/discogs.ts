@@ -2,6 +2,9 @@ import { Router } from 'express'
 import { discogsGet, refreshStalePrices } from '../services/discogs'
 import { requireWriteAccess } from '../middleware/requireWriteAccess'
 import { priceRefreshCooldown } from '../middleware/refreshCooldown'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'discogs' })
 
 const router = Router()
 
@@ -45,7 +48,7 @@ router.get('/search', async (req, res) => {
 
     res.json(results)
   } catch (err) {
-    console.error('[discogs] GET /search error:', err)
+    log.error({ err }, 'GET /search error')
     res.status(502).json({ error: 'Upstream service error' })
   }
 })
@@ -89,7 +92,7 @@ router.get('/release/:id', async (req, res) => {
       lowestPrice: stats.lowest_price?.value ?? data.lowest_price ?? null
     })
   } catch (err) {
-    console.error('[discogs] GET /release/:id error:', err)
+    log.error({ err }, 'GET /release/:id error')
     res.status(502).json({ error: 'Upstream service error' })
   }
 })
@@ -123,7 +126,7 @@ router.post('/refresh-prices', requireWriteAccess, priceRefreshCooldown, async (
   res.json({ message: `Price refresh started (stale threshold: ${hours}h)` })
 
   refreshStalePrices(stalePeriodMs).catch((err) =>
-    console.error('[discogs] refresh-prices error:', err)
+    log.error({ err }, 'refresh-prices error')
   )
 })
 
