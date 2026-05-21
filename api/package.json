@@ -1,6 +1,6 @@
 {
   "name": "vinyl-vault-backend",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "VinylVault homelab backend API",
   "main": "dist/server.js",
   "scripts": {
@@ -28,10 +28,12 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "csv-parse": "^5.6.0",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.2",
     "express": "^4.22.1",
     "jose": "^5.10.0",
+    "multer": "^1.4.5-lts.2",
     "node-cron": "^3.0.3",
     "pino": "^9.0.0",
     "postgres": "^3.4.9",
@@ -45,6 +47,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.25",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^1.4.12",
     "@types/node": "^22.19.17",
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^7.2.0",

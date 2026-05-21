@@ -40,7 +40,7 @@ function pickMutable(body: Record<string, unknown>): Record<string, unknown> {
 const STRING_FIELD_MAX_LENGTH = 1000
 const NOTES_MAX_LENGTH = 5000
 
-function validateStringFields(body: Record<string, unknown>): string | null {
+export function validateStringFields(body: Record<string, unknown>): string | null {
   const shortFields = ['title', 'artist', 'label', 'genre', 'format', 'condition', 'coverImageUrl', 'discogsUrl', 'spotifyUrl', 'conditionNotes'] as const
   for (const field of shortFields) {
     const val = body[field]
@@ -54,7 +54,7 @@ function validateStringFields(body: Record<string, unknown>): string | null {
   return null
 }
 
-function validateCondition(condition: unknown): string | null {
+export function validateCondition(condition: unknown): string | null {
   if (condition === null || condition === undefined) return null
   if (typeof condition !== 'string' || !(VALID_CONDITIONS as readonly string[]).includes(condition)) {
     return `condition must be one of: ${VALID_CONDITIONS.join(', ')}`
