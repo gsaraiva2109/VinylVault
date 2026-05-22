@@ -1,6 +1,5 @@
 import NextAuth, { NextAuthOptions, DefaultSession } from "next-auth";
 import { JWT } from "next-auth/jwt";
-import AuthentikProvider from "next-auth/providers/authentik";
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
@@ -20,19 +19,30 @@ declare module "next-auth/jwt" {
   }
 }
 
+async function getTokenEndpoint(issuer: string): Promise<string> {
+  try {
+    const discoveryUrl = `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
+    const res = await fetch(discoveryUrl);
+    if (res.ok) {
+      const config = await res.json();
+      return config.token_endpoint;
+    }
+  } catch { /* discovery failed, fall back to constructing URL */ }
+
+  // Fallback: construct token endpoint from issuer (Authentik pattern)
+  return new URL(issuer).origin + "/application/o/token/";
+}
+
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
-    // Authentik token endpoint: derive from issuer
-    // e.g. https://auth.example.com/application/o/my-app/ → https://auth.example.com/application/o/token/
-    const tokenEndpoint =
-      new URL(process.env.AUTHENTIK_ISSUER!).origin + "/application/o/token/";
+    const tokenEndpoint = await getTokenEndpoint(process.env.OIDC_ISSUER!);
 
     const res = await fetch(tokenEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: process.env.AUTHENTIK_CLIENT_ID!,
-        client_secret: process.env.AUTHENTIK_CLIENT_SECRET!,
+        client_id: process.env.OIDC_CLIENT_ID!,
+        client_secret: process.env.OIDC_CLIENT_SECRET!,
         grant_type: "refresh_token",
         refresh_token: token.refreshToken!,
       }),
@@ -56,12 +66,33 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    AuthentikProvider({
-      clientId: process.env.AUTHENTIK_CLIENT_ID!,
-      clientSecret: process.env.AUTHENTIK_CLIENT_SECRET!,
-      issuer: process.env.AUTHENTIK_ISSUER!,
-    }),
+    {
+      id: "oidc",
+      name: "OIDC",
+      type: "oauth",
+      clientId: process.env.OIDC_CLIENT_ID!,
+      clientSecret: process.env.OIDC_CLIENT_SECRET!,
+      wellKnown: `${process.env.OIDC_ISSUER!}/.well-known/openid-configuration`,
+      authorization: { params: { scope: "openid email profile" } },
+      checks: ["pkce", "state"],
+      client: {
+        token_endpoint_auth_method: "client_secret_post",
+      },
+      idToken: true,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name ?? profile.preferred_username,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
+    },
   ],
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
   session: {
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 60 * 60, // re-issue session cookie every hour

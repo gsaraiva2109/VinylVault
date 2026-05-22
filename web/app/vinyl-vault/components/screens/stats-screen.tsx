@@ -3,6 +3,7 @@
 import { useVinylVault } from "../../context"
 import { getCollectionStats } from "../../data"
 import { ConditionBadge } from "../condition-badge"
+import { ValueTrendChart } from "../value-trend-chart"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { useState } from "react"
 import { api } from "@/lib/api"
@@ -101,6 +102,11 @@ export function StatsScreen() {
             value={Object.keys(stats.byDecade).length.toString()}
             sub="Decades represented"
           />
+        </div>
+
+        {/* Collection Value Trend */}
+        <div className="mt-5">
+          <ValueTrendChart />
         </div>
 
         {/* Genre + Decade */}

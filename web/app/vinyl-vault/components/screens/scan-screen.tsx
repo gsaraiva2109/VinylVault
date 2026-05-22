@@ -17,7 +17,6 @@ import {
   Plus,
   ExternalLink,
   Sparkles,
-  MonitorDown,
   Check,
   Disc3,
   CloudLightning,
@@ -27,6 +26,8 @@ import {
 import type { VinylRecord } from "../../types"
 import { VinylCard } from "@/components/ui/vinyl-card"
 import { useCameraContext } from "../../context/camera-context"
+import { getRecognitionTransport } from "@/lib/recognition-transport"
+import { isTauri } from "@/lib/utils"
 
 export function ScanScreen() {
   const { addScanError } = useVinylVault()
@@ -41,25 +42,34 @@ export function ScanScreen() {
   const [cloudMaxDim, setCloudMaxDim] = useState(1024)
   const capturedBufferRef = useRef<ArrayBuffer | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const desktop = isTauri()
 
   // Read AI provider settings + cloud key status on mount
   useEffect(() => {
     async function loadAiConfig() {
       try {
-        const { invoke } = await import("@tauri-apps/api/core")
-        const settings = await invoke<{
-          llm: { provider: string; cloudProvider: string; localMaxDim?: number; cloudMaxDim?: number }
-        }>("read_settings")
-        setAiProvider(settings.llm.provider as "auto" | "local" | "cloud")
-        setLocalMaxDim(settings.llm.localMaxDim ?? 512)
-        setCloudMaxDim(settings.llm.cloudMaxDim ?? 1024)
-        const cloudKey = settings.llm.cloudProvider === "gemini" ? "gemini" : "openai"
-        const isSet = await invoke<boolean>("check_api_key", { provider: cloudKey })
-        setCloudConfigured(isSet)
-      } catch { /* not in Tauri context */ }
+        const transport = getRecognitionTransport()
+        if (desktop && transport.readSettings) {
+          const settings = await transport.readSettings()
+          setAiProvider(settings.llm.provider as "auto" | "local" | "cloud")
+          setLocalMaxDim(settings.llm.localMaxDim ?? 512)
+          setCloudMaxDim(settings.llm.cloudMaxDim ?? 1024)
+          const cloudKey = settings.llm.cloudProvider === "gemini" ? "gemini" : "openai"
+          const isSet = await transport.checkKeyConfigured(cloudKey)
+          setCloudConfigured(isSet)
+        } else {
+          // Web: always cloud, check both providers
+          setAiProvider("cloud")
+          const [openaiSet, geminiSet] = await Promise.all([
+            transport.checkKeyConfigured("openai"),
+            transport.checkKeyConfigured("gemini"),
+          ])
+          setCloudConfigured(openaiSet || geminiSet)
+        }
+      } catch { /* defaults */ }
     }
     loadAiConfig()
-  }, [])
+  }, [desktop])
 
   // Reset cloud-retry flag when scan resolves (error or success)
   useEffect(() => {
@@ -84,21 +94,18 @@ export function ScanScreen() {
     if (type === "local") setLocalMaxDim(dim)
     else setCloudMaxDim(dim)
     try {
-      const { invoke } = await import("@tauri-apps/api/core")
-      const current = await invoke<{
-        ocr: { enabled: boolean; threshold: number }
-        llm: { provider: string; ollamaModel: string; cloudProvider: string; cloudModel: string; localMaxDim?: number; cloudMaxDim?: number }
-      }>("read_settings")
-      await invoke("write_settings", {
-        settings: {
+      const transport = getRecognitionTransport()
+      if (transport.readSettings && transport.writeSettings) {
+        const current = await transport.readSettings()
+        await transport.writeSettings({
           ...current,
           llm: {
             ...current.llm,
             localMaxDim: type === "local" ? dim : (current.llm.localMaxDim ?? 512),
             cloudMaxDim: type === "cloud" ? dim : (current.llm.cloudMaxDim ?? 1024),
           },
-        },
-      })
+        })
+      }
     } catch { /* ignore */ }
   }, [])
 
@@ -172,15 +179,6 @@ export function ScanScreen() {
 
 
   if (canUseCamera === null) return null
-
-  if (!canUseCamera) {
-    return (
-      <>
-        <WebEmptyState onManualAdd={() => setManualAddOpen(true)} />
-        {manualAddOpen && <ManualAddModal onClose={() => setManualAddOpen(false)} />}
-      </>
-    )
-  }
 
   const isScanning = scanState.status === "scanning" || scanState.status === "selecting"
 
@@ -411,53 +409,6 @@ export function ScanScreen() {
           50% { top: 92%; }
         }
       `}</style>
-    </div>
-  )
-}
-
-// ── Web-only empty state ──────────────────────────────────────────────────────
-
-function WebEmptyState({ onManualAdd }: { onManualAdd: () => void }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-      <div
-        className="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl"
-        style={{ background: "rgba(255,255,255,0.05)" }}
-      >
-        <MonitorDown className="h-10 w-10 text-white/30" />
-      </div>
-      <h2 className="text-2xl font-bold text-white/90">Desktop App Required</h2>
-      <p className="mt-4 max-w-sm text-sm text-white/40">
-        The AI Vinyl Scanner relies on local CPU and GPU processing to run vision models for album
-        art recognition. Because you are on the web version, this feature is disabled.
-      </p>
-      <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
-        <a
-          href="https://github.com/gsaraiva2109/VinylVault/releases"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-semibold transition-colors cursor-pointer"
-          style={{ background: "#28d768", color: "#0a0a0a" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#22c55e")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#28d768")}
-        >
-          <MonitorDown className="h-4 w-4" />
-          Download Desktop App
-        </a>
-        <button
-          onClick={onManualAdd}
-          className="flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium transition-colors cursor-pointer"
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: "rgba(255,255,255,0.55)",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.85)")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}
-        >
-          <Plus className="h-4 w-4" />
-          Add Record Manually
-        </button>
-      </div>
     </div>
   )
 }

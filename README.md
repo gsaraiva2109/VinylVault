@@ -1,15 +1,83 @@
 # VinylVault
 
-A self-hosted app for cataloging vinyl record collections with OCR-powered recognition, Discogs metadata, and collection value tracking.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
-Built as a personal project for two people sharing one collection across two machines — an Arch Linux desktop and a MacBook Air M1. Runs entirely on a homelab; no external services required beyond Discogs.
+A self-hosted app for cataloging vinyl record collections with AI-powered recognition, Discogs metadata, and collection value tracking.
 
-## How it works
+Built for two people sharing one collection across multiple devices — an Arch Linux desktop and a MacBook Air M1. Runs entirely on a homelab; no external services required beyond Discogs.
 
-- Scan a vinyl cover → OCR extracts text → Discogs search returns metadata and pricing
-- Linux uses Ollama/Cloud LLMs (with a future Rust native OCR planned); macOS uses native Vision.framework
-- Collection stored in PostgreSQL on the homelab, accessible from any device
-- Available as a web app (browser) and a native desktop app (Tauri v2)
+## Features
+
+- **AI Vinyl Recognition** — Point camera at a record cover, AI identifies artist and album
+- **Browser + Desktop** — Works in any browser (cloud AI) or as a native app (local + cloud AI cascade)
+- **Discogs Integration** — Automatic metadata, cover art, and marketplace pricing
+- **Collection Value Tracking** — Nightly price updates from Discogs marketplace
+- **Spotify Links** — Quick "Open in Spotify" for each record
+- **Generic OIDC Auth** — Works with Authentik, Keycloak, Auth0, Okta, or any OIDC provider
+- **Demo Mode** — Read-only access for friends (controlled by OIDC groups)
+
+## Browser vs Desktop
+
+| Feature | Browser | Desktop |
+|---------|---------|---------|
+| AI Recognition | Cloud only (OpenAI/Gemini, bring your own key) | Local (Ollama) + Cloud cascade |
+| Camera | Built-in webcam | Built-in webcam |
+| Auth | OIDC via NextAuth | OIDC via system browser + PKCE |
+| Platform | Any modern browser | Linux (AppImage) / macOS (.dmg) |
+| API Keys | Encrypted server-side | OS keyring |
+
+## Quick Start
+
+### Docker Compose
+
+```bash
+git clone https://github.com/gsaraiva2109/vinylvault.git
+cd vinylvault
+cp .env.example .env
+# edit .env with your values
+docker compose up -d
+```
+
+Open `http://localhost:3000`.
+
+### Manual Setup
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
+
+## Configuration
+
+### Required Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_PASSWORD` | PostgreSQL password |
+| `OIDC_ISSUER` | OIDC provider issuer URL |
+| `OIDC_CLIENT_ID` | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | OIDC client secret |
+| `NEXTAUTH_URL` | Frontend URL (e.g. `https://vinyl.yourdomain.com`) |
+| `NEXTAUTH_SECRET` | NextAuth secret (`openssl rand -base64 32`) |
+
+### Optional Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_JWKS_URL` | Derived from issuer | Explicit JWKS endpoint |
+| `DISCOGS_TOKEN` | — | Discogs personal access token (enables marketplace pricing) |
+| `ALLOWED_ORIGINS` | — | Comma-separated CORS origins |
+| `ENCRYPTION_KEY` | — | 64-char hex for AES-256-GCM key encryption (generate: `openssl rand -hex 32`) |
+| `AUTH_ENABLED` | `true` | Set to `false` to disable auth |
+| `DEV_AUTH_TOKEN` | — | Bearer token for dev mode bypass |
+| `NEXT_PUBLIC_DEMO_GROUP_NAME` | `demo-users` | OIDC group name for demo/read-only users |
+
+## OIDC Setup
+
+Vinyl Vault works with any OIDC-compliant identity provider. See [docs/oidc-providers.md](docs/oidc-providers.md) for setup guides:
+
+- [Authentik](docs/oidc-providers.md#authentik)
+- [Keycloak](docs/oidc-providers.md#keycloak)
+- [Auth0](docs/oidc-providers.md#auth0)
+- [Okta](docs/oidc-providers.md#okta)
 
 ## Stack
 
@@ -17,187 +85,33 @@ Built as a personal project for two people sharing one collection across two mac
 |---|---|
 | Frontend | Next.js 15, React 19, Tailwind CSS |
 | Backend API | Node.js, Express, TypeScript, Drizzle ORM |
-| Database | PostgreSQL 16 (Docker, internal network only) |
-| Auth | Authentik OIDC (system browser flow via Tauri) |
-| OCR — Linux | Ollama (Vision) / OpenAI / Gemini (with Rust fallback planned) |
-| OCR — macOS | Native Vision.framework via Rust FFI |
-| Desktop | Tauri v2 (bundles the Next.js frontend as a static export) |
-| Deployment | Docker Compose, Dokploy, Traefik |
+| Database | PostgreSQL 16 |
+| Auth | Generic OIDC (NextAuth + PKCE via Tauri) |
+| AI — Linux | Ollama (Vision) / OpenAI / Gemini |
+| AI — macOS | Native Vision.framework via Rust FFI |
+| Desktop | Tauri v2 (bundles the Next.js frontend as static export) |
 
-## Repository layout
-
-```
-desktop/
-  backend/            Node.js + Express + TypeScript API
-                      Drizzle ORM → PostgreSQL
-                      Migrations run on startup (no CI/CD DB access)
-  src-tauri/          Rust — Tauri v2 shell, OCR commands, OIDC auth
-
-web/
-                      Next.js 15 frontend
-                      Served as a Docker web app AND bundled into the Tauri binary
-```
-
-## Network diagram
+## Repository Layout
 
 ```
-Internet
-  └─► Traefik (HTTPS, Dokploy)
-        ├─► vinyl-vault-web  (Next.js :3000)   vinyl.gsaraiva.com.br
-        └─► vinyl-vault-api  (Express :3001)   api-vinyl.gsaraiva.com.br
-
-Docker internal network (never exposed)
-  └─► postgres :5432
-
-Tauri desktop app
-  └─► embeds the Next.js frontend as a static export (out/)
-      OCR commands call native Vision.framework (macOS) or external APIs (Linux)
-      Auth uses Authentik OIDC via the system browser
+api/                  Express backend, Drizzle ORM + PostgreSQL
+web/                  Next.js 15 frontend (SSR + static export for Tauri)
+desktop/              Tauri 2 shell with Rust backend
+  src-tauri/          Rust — auth, OCR, settings
+  sidecar/            Python sidecar utilities
+docs/                 Setup guides and documentation
+docker/               Docker build files
 ```
 
-## CI/CD Architecture
+## CI/CD
 
-VinylVault uses a **two-platform CI/CD** strategy:
+Vinyl Vault uses a two-platform CI/CD strategy:
 
 | Platform | Role |
 |---|---|
-| **Forgejo** (`git.gsaraiva.com.br`) | Primary remote. Runs quality gates, Docker image builds, Linux AppImage compilation. Mirrors to GitHub only after passing. |
-| **GitHub** | macOS builds only. `release-macos.yml` triggers on `v*` tags mirrored from Forgejo, compiles the `.dmg` using the macOS SDK (Vision.framework). |
-
-### Flow for a regular commit
-
-```
-git push → Forgejo
-  ├─ quality-gate    (lint, typecheck, cargo check)
-  ├─ docker builds   (vinyl-vault-api + vinyl-vault-web → GHCR)
-  ├─ AppImage build  (Linux Tauri)
-  └─ push-to-github  (mirrors main branch to GitHub — no GitHub CI triggered)
-```
-
-### Flow for a release tag (`v*`)
-
-```
-git push --tags → Forgejo
-  ├─ quality-gate
-  ├─ docker builds   (tagged: v1.2.3, latest)
-  ├─ AppImage build  (artifact stored on Forgejo)
-  └─ push-to-github  → mirrors tag to GitHub
-                           └─ GitHub: release-macos.yml
-                                └─ builds .dmg → GitHub Release
-```
-
-### Required Forgejo secrets & variables
-
-| Key | Type | Value |
-|---|---|---|
-| `MIRROR_TOKEN` | Secret | GitHub PAT with `repo` scope |
-| `GHCR_TOKEN` | Secret | GitHub PAT with `write:packages` scope |
-| `NEXT_PUBLIC_API_URL` | Secret | `https://api-vinyl.gsaraiva.com.br` |
-| `AUTHENTIK_ISSUER` | Secret | Your Authentik issuer URL |
-| `AUTHENTIK_CLIENT_ID` | Secret | Authentik client ID |
-| `AUTHENTIK_CLIENT_SECRET` | Secret | Authentik client secret |
-| `TAURI_SIGNING_PRIVATE_KEY` | Secret | Tauri updater signing key |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Secret | Signing key password |
-| `GHCR_OWNER` | Variable | `gsaraiva2109` |
-| `MIRROR_REPO` | Variable | `gsaraiva2109/vinylvault` |
-
-## How to push code
-
-```bash
-# Set Forgejo as your primary remote (if not already)
-git remote add origin https://git.gsaraiva.com.br/gsaraiva2109/vinylvault.git
-
-# Regular push — quality gate + Docker builds + Linux AppImage + mirror to GitHub
-git push origin main
-
-# Release — same as above, plus GitHub builds the macOS .dmg
-git tag v1.0.0 && git push origin v1.0.0
-```
-
-## Deployment
-
-### 1. Clone from Forgejo
-
-```bash
-git clone https://git.gsaraiva.com.br/gsaraiva2109/vinylvault.git
-cd vinylvault
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Fill in `.env` — see comments in the file. Key values:
-
-- `POSTGRES_PASSWORD` — pick a strong random password
-- `AUTHENTIK_*` — from your Authentik OAuth2/OIDC application
-- `DISCOGS_TOKEN` — from [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
-
-### 3. Set up Authentik
-
-Create an OAuth2/OIDC **Provider** and **Application** in Authentik:
-
-- **Application slug:** `vinyl-vault`
-- **Redirect URIs (desktop):** `http://127.0.0.1:49152/callback` (Tauri local server)
-- **Redirect URIs (web):** `https://vinyl.yourdomain.com/api/auth/callback`
-- **Signing key:** default RS256
-
-The JWKS URL and issuer will be:
-```
-https://auth.yourdomain.com/application/o/vinyl-vault/jwks/
-https://auth.yourdomain.com/application/o/vinyl-vault/
-```
-
-### 4. Deploy via Dokploy
-
-Create two **Compose** apps in Dokploy:
-- **API:** points to `api/docker-compose.yml`
-- **Web:** points to `web/docker-compose.yml`
-
-Dokploy picks up Traefik labels and provisions TLS via Let's Encrypt. Redeployment is triggered by Dokploy webhooks (configure the webhook URLs from Dokploy in your deployment pipeline).
-
-Database migrations run automatically on API container startup — no manual step required.
-
-### Or run locally
-
-```bash
-docker compose -f api/docker-compose.yml up -d
-```
-
-## Local Development
-
-### Backend
-
-```bash
-cd api
-npm install
-cp .env.example .env   # set DATABASE_URL to a local postgres
-npm run dev            # http://localhost:3001
-```
-
-### Frontend (web)
-
-```bash
-cd web
-pnpm install
-pnpm dev               # http://localhost:3000
-```
-
-Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `web/.env.local`.
-
-### Desktop (Tauri)
-
-```bash
-cd desktop
-pnpm install
-pnpm dev               # starts Tauri dev window (loads http://localhost:3000)
-```
-
-On macOS, Vision.framework is used natively. On Linux/Windows, ensure you have an AI provider configured (Ollama/OpenAI/Gemini).
+| **Forgejo** | Primary remote. Quality gates, Docker builds, Linux AppImage. |
+| **GitHub** | macOS builds only. Triggered on release tags. |
 
 ## License
 
-MIT
-
+MIT — see [LICENSE](LICENSE) for details.

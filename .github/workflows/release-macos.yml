@@ -68,9 +68,9 @@ jobs:
       - name: Build Tauri macOS .dmg
         working-directory: desktop
         env:
-          AUTHENTIK_ISSUER: ${{ secrets.AUTHENTIK_ISSUER }}
-          AUTHENTIK_CLIENT_ID: ${{ secrets.AUTHENTIK_CLIENT_ID }}
-          AUTHENTIK_CLIENT_SECRET: ${{ secrets.AUTHENTIK_CLIENT_SECRET }}
+          OIDC_ISSUER: ${{ secrets.OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}

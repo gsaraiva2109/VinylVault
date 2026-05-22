@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { useVinylVault } from "../../../context"
 import { SectionHeader, ToggleSetting } from "./shared-components"
 import { isTauri } from "@/lib/utils"
+import { getRecognitionTransport } from "@/lib/recognition-transport"
 
 export function IntegrationsSettings() {
   const { autoSkipEnabled, setAutoSkipEnabled } = useVinylVault()
@@ -39,38 +40,52 @@ export function IntegrationsSettings() {
   useEffect(() => {
     async function init() {
       try {
-        const { invoke } = await import("@tauri-apps/api/core")
-        const [openaiSet, geminiSet, spotifyIdSet, spotifySecretSet] = await Promise.all([
-          invoke<boolean>("check_api_key", { provider: "openai" }),
-          invoke<boolean>("check_api_key", { provider: "gemini" }),
-          invoke<boolean>("check_api_key", { provider: "spotify-client-id" }),
-          invoke<boolean>("check_api_key", { provider: "spotify-client-secret" }),
-        ])
-        setApiKeySet({ openai: openaiSet, gemini: geminiSet })
-        setSpotifyKeySet({ clientId: spotifyIdSet, clientSecret: spotifySecretSet })
+        const transport = getRecognitionTransport()
+        if (isOnDesktop) {
+          const { invoke } = await import("@tauri-apps/api/core")
+          const [openaiSet, geminiSet, spotifyIdSet, spotifySecretSet] = await Promise.all([
+            invoke<boolean>("check_api_key", { provider: "openai" }),
+            invoke<boolean>("check_api_key", { provider: "gemini" }),
+            invoke<boolean>("check_api_key", { provider: "spotify-client-id" }),
+            invoke<boolean>("check_api_key", { provider: "spotify-client-secret" }),
+          ])
+          setApiKeySet({ openai: openaiSet, gemini: geminiSet })
+          setSpotifyKeySet({ clientId: spotifyIdSet, clientSecret: spotifySecretSet })
 
-        // Silently check if Ollama is already running
-        const result = await invoke<{ models: string[]; error?: string }>("get_ollama_models")
-        if (result.models.length > 0) {
-          setOllamaStatus("connected")
+          // Silently check if Ollama is already running
+          const result = await invoke<{ models: string[]; error?: string }>("get_ollama_models")
+          if (result.models.length > 0) {
+            setOllamaStatus("connected")
+          }
+        } else {
+          // Web: check via API
+          const [openaiSet, geminiSet, spotifyIdSet, spotifySecretSet] = await Promise.all([
+            transport.checkKeyConfigured("openai"),
+            transport.checkKeyConfigured("gemini"),
+            transport.checkKeyConfigured("spotify-client-id"),
+            transport.checkKeyConfigured("spotify-client-secret"),
+          ])
+          setApiKeySet({ openai: openaiSet, gemini: geminiSet })
+          setSpotifyKeySet({ clientId: spotifyIdSet, clientSecret: spotifySecretSet })
         }
       } catch { /* not in Tauri context */ }
     }
     init()
-  }, [])
+  }, [isOnDesktop])
 
   const handleSaveApiKeys = async () => {
     setApiKeySaving(true)
     try {
-      const { invoke } = await import("@tauri-apps/api/core")
+      const transport = getRecognitionTransport()
       if (apiKeys.chatgpt) {
-        await invoke("save_api_key", { provider: "openai", key: apiKeys.chatgpt })
+        await transport.saveApiKey("openai", apiKeys.chatgpt)
         setApiKeySet((prev) => ({ ...prev, openai: true }))
       }
       if (apiKeys.gemini) {
-        await invoke("save_api_key", { provider: "gemini", key: apiKeys.gemini })
+        await transport.saveApiKey("gemini", apiKeys.gemini)
         setApiKeySet((prev) => ({ ...prev, gemini: true }))
       }
+      setApiKeys({ chatgpt: "", gemini: "" })
       toast.success("API keys saved")
     } catch {
       toast.error("Failed to save API keys")
@@ -83,15 +98,16 @@ export function IntegrationsSettings() {
   const handleSaveSpotifyKeys = async () => {
     setSpotifyKeySaving(true)
     try {
-      const { invoke } = await import("@tauri-apps/api/core")
+      const transport = getRecognitionTransport()
       if (spotifyKeys.clientId) {
-        await invoke("save_api_key", { provider: "spotify-client-id", key: spotifyKeys.clientId })
+        await transport.saveApiKey("spotify-client-id", spotifyKeys.clientId)
         setSpotifyKeySet((prev) => ({ ...prev, clientId: true }))
       }
       if (spotifyKeys.clientSecret) {
-        await invoke("save_api_key", { provider: "spotify-client-secret", key: spotifyKeys.clientSecret })
+        await transport.saveApiKey("spotify-client-secret", spotifyKeys.clientSecret)
         setSpotifyKeySet((prev) => ({ ...prev, clientSecret: true }))
       }
+      setSpotifyKeys({ clientId: "", clientSecret: "" })
       toast.success("Spotify credentials saved")
     } catch {
       toast.error("Failed to save Spotify credentials")

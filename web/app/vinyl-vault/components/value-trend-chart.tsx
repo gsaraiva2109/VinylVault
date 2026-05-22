@@ -10,7 +10,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts"
-import { TrendingUp, Loader2 } from "lucide-react"
+import { TrendingUp, Loader2, AlertTriangle } from "lucide-react"
 import { api } from "@/lib/api"
 import { useTauriAuth } from "@/lib/tauri-auth"
 
@@ -92,8 +92,18 @@ export function ValueTrendChart() {
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--app-text-3)" }} />
           </div>
         ) : error ? (
-          <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--app-text-3)" }}>
-            {error}
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-full"
+              style={{ background: "rgba(245,47,18,0.08)" }}
+            >
+              <AlertTriangle className="h-5 w-5" style={{ color: "#f52f12" }} />
+            </div>
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--app-text-2)" }}>
+                Failed to load value history
+              </p>
+            </div>
           </div>
         ) : data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--app-text-3)" }}>

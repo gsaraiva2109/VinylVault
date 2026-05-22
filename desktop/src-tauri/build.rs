@@ -9,16 +9,15 @@ fn main() {
     let env_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env");
     let file_vars = parse_dot_env(&env_file);
 
-    for var in &["AUTHENTIK_ISSUER", "AUTHENTIK_CLIENT_ID", "AUTHENTIK_CLIENT_SECRET"] {
+    for var in &["OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] {
         println!("cargo:rerun-if-env-changed={var}");
 
-        // Real env var (CI) takes precedence over .env file
+        // Real env var (CI) takes precedence over .env file.
+        // Build succeeds even without OIDC vars — auth will fail at runtime with a clear error.
         let value = std::env::var(var)
             .ok()
             .or_else(|| file_vars.iter().find(|(k, _)| k == var).map(|(_, v)| v.clone()))
-            .unwrap_or_else(|| panic!(
-                "Missing required build env var: {var}\n  Set it in src-tauri/.env or as a CI environment variable."
-            ));
+            .unwrap_or_default();
 
         println!("cargo:rustc-env={var}={value}");
     }

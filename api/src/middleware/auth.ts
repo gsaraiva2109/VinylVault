@@ -4,7 +4,7 @@ import { logger } from '../logger'
 
 const log = logger.child({ module: 'auth' })
 
-const AUTHENTIK_JWKS_URL = process.env.AUTHENTIK_JWKS_URL
+const OIDC_JWKS_URL = process.env.OIDC_JWKS_URL
 const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
 const DEV_AUTH_TOKEN = process.env.DEV_AUTH_TOKEN
 const DEV_AUTH_AS_DEMO = process.env.DEV_AUTH_AS_DEMO === 'true'
@@ -29,8 +29,8 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null
 let warnedNoGroupsClaim = false
 
 function getJwks() {
-  if (!jwks && AUTHENTIK_JWKS_URL) {
-    jwks = createRemoteJWKSet(new URL(AUTHENTIK_JWKS_URL))
+  if (!jwks && OIDC_JWKS_URL) {
+    jwks = createRemoteJWKSet(new URL(OIDC_JWKS_URL))
   }
   return jwks
 }
@@ -82,19 +82,19 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   const keyset = getJwks()
 
   if (!keyset) {
-    log.error('AUTHENTIK_JWKS_URL not set but AUTH_ENABLED=true — rejecting request')
+    log.error('OIDC_JWKS_URL not set but AUTH_ENABLED=true — rejecting request')
     return res.status(500).json({ error: 'Internal server error' })
   }
 
   try {
     const { payload } = await jwtVerify(token, keyset, {
-      issuer: process.env.AUTHENTIK_ISSUER
+      issuer: process.env.OIDC_ISSUER
     })
 
     const groups = normalizeGroups((payload as Record<string, unknown>).groups)
     if (groups.length === 0 && !warnedNoGroupsClaim) {
       log.warn(
-        'JWT contains no `groups` claim — verify that the Authentik scope mapping is attached to the provider. Demo-user enforcement requires it.'
+        'JWT contains no `groups` claim — verify that the OIDC provider includes a groups claim in access tokens. Demo-user enforcement requires it.'
       )
       warnedNoGroupsClaim = true
     }

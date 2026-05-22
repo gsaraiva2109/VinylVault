@@ -11,10 +11,11 @@ services:
       PORT: "3001"
       DATABASE_URL: postgres://vinyl:${POSTGRES_PASSWORD}@postgres:5432/vinyl
       AUTH_ENABLED: "true"
-      AUTHENTIK_JWKS_URL: ${AUTHENTIK_JWKS_URL}
-      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL}
+      OIDC_ISSUER: ${OIDC_ISSUER}
       DISCOGS_TOKEN: ${DISCOGS_TOKEN}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     networks:
       - internal
       - dokploy-network

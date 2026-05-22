@@ -61,7 +61,7 @@ function LoginScreen() {
         ) : (
           <LogIn className="h-4 w-4" />
         )}
-        Sign in with Authentik
+        Sign in with OIDC
       </button>
     </div>
   )

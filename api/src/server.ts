@@ -11,6 +11,7 @@ import vinylsRouter from './routes/vinyls'
 import collectionRouter from './routes/collection'
 import discogsRouter from './routes/discogs'
 import spotifyRouter from './routes/spotify'
+import aiRouter from './routes/ai'
 import { refreshStalePrices } from './services/discogs'
 import { setupSwagger } from './swagger'
 import { addClient, removeClient } from './sse/broadcaster'
@@ -22,7 +23,7 @@ const log = logger.child({ module: 'server' })
 // Validate required env vars before starting
 const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
 if (AUTH_ENABLED) {
-  const required = ['AUTHENTIK_JWKS_URL', 'AUTHENTIK_ISSUER'] as const
+  const required = ['OIDC_JWKS_URL', 'OIDC_ISSUER'] as const
   for (const key of required) {
     if (!process.env[key]) {
       log.error(`Missing required env var: ${key}`)
@@ -54,6 +55,7 @@ app.use('/api/vinyls', vinylsRouter)
 app.use('/api/collection', collectionRouter)
 app.use('/api/discogs', discogsRouter)
 app.use('/api/spotify', spotifyRouter)
+app.use('/api', aiRouter)
 
 // Server-Sent Events endpoint for real-time collection sync
 app.get('/api/events', (req, res) => {

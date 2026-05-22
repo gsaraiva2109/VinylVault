@@ -34,7 +34,7 @@ function makeNext(): NextFunction {
 }
 
 // We re-require the module in each describe block so that the top-level
-// constants (AUTH_ENABLED, DEV_AUTH_TOKEN, AUTHENTIK_JWKS_URL) are re-evaluated
+// constants (AUTH_ENABLED, DEV_AUTH_TOKEN, OIDC_JWKS_URL) are re-evaluated
 // from the current process.env state.
 function loadMiddleware() {
   jest.resetModules()
@@ -60,8 +60,8 @@ describe('authMiddleware', () => {
     process.env = { ...originalEnv }
     delete process.env.AUTH_ENABLED
     delete process.env.DEV_AUTH_TOKEN
-    delete process.env.AUTHENTIK_JWKS_URL
-    delete process.env.AUTHENTIK_ISSUER
+    delete process.env.OIDC_JWKS_URL
+    delete process.env.OIDC_ISSUER
   })
 
   afterAll(() => {
@@ -137,10 +137,10 @@ describe('authMiddleware', () => {
     })
   })
 
-  describe('no AUTHENTIK_JWKS_URL (misconfigured)', () => {
+  describe('no OIDC_JWKS_URL (misconfigured)', () => {
     beforeEach(() => {
       process.env.AUTH_ENABLED = 'true'
-      // no AUTHENTIK_JWKS_URL set
+      // no OIDC_JWKS_URL set
     })
 
     it('returns 500 when token is a valid JWT but JWKS URL is not configured', async () => {
@@ -176,10 +176,10 @@ describe('authMiddleware', () => {
     })
   })
 
-  describe('with AUTHENTIK_JWKS_URL set', () => {
+  describe('with OIDC_JWKS_URL set', () => {
     beforeEach(() => {
       process.env.AUTH_ENABLED = 'true'
-      process.env.AUTHENTIK_JWKS_URL = 'https://auth.example.com/jwks'
+      process.env.OIDC_JWKS_URL = 'https://auth.example.com/jwks'
     })
 
     it('extracts user from payload when token is valid', async () => {

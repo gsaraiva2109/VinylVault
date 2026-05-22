@@ -1,10 +1,12 @@
 /*!
- * OIDC PKCE authentication via Authentik — loopback redirect (RFC 8252).
+ * OIDC PKCE authentication — loopback redirect (RFC 8252).
+ *
+ * Generic OIDC — works with Authentik, Keycloak, Auth0, Okta, etc.
  *
  * Flow:
  * 1. start_auth_flow() — binds a temporary HTTP server on 127.0.0.1:<random-port>
  * 2. Builds auth URL with redirect_uri=http://127.0.0.1:<port>/callback, opens in system browser
- * 3. User authorises → Authentik redirects browser to http://127.0.0.1:<port>/callback?code=...
+ * 3. User authorises → provider redirects browser to http://127.0.0.1:<port>/callback?code=...
  * 4. The temporary server catches that request, responds with a "close this tab" page
  * 5. Exchanges code + PKCE verifier for tokens → stored in OS keychain
  * 6. Emits auth:state-changed so the frontend re-checks get_access_token
@@ -24,16 +26,33 @@ use tokio::net::TcpListener;
 
 use crate::commands::keyring;
 
-const AUTHENTIK_ISSUER: &str = env!("AUTHENTIK_ISSUER");
-const CLIENT_ID: &str = env!("AUTHENTIK_CLIENT_ID");
-const CLIENT_SECRET: &str = env!("AUTHENTIK_CLIENT_SECRET");
-
-const _: () = {
-    assert!(!AUTHENTIK_ISSUER.is_empty(), "AUTHENTIK_ISSUER env var is empty");
-    assert!(!CLIENT_ID.is_empty(), "AUTHENTIK_CLIENT_ID env var is empty");
-    assert!(!CLIENT_SECRET.is_empty(), "AUTHENTIK_CLIENT_SECRET env var is empty");
+const OIDC_ISSUER: &str = match option_env!("OIDC_ISSUER") {
+    Some(v) => v,
+    None => "",
 };
-/// Fixed loopback port for the OAuth callback server. Must match the redirect URI registered in Authentik.
+const CLIENT_ID: &str = match option_env!("OIDC_CLIENT_ID") {
+    Some(v) => v,
+    None => "",
+};
+const CLIENT_SECRET: &str = match option_env!("OIDC_CLIENT_SECRET") {
+    Some(v) => v,
+    None => "",
+};
+
+fn check_config() -> Result<(), String> {
+    if OIDC_ISSUER.is_empty() {
+        return Err("OIDC_ISSUER is not configured. Set it in desktop/src-tauri/.env".into());
+    }
+    if CLIENT_ID.is_empty() {
+        return Err("OIDC_CLIENT_ID is not configured. Set it in desktop/src-tauri/.env".into());
+    }
+    if CLIENT_SECRET.is_empty() {
+        return Err("OIDC_CLIENT_SECRET is not configured. Set it in desktop/src-tauri/.env".into());
+    }
+    Ok(())
+}
+
+/// Fixed loopback port for the OAuth callback server. Must match the redirect URI registered in the OIDC provider.
 const CALLBACK_PORT: u16 = 17823;
 
 /// Managed state — holds the in-flight PKCE verifier between start and callback.
@@ -50,7 +69,7 @@ impl AuthState {
 }
 
 async fn build_client(redirect_uri: &str) -> Result<CoreClient, String> {
-    let issuer = IssuerUrl::new(AUTHENTIK_ISSUER.into()).map_err(|e| e.to_string())?;
+    let issuer = IssuerUrl::new(OIDC_ISSUER.into()).map_err(|e| e.to_string())?;
     let meta = CoreProviderMetadata::discover_async(issuer, async_http_client)
         .await
         .map_err(|e| e.to_string())?;
@@ -87,6 +106,8 @@ fn is_expiring_soon(token: &str) -> bool {
 
 #[tauri::command]
 pub async fn start_auth_flow(app: AppHandle) -> Result<(), String> {
+    check_config()?;
+
     let redirect_uri = format!("http://127.0.0.1:{}/callback", CALLBACK_PORT);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", CALLBACK_PORT))
         .await
@@ -223,6 +244,8 @@ async fn try_refresh(refresh_token: &str) -> Result<(String, Option<String>), St
 
 #[tauri::command]
 pub async fn get_access_token(_app: AppHandle) -> Result<Option<String>, String> {
+    check_config()?;
+
     let stored = keyring::load_token("access-token");
 
     // Fast path: present and not expiring soon — return immediately, no network needed
@@ -248,7 +271,7 @@ pub async fn get_access_token(_app: AppHandle) -> Result<Option<String>, String>
             Ok(Some(new_access))
         }
         Err(e) => {
-            // Refresh failed (network issue, Authentik unreachable, etc.).
+            // Refresh failed (network issue, provider unreachable, etc.).
             // Fall back to the cached token so the app can still start.
             // If the token is truly expired, the first API call will return 401
             // and the context layer will prompt re-login gracefully.

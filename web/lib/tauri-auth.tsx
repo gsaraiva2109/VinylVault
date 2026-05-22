@@ -222,7 +222,7 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
         throw err
       }
     } else {
-      await nextAuthSignIn("authentik")
+      await nextAuthSignIn("oidc")
     }
   }, [])
 

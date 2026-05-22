@@ -1,4 +1,4 @@
-import { bigint, boolean, doublePrecision, integer, pgTable, serial, text } from 'drizzle-orm/pg-core'
+import { bigint, boolean, doublePrecision, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const vinyls = pgTable('vinyls', {
   id:             serial('id').primaryKey(),
@@ -25,5 +25,18 @@ export const vinyls = pgTable('vinyls', {
   addedByAvatar:  text('added_by_avatar'),    // Authentik profile picture URL
 })
 
+export const userApiKeys = pgTable('user_api_keys', {
+  id:           serial('id').primaryKey(),
+  userId:       text('user_id').notNull(),
+  encryptedKey: text('encrypted_key').notNull(),   // AES-256-GCM ciphertext (base64)
+  iv:           text('iv').notNull(),               // random IV (base64)
+  authTag:      text('auth_tag').notNull(),         // GCM auth tag (base64)
+  provider:     text('provider').notNull(),         // "openai" | "gemini"
+  createdAt:    timestamp('created_at').defaultNow(),
+  updatedAt:    timestamp('updated_at').defaultNow(),
+})
+
 export type Vinyl = typeof vinyls.$inferSelect
 export type NewVinyl = typeof vinyls.$inferInsert
+export type UserApiKey = typeof userApiKeys.$inferSelect
+export type NewUserApiKey = typeof userApiKeys.$inferInsert

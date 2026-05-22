@@ -20,17 +20,10 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const setStream = useCallback((s: MediaStream | null) => setStreamState(s), [])
 
   useEffect(() => {
-    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    const isLocalDev =
-      typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1" ||
-        window.location.hostname.startsWith("192.168."))
+    // Allow camera access everywhere — HTTPS required for getUserMedia in browsers
+    if (typeof window === "undefined") return
 
-    const canUse = isTauri || isLocalDev
-    setCanUseCamera(canUse)
-
-    if (!canUse) return
+    setCanUseCamera(true)
 
     navigator.mediaDevices
       .getUserMedia({

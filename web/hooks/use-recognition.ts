@@ -3,13 +3,7 @@ import type { VinylRecord, ScanState } from "../app/vinyl-vault/types"
 import { api } from "@/lib/api"
 import { useTauriAuth } from "@/lib/tauri-auth"
 import { isTauri } from "@/lib/utils"
-
-interface RecognitionResult {
-  artist: string
-  album: string
-  confidence: number
-  source: string
-}
+import { getRecognitionTransport } from "@/lib/recognition-transport"
 
 export function useRecognition(onScanError?: (message: string, provider?: string, capturedImage?: string) => void) {
   const [state, setState] = useState<ScanState>({ status: "idle" })
@@ -23,16 +17,20 @@ export function useRecognition(onScanError?: (message: string, provider?: string
 
   const performRecognition = useCallback(async (blob: Blob, capturedImage: string, rawImageUrl?: string, forceProvider?: string) => {
     try {
+      const transport = getRecognitionTransport()
+
+      // Convert blob to base64
       const buffer = await blob.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      let binary = ""
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const imageBase64 = btoa(binary)
 
-      // 2. Call Tauri recognize command (Rust sidecar on Linux, Vision on macOS)
-      const { invoke } = await import("@tauri-apps/api/core")
-      const imageData = Array.from(new Uint8Array(buffer))
-      const invokeArgs: Record<string, unknown> = { imageData }
-      if (forceProvider) invokeArgs.forceProvider = forceProvider
-      const recognition = await invoke<RecognitionResult>("recognize", invokeArgs)
+      // Call recognition via transport (Tauri IPC or Web API proxy)
+      const provider = forceProvider ?? "auto"
+      const recognition = await transport.recognize(imageBase64, provider)
 
-      // 3. Search Discogs using the identified artist/album
+      // Search Discogs using the identified artist/album
       if (recognition.artist === "unknown" && recognition.album === "unknown") {
         throw new Error("Could not identify this record. Try adjusting the crop or improving lighting.")
       }
@@ -46,7 +44,9 @@ export function useRecognition(onScanError?: (message: string, provider?: string
       // and the JWT may have expired in the meantime.
       let freshToken: string | null = tokenRef.current
       try {
-        freshToken = await invoke<string | null>("get_access_token")
+        if (transport.getAccessToken) {
+          freshToken = await transport.getAccessToken()
+        }
       } catch { /* not in Tauri or auth unavailable — fall back to cached token */ }
 
       const searchResults = await api.discogs.search(query, freshToken ?? undefined)
@@ -55,7 +55,7 @@ export function useRecognition(onScanError?: (message: string, provider?: string
         throw new Error(`No records found on Discogs for "${query}"`)
       }
 
-      // 4. Map top N search results to VinylRecord candidates
+      // Map top N search results to VinylRecord candidates
       const candidateCount = recognition.confidence < 0.6 ? 5 : 3
       interface DiscogsResult {
         id: string
@@ -83,13 +83,12 @@ export function useRecognition(onScanError?: (message: string, provider?: string
       // Desktop (Tauri): uses keyring-stored credentials via spotify_search invoke.
       // Web: uses NEXT_PUBLIC_SPOTIFY_CLIENT_ID/SECRET build-time vars.
       try {
-        if (isTauri()) {
+        if (isTauri() && transport.spotifySearch) {
           // Desktop path: spotify_search handles auth internally per call
-          const { invoke: inv } = await import("@tauri-apps/api/core")
           for (let i = 0; i < candidates.length; i++) {
             try {
               const q = `${candidates[i].artist} ${candidates[i].title}`.trim()
-              const spotData = await inv<{ albumId: string }>("spotify_search", { q })
+              const spotData = await transport.spotifySearch(q)
               if (spotData.albumId) candidates[i] = { ...candidates[i], spotify: { albumId: spotData.albumId } }
             } catch { /* no match or keys not configured — skip */ }
           }
@@ -123,11 +122,13 @@ export function useRecognition(onScanError?: (message: string, provider?: string
       onScanError?.(message, forceProvider ?? "auto", capturedImage)
 
       try {
-        const { invoke } = await import("@tauri-apps/api/core")
-        await invoke("log_scan_error", {
-          message,
-          context: `provider=${forceProvider ?? "auto"} capturedImage=${!!capturedImage}`,
-        })
+        const transport = getRecognitionTransport()
+        if (transport.logScanError) {
+          await transport.logScanError(
+            message,
+            `provider=${forceProvider ?? "auto"} capturedImage=${!!capturedImage}`,
+          )
+        }
       } catch { /* not in Tauri or log failed — ignore */ }
 
       setState({
@@ -149,7 +150,7 @@ export function useRecognition(onScanError?: (message: string, provider?: string
         rawCanvas.height = videoElement.videoHeight
         const rawCtx = rawCanvas.getContext("2d")!
         rawCtx.drawImage(videoElement, 0, 0)
-        
+
         const rawImageUrl = rawCanvas.toDataURL("image/jpeg", 0.9)
 
         // 2. Crop perfect square from center
@@ -167,15 +168,18 @@ export function useRecognition(onScanError?: (message: string, provider?: string
         const capturedImage = cropCanvas.toDataURL("image/jpeg", 0.8)
         setState({ status: "scanning", capturedImage, rawImageUrl })
 
-        // Read user-configured image size limits (defaults: 512 local, 1024 cloud)
+        // Read user-configured image size limits
         let localMaxDim = 512
         let cloudMaxDim = 1024
         try {
-          const { invoke: inv } = await import("@tauri-apps/api/core")
-          const s = await inv<{ llm: { localMaxDim?: number; cloudMaxDim?: number } }>("read_settings")
-          localMaxDim = s.llm.localMaxDim ?? 512
-          cloudMaxDim = s.llm.cloudMaxDim ?? 1024
-        } catch { /* not in Tauri or settings unreadable — use defaults */ }
+          const transport = getRecognitionTransport()
+          if (transport.readSettings) {
+            const s = await transport.readSettings()
+            localMaxDim = s.llm.localMaxDim ?? 512
+            cloudMaxDim = s.llm.cloudMaxDim ?? 1024
+          }
+        } catch { /* use defaults */ }
+
         // local/auto: protect Ollama VRAM; cloud: use full resolution
         const MAX_DIM = forceProvider === "cloud" ? cloudMaxDim : localMaxDim
         const scale = Math.min(1, MAX_DIM / Math.max(rawCanvas.width, rawCanvas.height))
@@ -260,11 +264,13 @@ export function useRecognition(onScanError?: (message: string, provider?: string
       let localMaxDim = 512
       let cloudMaxDim = 1024
       try {
-        const { invoke: inv } = await import("@tauri-apps/api/core")
-        const settings = await inv<{ llm: { localMaxDim?: number; cloudMaxDim?: number } }>("read_settings")
-        localMaxDim = settings.llm.localMaxDim ?? 512
-        cloudMaxDim = settings.llm.cloudMaxDim ?? 1024
-      } catch { /* not in Tauri or unavailable — use defaults */ }
+        const transport = getRecognitionTransport()
+        if (transport.readSettings) {
+          const settings = await transport.readSettings()
+          localMaxDim = settings.llm.localMaxDim ?? 512
+          cloudMaxDim = settings.llm.cloudMaxDim ?? 1024
+        }
+      } catch { /* use defaults */ }
 
       const MAX_DIM = forceProvider === "cloud" ? cloudMaxDim : localMaxDim
       const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height))

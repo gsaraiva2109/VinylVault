@@ -2,6 +2,52 @@
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
+## Dev Setup
+
+### Prerequisites
+
+- Node.js 22+
+- pnpm 9+
+- PostgreSQL 16
+- Rust (for desktop development)
+
+### Backend
+
+```bash
+cd api
+npm install
+cp ../.env.example .env   # configure DATABASE_URL and OIDC vars
+npm run dev                # http://localhost:3001
+```
+
+### Frontend (web)
+
+```bash
+cd web
+pnpm install
+pnpm dev                   # http://localhost:3000
+```
+
+Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `web/.env.local`.
+
+### Desktop (Tauri)
+
+```bash
+cd desktop
+pnpm install
+pnpm dev                   # starts Tauri dev window
+```
+
+Set OIDC vars in `desktop/src-tauri/.env`.
+
+### Full Stack (Docker)
+
+```bash
+cp .env.example .env
+# edit .env with your values
+docker compose up -d
+```
+
 ## Commit Format
 
 ```
@@ -20,6 +66,25 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 | `refactor` | code change with no behavior change |
 | `docs` | documentation only |
 
+## Code Style
+
+- **TypeScript**: Strict mode, no `any` without justification
+- **React**: Functional components, hooks, keep components under 150 lines
+- **Rust**: `anyhow` for error handling, follow standard Rust conventions
+
+## Testing
+
+```bash
+# Backend
+cd api && npm test
+
+# Frontend typecheck
+cd web && pnpm exec tsc --noEmit
+
+# Frontend lint
+cd web && pnpm lint
+```
+
 ## Releasing a New Version
 
 Versioning is managed locally via a release script — **CI does not auto-bump versions**.
@@ -34,15 +99,7 @@ Versioning is managed locally via a release script — **CI does not auto-bump v
 
 The script:
 1. Reads the current version from the root `VERSION` file
-2. Updates all manifests atomically:
-   - `VERSION`
-   - `api/src/swagger.ts`
-   - `desktop/sidecar/main.py`
-   - `desktop/src-tauri/Cargo.toml`
-   - `desktop/src-tauri/tauri.conf.json`
-   - `desktop/package.json`
-   - `web/package.json` + `package-lock.json`
-   - `api/package.json` + `package-lock.json`
+2. Updates all manifests atomically
 3. Creates a `chore: bump version to vX.Y.Z [skip ci]` commit
 4. Creates the `vX.Y.Z` git tag
 
@@ -57,13 +114,19 @@ The `[skip ci]` commit skips the Forgejo pipeline on the branch push. The tag pu
 
 ## Version Bump Guidance
 
-While conventional commit types no longer drive automated version bumps, they remain useful as a signal when deciding what bump to use:
-
 | Change type | Suggested bump |
 |-------------|---------------|
 | Breaking change | major |
 | New user-facing feature | minor |
 | Bug fix, refactor, chore | patch |
+
+## Pull Request Workflow
+
+1. Fork the repo
+2. Create a feature branch
+3. Make changes with conventional commits
+4. Ensure lint and typecheck pass
+5. Open a PR
 
 ## Notes
 

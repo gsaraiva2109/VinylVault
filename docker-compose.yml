@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vinyl
+      POSTGRES_USER: vinyl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vinyl -d vinyl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  vinyl-vault-api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://vinyl:${POSTGRES_PASSWORD}@postgres:5432/vinyl
+      AUTH_ENABLED: "true"
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      DISCOGS_TOKEN: ${DISCOGS_TOKEN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    ports:
+      - "3001:3001"
+    networks:
+      - internal
+
+  vinyl-vault-web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    depends_on:
+      - vinyl-vault-api
+    environment:
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
