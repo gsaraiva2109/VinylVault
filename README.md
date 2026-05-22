@@ -5,8 +5,6 @@
 
 A self-hosted app for cataloging vinyl record collections with AI-powered recognition, Discogs metadata, and collection value tracking.
 
-Built for two people sharing one collection across multiple devices — an Arch Linux desktop and a MacBook Air M1. Runs entirely on a homelab; no external services required beyond Discogs.
-
 ## Features
 
 - **AI Vinyl Recognition** — Point camera at a record cover, AI identifies artist and album
@@ -19,13 +17,13 @@ Built for two people sharing one collection across multiple devices — an Arch 
 
 ## Browser vs Desktop
 
-| Feature | Browser | Desktop |
-|---------|---------|---------|
-| AI Recognition | Cloud only (OpenAI/Gemini, bring your own key) | Local (Ollama) + Cloud cascade |
-| Camera | Built-in webcam | Built-in webcam |
-| Auth | OIDC via NextAuth | OIDC via system browser + PKCE |
-| Platform | Any modern browser | Linux (AppImage) / macOS (.dmg) |
-| API Keys | Encrypted server-side | OS keyring |
+| Feature        | Browser                                        | Desktop                         |
+| -------------- | ---------------------------------------------- | ------------------------------- |
+| AI Recognition | Cloud only (OpenAI/Gemini, bring your own key) | Local (Ollama) + Cloud cascade  |
+| Camera         | Built-in webcam                                | Built-in webcam                 |
+| Auth           | OIDC via NextAuth                              | OIDC via system browser + PKCE  |
+| Platform       | Any modern browser                             | Linux (AppImage) / macOS (.dmg) |
+| API Keys       | Encrypted server-side                          | OS keyring                      |
 
 ## Quick Start
 
@@ -49,26 +47,26 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
 
 ### Required Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_PASSWORD` | PostgreSQL password |
-| `OIDC_ISSUER` | OIDC provider issuer URL |
-| `OIDC_CLIENT_ID` | OIDC client ID |
-| `OIDC_CLIENT_SECRET` | OIDC client secret |
-| `NEXTAUTH_URL` | Frontend URL (e.g. `https://vinyl.yourdomain.com`) |
-| `NEXTAUTH_SECRET` | NextAuth secret (`openssl rand -base64 32`) |
+| Variable             | Description                                        |
+| -------------------- | -------------------------------------------------- |
+| `POSTGRES_PASSWORD`  | PostgreSQL password                                |
+| `OIDC_ISSUER`        | OIDC provider issuer URL                           |
+| `OIDC_CLIENT_ID`     | OIDC client ID                                     |
+| `OIDC_CLIENT_SECRET` | OIDC client secret                                 |
+| `NEXTAUTH_URL`       | Frontend URL (e.g. `https://vinyl.yourdomain.com`) |
+| `NEXTAUTH_SECRET`    | NextAuth secret (`openssl rand -base64 32`)        |
 
 ### Optional Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OIDC_JWKS_URL` | Derived from issuer | Explicit JWKS endpoint |
-| `DISCOGS_TOKEN` | — | Discogs personal access token (enables marketplace pricing) |
-| `ALLOWED_ORIGINS` | — | Comma-separated CORS origins |
-| `ENCRYPTION_KEY` | — | 64-char hex for AES-256-GCM key encryption (generate: `openssl rand -hex 32`) |
-| `AUTH_ENABLED` | `true` | Set to `false` to disable auth |
-| `DEV_AUTH_TOKEN` | — | Bearer token for dev mode bypass |
-| `NEXT_PUBLIC_DEMO_GROUP_NAME` | `demo-users` | OIDC group name for demo/read-only users |
+| Variable                      | Default             | Description                                                                   |
+| ----------------------------- | ------------------- | ----------------------------------------------------------------------------- |
+| `OIDC_JWKS_URL`               | Derived from issuer | Explicit JWKS endpoint                                                        |
+| `DISCOGS_TOKEN`               | —                   | Discogs personal access token (enables marketplace pricing)                   |
+| `ALLOWED_ORIGINS`             | —                   | Comma-separated CORS origins                                                  |
+| `ENCRYPTION_KEY`              | —                   | 64-char hex for AES-256-GCM key encryption (generate: `openssl rand -hex 32`) |
+| `AUTH_ENABLED`                | `true`              | Set to `false` to disable auth                                                |
+| `DEV_AUTH_TOKEN`              | —                   | Bearer token for dev mode bypass                                              |
+| `NEXT_PUBLIC_DEMO_GROUP_NAME` | `demo-users`        | OIDC group name for demo/read-only users                                      |
 
 ## OIDC Setup
 
@@ -81,15 +79,15 @@ Vinyl Vault works with any OIDC-compliant identity provider. See [docs/oidc-prov
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 15, React 19, Tailwind CSS |
-| Backend API | Node.js, Express, TypeScript, Drizzle ORM |
-| Database | PostgreSQL 16 |
-| Auth | Generic OIDC (NextAuth + PKCE via Tauri) |
-| AI — Linux | Ollama (Vision) / OpenAI / Gemini |
-| AI — macOS | Native Vision.framework via Rust FFI |
-| Desktop | Tauri v2 (bundles the Next.js frontend as static export) |
+| Layer       | Technology                                               |
+| ----------- | -------------------------------------------------------- |
+| Frontend    | Next.js 15, React 19, Tailwind CSS                       |
+| Backend API | Node.js, Express, TypeScript, Drizzle ORM                |
+| Database    | PostgreSQL 16                                            |
+| Auth        | Generic OIDC (NextAuth + PKCE via Tauri)                 |
+| AI — All    | Ollama (Vision) / OpenAI / Gemini                        |
+| OCR — macOS | Native Vision.framework via Rust FFI                     |
+| Desktop     | Tauri v2 (bundles the Next.js frontend as static export) |
 
 ## Repository Layout
 
@@ -98,7 +96,7 @@ api/                  Express backend, Drizzle ORM + PostgreSQL
 web/                  Next.js 15 frontend (SSR + static export for Tauri)
 desktop/              Tauri 2 shell with Rust backend
   src-tauri/          Rust — auth, OCR, settings
-  sidecar/            Python sidecar utilities
+
 docs/                 Setup guides and documentation
 docker/               Docker build files
 ```
@@ -107,10 +105,10 @@ docker/               Docker build files
 
 Vinyl Vault uses a two-platform CI/CD strategy:
 
-| Platform | Role |
-|---|---|
+| Platform    | Role                                                          |
+| ----------- | ------------------------------------------------------------- |
 | **Forgejo** | Primary remote. Quality gates, Docker builds, Linux AppImage. |
-| **GitHub** | macOS builds only. Triggered on release tags. |
+| **GitHub**  | macOS builds only. Triggered on release tags.                 |
 
 ## License
 
