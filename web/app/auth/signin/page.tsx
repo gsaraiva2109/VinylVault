@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { signIn } from "next-auth/react"
 import { useSearchParams } from "next/navigation"
 import { Disc3, LogIn, Loader2, AlertTriangle } from "lucide-react"
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get("error")
   const [isSigningIn, setIsSigningIn] = useState(false)
@@ -88,5 +88,13 @@ export default function SignInPage() {
         Sign in with OIDC
       </button>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInContent />
+    </Suspense>
   )
 }
