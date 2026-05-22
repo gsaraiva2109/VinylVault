@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # ── Change Detection ──────────────────────────────────────────────────────
@@ -386,14 +386,90 @@ jobs:
             desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
 
-  # ── Upload Release Assets to GitHub ──────────────────────────────────────
-  # GitHub release is created by semantic-release. This job uploads binary
-  # artifacts (AppImage, updater bundle) and dispatches the macOS build.
-  push-to-github:
-    name: Upload Release Assets
+  # ── Mirror Release to GitHub ────────────────────────────────────────────
+  # Runs immediately after semantic-release so every version gets a GitHub
+  # release even if Tauri build fails or the workflow is delayed.
+  mirror-github-release:
+    name: Mirror Release to GitHub
     runs-on: light-ubuntu
-    needs: [build-tauri-linux, release]
-    if: ${{ needs.build-tauri-linux.result == 'success' && needs.release.outputs.released == 'true' }}
+    needs: [release]
+    if: ${{ needs.release.outputs.released == 'true' }}
+    outputs:
+      release-id: ${{ steps.mirror.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: refs/tags/v${{ needs.release.outputs.version }}
+
+      - name: Create GitHub release
+        id: mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+        run: |
+          TAG="v${{ needs.release.outputs.version }}"
+          VERSION="${{ needs.release.outputs.version }}"
+
+          GITEA_API_URL="https://git.gsaraiva.com.br/api/v1/repos/${{ github.repository }}/releases/tags/${TAG}"
+          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty' | head -80)
+          RELEASE_BODY=$(printf '## Changelog\n\n%s\n\n---\n\n## Install\n\n**Linux (x86_64)** \xe2\x80\x94 download the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** \xe2\x80\x94 download the `.dmg`, open it, drag to Applications.' "$RAW_CHANGELOG")
+          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
+
+          FETCH_RESP=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}")
+          FETCH_HTTP=$(echo "$FETCH_RESP" | tail -1)
+          FETCH_BODY=$(echo "$FETCH_RESP" | head -n -1)
+          RELEASE_ID=$(echo "$FETCH_BODY" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "GitHub release ${TAG} not found (HTTP $FETCH_HTTP) — creating it..."
+            CREATE_RESP=$(curl -s -w "\n%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/${MIRROR_REPO}/releases" \
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"Vinyl Vault ${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
+            CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
+            CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
+            RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
+            echo "Create release HTTP $CREATE_HTTP — body: $CREATE_BODY"
+          fi
+
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "::error::Failed to get or create GitHub release ${TAG}"
+            exit 1
+          fi
+          echo "Release ID: $RELEASE_ID"
+          echo "release_id=${RELEASE_ID}" >> $GITHUB_OUTPUT
+
+      - name: Dispatch macOS build
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+        run: |
+          TAG="v${{ needs.release.outputs.version }}"
+          echo "Dispatching release-macos workflow for tag ${TAG}..."
+          DISPATCH_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${MIRROR_REPO}/dispatches" \
+            -d "{\"event_type\":\"release-macos\",\"client_payload\":{\"tag\":\"${TAG}\"}}")
+          echo "Dispatch response: HTTP $DISPATCH_RESP"
+          if [ "$DISPATCH_RESP" != "204" ]; then
+            echo "::warning::macOS dispatch returned HTTP $DISPATCH_RESP — check MIRROR_TOKEN has workflow scope"
+          fi
+
+  # ── Upload Tauri Assets to GitHub Release ───────────────────────────────
+  # Depends on the Tauri build completing. Uploads AppImage, updater bundle,
+  # signature, and latest.json to the GitHub release created above.
+  upload-release-assets:
+    name: Upload Tauri Assets
+    runs-on: light-ubuntu
+    needs: [build-tauri-linux, release, mirror-github-release]
+    if: ${{ needs.build-tauri-linux.result == 'success' && needs.mirror-github-release.result == 'success' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
@@ -406,10 +482,11 @@ jobs:
           name: vinyl-vault-linux-appimage
           path: dist/
 
-      - name: Upload AppImage and dispatch macOS build
+      - name: Upload assets to GitHub release
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
           MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+          RELEASE_ID: ${{ needs.mirror-github-release.outputs.release-id }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
           VERSION="${{ needs.release.outputs.version }}"
@@ -448,40 +525,6 @@ jobs:
           if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
-
-          # Build structured release body
-          GITEA_API_URL="https://git.gsaraiva.com.br/api/v1/repos/${{ github.repository }}/releases/tags/${TAG}"
-          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty' | head -80)
-          RELEASE_BODY=$(printf '## Changelog\n\n%s\n\n---\n\n## Install\n\n**Linux (x86_64)** \xe2\x80\x94 download the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** \xe2\x80\x94 download the `.dmg`, open it, drag to Applications.' "$RAW_CHANGELOG")
-          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
-
-          # Get or create GitHub release
-          FETCH_RESP=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}")
-          FETCH_HTTP=$(echo "$FETCH_RESP" | tail -1)
-          FETCH_BODY=$(echo "$FETCH_RESP" | head -n -1)
-          RELEASE_ID=$(echo "$FETCH_BODY" | jq -r '.id // empty')
-
-          if [ -z "$RELEASE_ID" ]; then
-            echo "GitHub release ${TAG} not found (HTTP $FETCH_HTTP) — creating it..."
-            CREATE_RESP=$(curl -s -w "\n%{http_code}" \
-              -X POST \
-              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"Vinyl Vault ${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
-            CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
-            CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
-            RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
-            echo "Create release HTTP $CREATE_HTTP — body: $CREATE_BODY"
-          fi
-
-          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "::error::Failed to get or create GitHub release ${TAG}"
-            exit 1
-          fi
-          echo "Release ID: $RELEASE_ID"
 
           # URL-encode asset name (productName is "Vinyl Vault" — contains a space)
           upload_asset() {
@@ -535,17 +578,3 @@ jobs:
           cat latest.json
 
           upload_asset latest.json "latest.json" "application/json"
-
-          # ── Trigger macOS release workflow ────────────────────────────────
-          # GitHub release is guaranteed to exist (created by semantic-release above).
-          echo "Dispatching release-macos workflow for tag ${TAG}..."
-          DISPATCH_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${MIRROR_REPO}/dispatches" \
-            -d "{\"event_type\":\"release-macos\",\"client_payload\":{\"tag\":\"${TAG}\"}}")
-          echo "Dispatch response: HTTP $DISPATCH_RESP"
-          if [ "$DISPATCH_RESP" != "204" ]; then
-            echo "::warning::macOS dispatch returned HTTP $DISPATCH_RESP — check MIRROR_TOKEN has workflow scope"
-          fi
