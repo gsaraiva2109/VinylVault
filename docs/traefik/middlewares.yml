@@ -1,0 +1,34 @@
+# NOTE: These are homelab-specific Traefik middleware examples.
+# The Authentik forward-auth middleware references are for a specific Authentik deployment.
+# Adapt to your own OIDC provider and infrastructure setup.
+http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    authentik-proto-fix:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+    authentik-forward-auth:
+      forwardAuth:
+        address: "http://services-authentik-drrptn:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-authentik-username"
+          - "X-authentik-groups"
+          - "X-authentik-email"
+          - "X-authentik-name"
+          - "X-authentik-uid"
+          - "X-authentik-jwt"
+          - "X-authentik-meta-jwks"
+          - "X-authentik-meta-outpost"
+          - "X-authentik-meta-provider"
+          - "X-authentik-meta-app"
+          - "X-authentik-meta-version"
+    redirect-prod-portfolio-8h27hg-1:
+      redirectRegex:
+        regex: ^https?://www.(.+)
+        replacement: https://${1}
+        permanent: true

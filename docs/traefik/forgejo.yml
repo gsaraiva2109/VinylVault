@@ -1,0 +1,20 @@
+# NOTE: This is a homelab-specific Traefik configuration example.
+# Adapt hostnames, entrypoints, service URLs, and middleware names to your setup.
+http:
+  middlewares:
+     limit-body:
+        buffering:
+          maxRequestBodyBytes: 1048576000
+  routers:
+    forgejo-router:
+      rule: "Host(`git.gsaraiva.com.br`)"
+      entryPoints: ["web"]
+      middlewares:
+        - "authentik-proto-fix@file"
+        - "limit-body@file"
+      service: "forgejo-service"
+  services:
+    forgejo-service:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.195:3000"
