@@ -16,7 +16,10 @@ export function broadcast(event: string, data: unknown): void {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
   for (const client of clients) {
     try {
-      client.res.write(msg)
+      const ok = client.res.write(msg)
+      if (!ok && typeof client.res.once === 'function') {
+        client.res.once('drain', () => { /* backpressure cleared */ })
+      }
     } catch {
       clients.delete(client)
     }

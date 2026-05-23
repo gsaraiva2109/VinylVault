@@ -10,6 +10,9 @@ import { db, schema } from '../db'
 import { broadcast } from '../sse/broadcaster'
 import { requireWriteAccess } from '../middleware/requireWriteAccess'
 import { validateCondition, validateStringFields } from './vinyls'
+import { logger } from '../logger'
+
+const log = logger.child({ module: 'import-export' })
 
 const router = Router()
 
@@ -27,9 +30,12 @@ const CSV_COLUMNS = [
   'coverImageUrl', 'discogsUrl', 'spotifyUrl', 'createdAt',
 ] as const
 
+const DANGEROUS_PREFIXES = ['=', '+', '-', '@', '\t', '\r']
+
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const s = String(value)
+  let s = String(value)
+  if (DANGEROUS_PREFIXES.includes(s[0])) s = `'${s}`
   if (s.includes(',') || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`
   }
@@ -65,7 +71,7 @@ router.get('/export', async (_req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(`${header}\n${body}\n`)
   } catch (err) {
-    console.error('[import-export] GET /export error:', err)
+    log.error({ err }, 'GET /export error')
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -183,25 +189,29 @@ router.post(
       })
 
       let created = 0
+      const BATCH_SIZE = 500
       if (toInsert.length > 0) {
         const now = Date.now()
-        const values = toInsert.map((r) => ({
+        const rows = toInsert.map((r) => ({
           ...r,
           createdAt: typeof r.createdAt === 'number' ? r.createdAt : now,
           updatedAt: now,
           addedBy: req.user?.name,
           addedByAvatar: req.user?.picture,
         }))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const inserted = await db.insert(schema.vinyls).values(values as any).returning()
-        created = inserted.length
-        for (const row of inserted) broadcast('vinyl.created', row)
+        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+          const batch = rows.slice(i, i + BATCH_SIZE)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const inserted = await db.insert(schema.vinyls).values(batch as any).returning()
+          created += inserted.length
+          for (const row of inserted) broadcast('vinyl.created', row)
+        }
       }
 
       const skipped = validRows.length - toInsert.length
       res.json({ created, skipped, errors })
     } catch (err) {
-      console.error('[import-export] POST /import error:', err)
+      log.error({ err }, 'POST /import error')
       res.status(500).json({ error: 'Internal server error' })
     }
   },

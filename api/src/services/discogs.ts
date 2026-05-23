@@ -3,7 +3,7 @@ import { eq, and, isNull, isNotNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { logger } from '../logger'
 
-const log = logger.child({ module: 'discogs-service' })
+const log = logger.child({ module: 'service:discogs' })
 
 /** Maps our condition codes to Discogs price_suggestions response keys */
 const CONDITION_KEY_MAP: Record<string, string> = {
@@ -53,17 +53,27 @@ function discogsGetOnce(path: string): Promise<{ status: number; body: unknown }
 
 export async function discogsGet(path: string, retries = 3): Promise<unknown> {
   for (let attempt = 0; attempt < retries; attempt++) {
-    const { status, body } = await discogsGetOnce(path)
-    if (status === 429) {
-      const backoffMs = Math.pow(2, attempt) * 2000
-      log.warn(`rate limited (429), backing off ${backoffMs}ms`)
+    try {
+      const { status, body } = await discogsGetOnce(path)
+      if (status === 429) {
+        const backoffMs = Math.pow(2, attempt) * 2000
+        log.warn(`rate limited (429), backing off ${backoffMs}ms`)
+        await sleep(backoffMs)
+        continue
+      }
+      if (status >= 400) {
+        throw new Error(`Discogs API error: HTTP ${status}`)
+      }
+      return body
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('Discogs API error:')) {
+        throw err // don't retry HTTP errors (non-429)
+      }
+      if (attempt === retries - 1) throw err
+      const backoffMs = Math.pow(2, attempt) * 1000
+      log.warn({ err }, `network error, retry ${attempt + 1}/${retries} in ${backoffMs}ms`)
       await sleep(backoffMs)
-      continue
     }
-    if (status >= 400) {
-      throw new Error(`Discogs API error: HTTP ${status}`)
-    }
-    return body
   }
   throw new Error('Discogs API rate limit exceeded after retries')
 }

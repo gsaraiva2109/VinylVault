@@ -15,6 +15,34 @@
       "when": 1774568973124,
       "tag": "0001_last_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0002_add_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775100000000,
+      "tag": "0003_condemned_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775200000000,
+      "tag": "0004_create_user_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775300000000,
+      "tag": "0005_value_updated_at_index",
+      "breakpoints": true
     }
   ]
 }

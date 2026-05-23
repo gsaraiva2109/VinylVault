@@ -2,6 +2,8 @@ import 'dotenv/config'
 import { join } from 'path'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import compression from 'compression'
 import cron from 'node-cron'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -15,6 +17,7 @@ import aiRouter from './routes/ai'
 import { refreshStalePrices } from './services/discogs'
 import { setupSwagger } from './swagger'
 import { addClient, removeClient } from './sse/broadcaster'
+import { getSpotifyToken } from './routes/spotify'
 import { logger } from './logger'
 import { requestIdMiddleware } from './middleware/request-id'
 
@@ -33,24 +36,34 @@ if (AUTH_ENABLED) {
 }
 
 const app = express()
-setupSwagger(app)
 const PORT = parseInt(process.env.PORT ?? '3001')
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) ?? []
+app.set('trust proxy', 1)
+app.use(helmet())
+app.use(compression({ threshold: 1024 }))
 app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : false,
   credentials: true,
 }))
 
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '5mb' }))
 app.use(requestIdMiddleware)
 
 // Health check (no auth)
 app.get('/', (_req, res) => res.json({ service: 'vinyl-vault-api', status: 'ok' }))
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// Swagger docs — protected behind auth in production
+if (process.env.NODE_ENV !== 'production') {
+  setupSwagger(app)
+}
+
 // Auth-protected API routes
 app.use('/api', authMiddleware)
+if (process.env.NODE_ENV === 'production') {
+  setupSwagger(app)
+}
 app.use('/api/vinyls', vinylsRouter)
 app.use('/api/collection', collectionRouter)
 app.use('/api/discogs', discogsRouter)
@@ -91,6 +104,14 @@ async function main() {
     process.exit(1)
   }
 
+  // Validate encryption key at startup so it fails early, not lazily on first use
+  if (process.env.ENCRYPTION_KEY) {
+    if (process.env.ENCRYPTION_KEY.length !== 64) {
+      log.fatal('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)')
+      process.exit(1)
+    }
+  }
+
   const migrationClient = postgres(process.env.DATABASE_URL)
   try {
     log.info('running migrations')
@@ -108,6 +129,11 @@ async function main() {
   app.listen(PORT, '0.0.0.0', () => {
     log.info({ port: PORT }, 'listening')
   })
+
+  // Warm up Spotify token cache so first search isn't delayed
+  if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
+    getSpotifyToken().catch(() => {})
+  }
 }
 
 main()

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import { requireWriteAccess } from '../middleware/requireWriteAccess'
+import { requireWriteAccess } from '../../middleware/requireWriteAccess'
 
 function mockRes() {
   const res: Partial<Response> = {}

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import { priceRefreshCooldown, _resetRefreshCooldownForTests } from '../middleware/refreshCooldown'
+import { priceRefreshCooldown, _resetRefreshCooldownForTests } from '../../middleware/refreshCooldown'
 
 function mockRes() {
   const res: Partial<Response> = {}

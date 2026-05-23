@@ -8,9 +8,14 @@ jest.mock('../../db', () => ({
   schema: {
     vinyls: {
       isDeleted: 'is_deleted',
+      currentValue: 'current_value',
+      genre: 'genre',
+      format: 'format',
+      createdAt: 'created_at',
     },
   },
 }))
+
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { db } = require('../../db')
@@ -24,10 +29,20 @@ function makeApp() {
   return app
 }
 
-function mockSelectChain(resolvedValue: unknown[]) {
-  const whereMock = jest.fn().mockResolvedValue(resolvedValue)
-  const fromMock = jest.fn().mockReturnValue({ where: whereMock })
-  db.select.mockReturnValue({ from: fromMock })
+function mockChain(resolvedValue: unknown) {
+  const fromMock = jest.fn().mockReturnValue({
+    where: jest.fn().mockReturnValue({
+      groupBy: jest.fn().mockResolvedValue(resolvedValue),
+    }),
+  })
+  return { from: fromMock }
+}
+
+function mockChainNoGroup(resolvedValue: unknown) {
+  const fromMock = jest.fn().mockReturnValue({
+    where: jest.fn().mockResolvedValue(resolvedValue),
+  })
+  return { from: fromMock }
 }
 
 beforeEach(() => {
@@ -35,14 +50,24 @@ beforeEach(() => {
 })
 
 describe('GET /value', () => {
-  it('returns total value, count, byGenre, byFormat correctly calculated from vinyl array', async () => {
-    const vinyls = [
-      { id: 1, currentValue: 10.5, genre: 'Rock', format: 'LP' },
-      { id: 2, currentValue: 20.0, genre: 'Rock', format: 'LP' },
-      { id: 3, currentValue: 5.0, genre: 'Jazz', format: '7"' },
-      { id: 4, currentValue: null, genre: null, format: null },
-    ]
-    mockSelectChain(vinyls)
+  it('returns total value, count, byGenre, byFormat correctly calculated', async () => {
+    // First query: aggregate total + count (no groupBy)
+    const chain1 = mockChainNoGroup([{ total: '35.5', count: '4' }])
+    // Second query: genre group by
+    const chain2 = mockChain([
+      { genre: 'Rock', count: '2' },
+      { genre: 'Jazz', count: '1' },
+    ])
+    // Third query: format group by
+    const chain3 = mockChain([
+      { format: 'LP', count: '2' },
+      { format: '7"', count: '1' },
+    ])
+
+    db.select
+      .mockReturnValueOnce(chain1)
+      .mockReturnValueOnce(chain2)
+      .mockReturnValueOnce(chain3)
 
     const res = await request(makeApp()).get('/value')
 
@@ -54,7 +79,14 @@ describe('GET /value', () => {
   })
 
   it('handles empty collection returning zero total and empty breakdowns', async () => {
-    mockSelectChain([])
+    const chain1 = mockChainNoGroup([{ total: '0', count: '0' }])
+    const chain2 = mockChain([])
+    const chain3 = mockChain([])
+
+    db.select
+      .mockReturnValueOnce(chain1)
+      .mockReturnValueOnce(chain2)
+      .mockReturnValueOnce(chain3)
 
     const res = await request(makeApp()).get('/value')
 
@@ -66,9 +98,11 @@ describe('GET /value', () => {
   })
 
   it('returns 500 on db error', async () => {
-    const whereMock = jest.fn().mockRejectedValue(new Error('connection lost'))
-    const fromMock = jest.fn().mockReturnValue({ where: whereMock })
-    db.select.mockReturnValue({ from: fromMock })
+    db.select.mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockRejectedValue(new Error('connection lost')),
+      }),
+    } as never)
 
     const res = await request(makeApp()).get('/value')
 

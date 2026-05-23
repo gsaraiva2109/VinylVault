@@ -8,7 +8,7 @@ const router = Router()
 let cachedToken: string | null = null
 let tokenExpiresAt = 0
 
-async function getSpotifyToken(): Promise<string> {
+export async function getSpotifyToken(): Promise<string> {
   const now = Date.now()
   if (cachedToken && now < tokenExpiresAt - 60_000) {
     return cachedToken

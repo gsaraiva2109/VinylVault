@@ -4,7 +4,7 @@ import { requireWriteAccess } from '../middleware/requireWriteAccess'
 import { priceRefreshCooldown } from '../middleware/refreshCooldown'
 import { logger } from '../logger'
 
-const log = logger.child({ module: 'discogs' })
+const log = logger.child({ module: 'route:discogs' })
 
 const router = Router()
 

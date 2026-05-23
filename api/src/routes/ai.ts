@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { eq, and } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { db } from '../db';
 import { userApiKeys } from '../db/schema';
 import { encrypt, decrypt } from '../services/encryption';
+import { requireWriteAccess } from '../middleware/requireWriteAccess';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'ai' });
@@ -12,6 +12,14 @@ const log = logger.child({ module: 'ai' });
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
+const RATE_PRUNE_INTERVAL_MS = 300_000; // prune stale entries every 5 min
+
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(key)
+  }
+}, RATE_PRUNE_INTERVAL_MS).unref()
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -25,11 +33,6 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
-function getDb() {
-  const client = postgres(process.env.DATABASE_URL!);
-  return drizzle(client);
-}
-
 // Validate the user is authenticated
 function getUserId(req: Request): string {
   return req.user?.sub ?? '';
@@ -38,7 +41,7 @@ function getUserId(req: Request): string {
 const router = Router();
 
 // POST /api/ai/save-key — encrypt and store API key
-router.post('/ai/save-key', async (req: Request, res: Response) => {
+router.post('/ai/save-key', requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -51,7 +54,6 @@ router.post('/ai/save-key', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'provider must be "openai", "gemini", "spotify-client-id", or "spotify-client-secret"' });
     }
 
-    const db = getDb();
     const encrypted = encrypt(apiKey);
 
     // Upsert: delete existing key for this user+provider, then insert
@@ -76,7 +78,7 @@ router.post('/ai/save-key', async (req: Request, res: Response) => {
 });
 
 // POST /api/ai/check-key — check if key is configured (never returns the key)
-router.post('/api/ai/check-key', async (req: Request, res: Response) => {
+router.post('/ai/check-key', async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -86,7 +88,6 @@ router.post('/api/ai/check-key', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'provider is required' });
     }
 
-    const db = getDb();
     const rows = await db
       .select()
       .from(userApiKeys)
@@ -101,7 +102,7 @@ router.post('/api/ai/check-key', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/ai/delete-key — remove key for a provider
-router.delete('/api/ai/delete-key', async (req: Request, res: Response) => {
+router.delete('/ai/delete-key', requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -111,7 +112,6 @@ router.delete('/api/ai/delete-key', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'provider is required' });
     }
 
-    const db = getDb();
     await db
       .delete(userApiKeys)
       .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
@@ -125,7 +125,7 @@ router.delete('/api/ai/delete-key', async (req: Request, res: Response) => {
 });
 
 // POST /api/ai/recognize — decrypt key, proxy to cloud AI, return result
-router.post('/api/ai/recognize', async (req: Request, res: Response) => {
+router.post('/ai/recognize', async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -148,7 +148,6 @@ router.post('/api/ai/recognize', async (req: Request, res: Response) => {
     }
 
     // Decrypt the user's API key
-    const db = getDb();
     const rows = await db
       .select()
       .from(userApiKeys)
@@ -179,13 +178,12 @@ router.post('/api/ai/recognize', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err) {
     log.error({ err }, 'Recognition failed');
-    const message = err instanceof Error ? err.message : 'Recognition failed';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: 'Recognition failed' });
   }
 });
 
 // POST /api/ai/models — fetch available models from provider
-router.post('/api/ai/models', async (req: Request, res: Response) => {
+router.post('/ai/models', async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -195,7 +193,6 @@ router.post('/api/ai/models', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'provider must be "openai" or "gemini"' });
     }
 
-    const db = getDb();
     const rows = await db
       .select()
       .from(userApiKeys)
@@ -304,10 +301,13 @@ async function callGemini(apiKey: string, imageBase64: string, model?: string): 
 }> {
   const geminiModel = model || 'gemini-2.0-flash';
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify({
         contents: [
           {

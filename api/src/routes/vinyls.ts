@@ -194,11 +194,13 @@ router.post('/', requireWriteAccess, async (req, res) => {
     const lengthErr = validateStringFields(body)
     if (lengthErr) return res.status(400).json({ error: lengthErr })
 
-    // Coerce year to integer if present
+    // Coerce year to integer if present; validate range
     const fields = pickMutable(body)
     if (fields.year !== undefined && fields.year !== null) {
       const yr = Number(fields.year)
-      fields.year = Number.isFinite(yr) ? Math.trunc(yr) : null
+      fields.year = (Number.isFinite(yr) && yr >= 1850 && yr <= new Date().getFullYear() + 1)
+        ? Math.trunc(yr)
+        : null
     }
 
     const now = Date.now()

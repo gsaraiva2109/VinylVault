@@ -25,7 +25,7 @@ describe('discogsGet', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    process.env = { ...originalEnv }
+    process.env = { ...originalEnv, DATABASE_URL: 'postgres://localhost:5432/test' }
     delete process.env.DISCOGS_TOKEN
   })
 

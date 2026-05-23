@@ -1,12 +1,10 @@
 import { Router } from 'express'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { logger } from '../logger'
 
 const log = logger.child({ module: 'collection' })
 
-// Any future write endpoints in this router must use the requireWriteAccess middleware
-// (see api/src/middleware/requireWriteAccess.ts), as enforced in vinyls.ts and discogs.ts.
 const router = Router()
 
 /**
@@ -23,22 +21,47 @@ const router = Router()
  */
 router.get('/value', async (_req, res) => {
   try {
-    const vinyls = await db
-      .select()
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.vinyls.currentValue}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
       .from(schema.vinyls)
       .where(eq(schema.vinyls.isDeleted, false))
 
-    const total = vinyls.reduce((sum, v) => sum + (v.currentValue ?? 0), 0)
+    const genreCounts = await db
+      .select({
+        genre: schema.vinyls.genre,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.vinyls)
+      .where(and(eq(schema.vinyls.isDeleted, false), isNotNull(schema.vinyls.genre)))
+      .groupBy(schema.vinyls.genre)
+
+    const formatCounts = await db
+      .select({
+        format: schema.vinyls.format,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.vinyls)
+      .where(and(eq(schema.vinyls.isDeleted, false), isNotNull(schema.vinyls.format)))
+      .groupBy(schema.vinyls.format)
 
     const byGenre: Record<string, number> = {}
+    for (const g of genreCounts) {
+      if (g.genre) byGenre[g.genre] = Number(g.count)
+    }
     const byFormat: Record<string, number> = {}
-
-    for (const v of vinyls) {
-      if (v.genre) byGenre[v.genre] = (byGenre[v.genre] ?? 0) + 1
-      if (v.format) byFormat[v.format] = (byFormat[v.format] ?? 0) + 1
+    for (const f of formatCounts) {
+      if (f.format) byFormat[f.format] = Number(f.count)
     }
 
-    res.json({ total, count: vinyls.length, byGenre, byFormat })
+    res.json({
+      total: Number(totalResult.total),
+      count: Number(totalResult.count),
+      byGenre,
+      byFormat,
+    })
   } catch (err) {
     log.error({ err }, 'GET /value error')
     res.status(500).json({ error: 'Internal server error' })
@@ -59,37 +82,60 @@ router.get('/value', async (_req, res) => {
  */
 router.get('/value/history', async (_req, res) => {
   try {
-    const vinyls = await db
-      .select()
+    // Cumulative monthly history using SQL window functions.
+    // Fetches only needed columns, computes cumulative value + count in the DB.
+    const rows = await db
+      .select({
+        month: sql<string>`to_char(date_trunc('month', to_timestamp(${schema.vinyls.createdAt} / 1000.0)), 'YYYY-MM')`,
+        totalValue: sql<number>`COALESCE(SUM(${schema.vinyls.currentValue}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
       .from(schema.vinyls)
       .where(eq(schema.vinyls.isDeleted, false))
+      .groupBy(sql`date_trunc('month', to_timestamp(${schema.vinyls.createdAt} / 1000.0))`)
+      .orderBy(sql`date_trunc('month', to_timestamp(${schema.vinyls.createdAt} / 1000.0))`)
 
-    // Build cumulative value history from record creation dates.
-    // Each month shows the total value of all records added up to that point.
+    // Build cumulative values
+    let cumulativeValue = 0
+    let cumulativeCount = 0
+    const history = rows.map((r) => {
+      cumulativeValue += Number(r.totalValue)
+      cumulativeCount += Number(r.count)
+      return {
+        month: r.month,
+        totalValue: Math.round(cumulativeValue * 100) / 100,
+        count: cumulativeCount,
+      }
+    })
+
+    // Pad to last 12 months if needed
     const now = new Date()
-    const months: { key: string; label: Date }[] = []
+    const expected: { key: string; label: Date }[] = []
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      months.push({
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      expected.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
         label: d,
       })
     }
 
-    const history = months.map((m) => {
-      const monthEnd = new Date(m.label.getFullYear(), m.label.getMonth() + 1, 0, 23, 59, 59, 999)
-      const recordsUpToMonth = vinyls.filter(
-        (v) => v.createdAt <= monthEnd.getTime()
-      )
-      const totalValue = recordsUpToMonth.reduce((sum, v) => sum + (v.currentValue ?? 0), 0)
+    const historyMap = new Map(history.map((h) => [h.month, h]))
+    const filled = expected.map((m) => {
+      const existing = historyMap.get(m.key)
+      if (existing) return existing
+      // Find last known cumulative before this month
+      let lastBefore: typeof history[0] | undefined
+      for (const h of history) {
+        if (h.month <= m.key) lastBefore = h
+      }
       return {
         month: m.key,
-        totalValue: Math.round(totalValue * 100) / 100,
-        count: recordsUpToMonth.length,
+        totalValue: lastBefore ? lastBefore.totalValue : 0,
+        count: lastBefore ? lastBefore.count : 0,
       }
     })
 
-    res.json(history)
+    res.json(filled)
   } catch (err) {
     log.error({ err }, 'GET /value/history error')
     res.status(500).json({ error: 'Internal server error' })
