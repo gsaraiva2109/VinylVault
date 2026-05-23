@@ -38,7 +38,7 @@ jobs:
               - 'pnpm-lock.yaml'
             backend:
               - 'api/**'
-              - 'package-lock.json'
+              - 'pnpm-lock.yaml'
             rust:
               - 'desktop/src-tauri/**'
               - 'desktop/sidecar/**'
@@ -90,15 +90,17 @@ jobs:
     runs-on: light-node
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Install pnpm
+        run: npm install -g pnpm@9
       - name: Install backend deps
         working-directory: api
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Backend typecheck
         working-directory: api
-        run: npx tsc --noEmit
+        run: pnpm exec tsc --noEmit
       - name: Backend build
         working-directory: api
-        run: npm run build
+        run: pnpm run build
 
   # ── Quality Gate: Rust / Tauri ────────────────────────────────────────────
   check-rust:
