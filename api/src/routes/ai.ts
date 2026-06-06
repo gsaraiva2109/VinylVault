@@ -77,6 +77,12 @@ router.post('/ai/save-key', requireWriteAccess, async (req: Request, res: Respon
   }
 });
 
+// Server-level env var fallbacks for providers that can be pre-configured
+const SERVER_ENV_FALLBACKS: Record<string, string> = {
+  'spotify-client-id': 'SPOTIFY_CLIENT_ID',
+  'spotify-client-secret': 'SPOTIFY_CLIENT_SECRET',
+};
+
 // POST /api/ai/check-key — check if key is configured (never returns the key)
 router.post('/ai/check-key', async (req: Request, res: Response) => {
   try {
@@ -94,7 +100,13 @@ router.post('/ai/check-key', async (req: Request, res: Response) => {
       .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)))
       .limit(1);
 
-    res.json({ configured: rows.length > 0 });
+    // If no user-stored key, fall back to server env var (e.g. Spotify pre-configured via deployment)
+    let configured = rows.length > 0;
+    if (!configured && SERVER_ENV_FALLBACKS[provider]) {
+      configured = !!process.env[SERVER_ENV_FALLBACKS[provider]];
+    }
+
+    res.json({ configured });
   } catch (err) {
     log.error({ err }, 'Failed to check API key');
     res.status(500).json({ error: 'Failed to check API key' });
