@@ -1,16 +1,18 @@
 "use client"
 
+import { memo } from "react"
 import type { VinylRecord } from "../types"
 import { ConditionBadge } from "./condition-badge"
 import { useVinylVault } from "../context"
 import { Play } from "lucide-react"
+import { getPlaceholderColor } from "@/lib/utils"
 
 interface RecordCardProps {
   record: VinylRecord
   className?: string
 }
 
-export function RecordCard({ record, className }: RecordCardProps) {
+export const RecordCard = memo(function RecordCard({ record, className }: RecordCardProps) {
   const { setSelectedRecord, setIsDetailOpen } = useVinylVault()
 
   const handleClick = () => {
@@ -102,13 +104,6 @@ export function RecordCard({ record, className }: RecordCardProps) {
       </div>
     </button>
   )
-}
+})
 
-function getPlaceholderColor(id: string): string {
-  const colors = ["#1a1a2e", "#16213e", "#0f3460", "#533483", "#4a0e4e", "#2c3e50", "#1e3a5f", "#2d4059"]
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return colors[Math.abs(hash) % colors.length]
-}
+

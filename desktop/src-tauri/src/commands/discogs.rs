@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::http_client::CLIENT;
+
 #[derive(Serialize)]
 pub struct DiscogsMaster {
     pub id: String,
@@ -37,9 +39,11 @@ struct DiscogsMasterResponse {
 
 #[tauri::command]
 pub async fn discogs_get_master(id: String) -> Result<DiscogsMaster, String> {
+    if id.is_empty() || id.len() > 20 || !id.chars().all(|c| c.is_ascii_digit()) {
+        return Err("invalid discogs ID".into());
+    }
     let url = format!("https://api.discogs.com/masters/{}", id);
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = CLIENT
         .get(&url)
         .header("User-Agent", "VinylVault/1.0")
         .send()

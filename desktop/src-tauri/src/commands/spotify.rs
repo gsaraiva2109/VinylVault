@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 use crate::commands::keyring;
+use crate::http_client::CLIENT;
 
 static TOKEN_CACHE: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
@@ -59,11 +60,10 @@ async fn get_access_token(client_id: &str, client_secret: &str) -> Result<String
         }
     }
 
-    let client = reqwest::Client::new();
     use base64::{engine::general_purpose::STANDARD, Engine};
     let credentials = STANDARD.encode(format!("{}:{}", client_id, client_secret));
 
-    let token_resp: SpotifyTokenResponse = client
+    let token_resp: SpotifyTokenResponse = CLIENT
         .post("https://accounts.spotify.com/api/token")
         .header("Authorization", format!("Basic {}", credentials))
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -86,6 +86,10 @@ async fn get_access_token(client_id: &str, client_secret: &str) -> Result<String
 
 #[tauri::command]
 pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
+    if q.is_empty() || q.len() > 200 {
+        return Err("search query must be 1-200 characters".into());
+    }
+
     let client_id = keyring::get_api_key("spotify-client-id")
         .ok_or("Spotify client ID not configured. Use save_api_key('spotify-client-id', '...') to set it.")?;
     let client_secret = keyring::get_api_key("spotify-client-secret")
@@ -93,14 +97,12 @@ pub async fn spotify_search(q: String) -> Result<SpotifySearchResult, String> {
 
     let access_token = get_access_token(&client_id, &client_secret).await?;
 
-    let client = reqwest::Client::new();
-
     let search_url = format!(
         "https://api.spotify.com/v1/search?q={}&type=album&limit=1",
         urlencoding::encode(&q)
     );
 
-    let search_resp: SpotifySearchResponse = client
+    let search_resp: SpotifySearchResponse = CLIENT
         .get(&search_url)
         .header("Authorization", format!("Bearer {}", access_token))
         .send()

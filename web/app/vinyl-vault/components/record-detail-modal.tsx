@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback } from "react"
 import type { Condition } from "../types"
 import { DeleteConfirmModal } from "./delete-confirm-modal"
 import { isDemoLocalId } from "../demo-store"
+import { getPlaceholderColor } from "@/lib/utils"
 
 function SpotifyIcon() {
   return (
@@ -526,13 +527,4 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
       {children}
     </div>
   )
-}
-
-function getPlaceholderColor(id: string): string {
-  const colors = ["#1a1a2e", "#16213e", "#0f3460", "#533483", "#4a0e4e", "#2c3e50", "#1e3a5f", "#2d4059"]
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return colors[Math.abs(hash) % colors.length]
 }

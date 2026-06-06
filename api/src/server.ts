@@ -4,6 +4,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
+import rateLimit from 'express-rate-limit'
 import cron from 'node-cron'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -20,6 +21,7 @@ import { addClient, removeClient } from './sse/broadcaster'
 import { getSpotifyToken } from './routes/spotify'
 import { logger } from './logger'
 import { requestIdMiddleware } from './middleware/request-id'
+import { createSseToken } from './sse/sse-tokens'
 
 const log = logger.child({ module: 'server' })
 
@@ -47,12 +49,38 @@ app.use(cors({
   credentials: true,
 }))
 
+// Global rate limiting — 100 req/15min per IP
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+}))
+
+// Stricter rate limit on auth-heavy endpoints
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth requests, please try again later.' },
+})
+
 app.use(express.json({ limit: '5mb' }))
 app.use(requestIdMiddleware)
 
 // Health check (no auth)
 app.get('/', (_req, res) => res.json({ service: 'vinyl-vault-api', status: 'ok' }))
 app.get('/health', (_req, res) => res.json({ ok: true }))
+
+// Issue a short-lived token for SSE connections.
+// EventSource can't send custom headers, so this endpoint (auth'd with
+// Bearer) returns a single-use token to pass in the SSE URL query string.
+app.get('/api/sse-token', authMiddleware, authRateLimit, (req, res) => {
+  const sub = req.user?.sub ?? 'unknown'
+  res.json({ token: createSseToken(sub) })
+})
 
 // Swagger docs — protected behind auth in production
 if (process.env.NODE_ENV !== 'production') {

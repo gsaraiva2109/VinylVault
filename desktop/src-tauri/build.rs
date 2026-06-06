@@ -1,7 +1,7 @@
 fn main() {
     // Re-run build whenever the Next.js frontend changes so the new
     // static files are re-embedded into the binary.
-    println!("cargo:rerun-if-changed=../../vinylRecognizerDashboard/out");
+    println!("cargo:rerun-if-changed=../../web/out");
     println!("cargo:rerun-if-changed=.env");
 
     // Load .env file and emit cargo:rustc-env= for each var so env!() works.
@@ -13,11 +13,18 @@ fn main() {
         println!("cargo:rerun-if-env-changed={var}");
 
         // Real env var (CI) takes precedence over .env file.
-        // Build succeeds even without OIDC vars — auth will fail at runtime with a clear error.
         let value = std::env::var(var)
             .ok()
             .or_else(|| file_vars.iter().find(|(k, _)| k == var).map(|(_, v)| v.clone()))
             .unwrap_or_default();
+
+        if value.is_empty() {
+            panic!(
+                "{} is not set. Create desktop/src-tauri/.env or set the environment variable.\n\
+                 In CI: ensure the secret is configured in GitHub/Forgejo repository settings.",
+                var
+            );
+        }
 
         println!("cargo:rustc-env={var}={value}");
     }

@@ -8,6 +8,8 @@ docs/
 .agents/
 .serena/
 .verboo/
+.antigravitycli/
+.commandcode/
 .context.xml
 .signatures.md
 scripts/map-signatures.sh

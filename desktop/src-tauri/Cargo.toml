@@ -34,8 +34,9 @@ url        = "2"
 base64     = "0.22"
 urlencoding = "2"
 chrono     = { version = "0.4", features = ["clock"] }
-blake3   = "1.8.4"
-rusqlite = { version = "0.39.0", features = ["bundled"] }
+blake3     = "1.8.4"
+once_cell  = "1"
+rusqlite   = { version = "0.39.0", features = ["bundled"] }
 image    = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 # Linux: webkit2gtk for camera permission handler

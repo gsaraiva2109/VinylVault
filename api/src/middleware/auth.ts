@@ -63,13 +63,27 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     return next()
   }
 
-  // EventSource (SSE) cannot send custom headers — accept token as ?token= query param as fallback
+  // EventSource (SSE) cannot send custom headers — accept token as ?token= query param as fallback.
+  // Prefer the /api/sse-token endpoint to get a short-lived token instead of passing the main JWT in URLs.
   const rawToken = authorization?.startsWith('Bearer ')
     ? authorization.slice(7)
     : typeof req.query.token === 'string' ? req.query.token : null
 
   if (!rawToken) {
     return res.status(401).json({ error: 'Missing Bearer token' })
+  }
+
+  // Short-lived SSE token (set via /api/sse-token endpoint)
+  const { consumeSseToken } = require('../sse/sse-tokens')
+  const sseSub = consumeSseToken(rawToken)
+  if (sseSub) {
+    req.user = {
+      name: sseSub,
+      sub: sseSub,
+      groups: [],
+      isDemo: false,
+    }
+    return next()
   }
 
   // Dev Mode Bypass via query param token

@@ -3,21 +3,13 @@
 import { useEffect, useState, useRef } from "react"
 import { Trash2, Loader2, AlertTriangle } from "lucide-react"
 import type { VinylRecord } from "../types"
+import { getPlaceholderColor } from "@/lib/utils"
 
 interface DeleteConfirmModalProps {
   record: VinylRecord
   isDeleting: boolean
   onConfirm: () => void
   onCancel: () => void
-}
-
-function getPlaceholderColor(id: string): string {
-  const colors = ["#1a1a2e", "#16213e", "#0f3460", "#533483", "#4a0e4e", "#2c3e50", "#1e3a5f", "#2d4059"]
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return colors[Math.abs(hash) % colors.length]
 }
 
 export function DeleteConfirmModal({ record, isDeleting, onConfirm, onCancel }: DeleteConfirmModalProps) {

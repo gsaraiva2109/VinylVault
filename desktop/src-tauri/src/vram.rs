@@ -12,6 +12,8 @@
 
 use std::process::Command;
 
+use crate::http_client::CLIENT;
+
 // ── Public types ─────────────────────────────────────────────────────────────
 
 pub struct VramInfo {
@@ -22,12 +24,12 @@ pub struct VramInfo {
 // ── Platform probes ──────────────────────────────────────────────────────────
 
 /// Returns None if no supported GPU tool is reachable — caller treats as unconstrained.
-pub fn query_vram() -> Option<VramInfo> {
+pub async fn query_vram() -> Option<VramInfo> {
     #[cfg(target_os = "linux")]
-    return linux_vram();
+    return linux_vram().await;
 
     #[cfg(target_os = "macos")]
-    return macos_vram();
+    return macos_vram().await;
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     None
@@ -36,92 +38,101 @@ pub fn query_vram() -> Option<VramInfo> {
 // ── Linux ────────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-fn linux_vram() -> Option<VramInfo> {
-    nvidia_vram().or_else(amd_vram)
-}
-
-#[cfg(target_os = "linux")]
-fn nvidia_vram() -> Option<VramInfo> {
-    let out = Command::new("nvidia-smi")
-        .args(["--query-gpu=memory.free,memory.total", "--format=csv,noheader,nounits"])
-        .output()
-        .ok()?;
-
-    if !out.status.success() {
-        return None;
+async fn linux_vram() -> Option<VramInfo> {
+    if let Some(info) = nvidia_vram().await {
+        return Some(info);
     }
-
-    let text = String::from_utf8_lossy(&out.stdout);
-    let line = text.lines().next()?;
-    let mut parts = line.split(',').map(|s| s.trim().parse::<u64>().ok());
-    let free_mb  = parts.next()??;
-    let total_mb = parts.next()??;
-    Some(VramInfo { free_mb, total_mb })
+    amd_vram().await
 }
 
 #[cfg(target_os = "linux")]
-fn amd_vram() -> Option<VramInfo> {
-    // Walk /sys/class/drm/card* looking for the first card with AMD VRAM sysfs files.
-    for entry in std::fs::read_dir("/sys/class/drm").ok()?.flatten() {
-        let base = entry.path();
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        // Only top-level card entries (card0, card1, …), not connectors (card0-HDMI-…)
-        if !name_str.starts_with("card") || name_str.contains('-') {
-            continue;
+async fn nvidia_vram() -> Option<VramInfo> {
+    tokio::task::spawn_blocking(|| {
+        let out = Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.free,memory.total", "--format=csv,noheader,nounits"])
+            .output()
+            .ok()?;
+
+        if !out.status.success() {
+            return None;
         }
-        let total_path = base.join("device/mem_info_vram_total");
-        let used_path  = base.join("device/mem_info_vram_used");
-        if let (Ok(t), Ok(u)) = (
-            std::fs::read_to_string(&total_path),
-            std::fs::read_to_string(&used_path),
-        ) {
-            if let (Ok(total_bytes), Ok(used_bytes)) = (
-                t.trim().parse::<u64>(),
-                u.trim().parse::<u64>(),
+
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().next()?;
+        let mut parts = line.split(',').map(|s| s.trim().parse::<u64>().ok());
+        let free_mb  = parts.next()??;
+        let total_mb = parts.next()??;
+        Some(VramInfo { free_mb, total_mb })
+    }).await.ok().flatten()
+}
+
+#[cfg(target_os = "linux")]
+async fn amd_vram() -> Option<VramInfo> {
+    tokio::task::spawn_blocking(|| {
+        // Walk /sys/class/drm/card* looking for the first card with AMD VRAM sysfs files.
+        for entry in std::fs::read_dir("/sys/class/drm").ok()?.flatten() {
+            let base = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            // Only top-level card entries (card0, card1, …), not connectors (card0-HDMI-…)
+            if !name_str.starts_with("card") || name_str.contains('-') {
+                continue;
+            }
+            let total_path = base.join("device/mem_info_vram_total");
+            let used_path  = base.join("device/mem_info_vram_used");
+            if let (Ok(t), Ok(u)) = (
+                std::fs::read_to_string(&total_path),
+                std::fs::read_to_string(&used_path),
             ) {
-                if total_bytes == 0 {
-                    continue;
+                if let (Ok(total_bytes), Ok(used_bytes)) = (
+                    t.trim().parse::<u64>(),
+                    u.trim().parse::<u64>(),
+                ) {
+                    if total_bytes == 0 {
+                        continue;
+                    }
+                    let total_mb = total_bytes / 1024 / 1024;
+                    let free_mb  = (total_bytes.saturating_sub(used_bytes)) / 1024 / 1024;
+                    return Some(VramInfo { free_mb, total_mb });
                 }
-                let total_mb = total_bytes / 1024 / 1024;
-                let free_mb  = (total_bytes.saturating_sub(used_bytes)) / 1024 / 1024;
-                return Some(VramInfo { free_mb, total_mb });
             }
         }
-    }
-    None
+        None
+    }).await.ok().flatten()
 }
 
 // ── macOS ────────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
-fn macos_vram() -> Option<VramInfo> {
-    let total_mb = macos_gpu_total_mb()?;
-    let free_mb  = macos_free_approx_mb().unwrap_or(total_mb).min(total_mb);
+async fn macos_vram() -> Option<VramInfo> {
+    let total_mb = macos_gpu_total_mb().await?;
+    let free_mb  = macos_free_approx_mb().await.unwrap_or(total_mb).min(total_mb);
     Some(VramInfo { free_mb, total_mb })
 }
 
 /// Parse the VRAM total from `system_profiler SPDisplaysDataType -json`.
 /// Works for discrete GPUs and reports the shared pool size on Apple Silicon.
 #[cfg(target_os = "macos")]
-fn macos_gpu_total_mb() -> Option<u64> {
-    let out = Command::new("system_profiler")
-        .args(["SPDisplaysDataType", "-json"])
-        .output()
-        .ok()?;
+async fn macos_gpu_total_mb() -> Option<u64> {
+    tokio::task::spawn_blocking(|| {
+        let out = Command::new("system_profiler")
+            .args(["SPDisplaysDataType", "-json"])
+            .output()
+            .ok()?;
 
-    let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    let displays = json["SPDisplaysDataType"].as_array()?;
+        let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+        let displays = json["SPDisplaysDataType"].as_array()?;
 
-    for gpu in displays {
-        // Field is e.g. "8 GB" or "6144 MB"
-        if let Some(vram_str) = gpu["spdisplays_vram"].as_str() {
-            if let Some(mb) = parse_vram_str(vram_str) {
-                return Some(mb);
+        for gpu in displays {
+            // Field is e.g. "8 GB" or "6144 MB"
+            if let Some(vram_str) = gpu["spdisplays_vram"].as_str() {
+                if let Some(mb) = parse_vram_str(vram_str) {
+                    return Some(mb);
+                }
             }
         }
-    }
-    None
+        None
+    }).await.ok().flatten()
 }
 
 #[cfg(target_os = "macos")]
@@ -139,28 +150,30 @@ fn parse_vram_str(s: &str) -> Option<u64> {
 /// Approximate free GPU memory via vm_stat free pages (Apple Silicon unified memory).
 /// On Intel Macs with discrete GPU this is an overestimate, but still useful as a heuristic.
 #[cfg(target_os = "macos")]
-fn macos_free_approx_mb() -> Option<u64> {
-    let out = Command::new("vm_stat").output().ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
+async fn macos_free_approx_mb() -> Option<u64> {
+    tokio::task::spawn_blocking(|| {
+        let out = Command::new("vm_stat").output().ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
 
-    let mut free_pages: u64 = 0;
-    for line in text.lines() {
-        // "Pages free:                            12345."
-        if line.starts_with("Pages free:") {
-            let num = line
-                .split(':')
-                .nth(1)?
-                .trim()
-                .trim_end_matches('.')
-                .parse::<u64>()
-                .ok()?;
-            free_pages = num;
-            break;
+        let mut free_pages: u64 = 0;
+        for line in text.lines() {
+            // "Pages free:                            12345."
+            if line.starts_with("Pages free:") {
+                let num = line
+                    .split(':')
+                    .nth(1)?
+                    .trim()
+                    .trim_end_matches('.')
+                    .parse::<u64>()
+                    .ok()?;
+                free_pages = num;
+                break;
+            }
         }
-    }
 
-    // macOS page size is 4096 bytes (16384 on Apple Silicon — but 4096 is safe underestimate)
-    Some(free_pages * 4096 / 1024 / 1024)
+        // macOS page size is 4096 bytes (16384 on Apple Silicon — but 4096 is safe underestimate)
+        Some(free_pages * 4096 / 1024 / 1024)
+    }).await.ok().flatten()
 }
 
 // ── Modelfile generator ──────────────────────────────────────────────────────
@@ -184,14 +197,13 @@ pub async fn ensure_optimized_model(base_model: &str, total_mb: u64) -> Result<S
         "FROM {base_model}\nPARAMETER num_ctx {num_ctx}\nPARAMETER num_predict {num_predict}\n"
     );
 
-    let client = reqwest::Client::new();
     let body = serde_json::json!({
         "name":      "vinyl-vault-opt",
         "modelfile": modelfile,
         "stream":    false
     });
 
-    let resp = client
+    let resp = CLIENT
         .post("http://localhost:11434/api/create")
         .json(&body)
         .timeout(std::time::Duration::from_secs(30))

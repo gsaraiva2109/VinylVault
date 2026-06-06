@@ -14,6 +14,7 @@ use serde_json::json;
 use tauri::AppHandle;
 
 use crate::commands::{keyring, llm, settings::read_settings};
+use crate::http_client::CLIENT;
 use crate::vram;
 
 // Keep this vocabulary in sync with api/src/services/tag-vocab.ts — the API
@@ -75,8 +76,7 @@ async fn call_ollama_tags(image_bytes: &[u8], model: &str, max_dim: u32) -> Resu
         "stream": false,
     });
 
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = CLIENT
         .post("http://localhost:11434/api/generate")
         .json(&body)
         .timeout(std::time::Duration::from_secs(60))
@@ -107,8 +107,7 @@ async fn call_openai_tags(image_bytes: &[u8], api_key: &str, model: &str, max_di
         }],
     });
 
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = CLIENT
         .post("https://api.openai.com/v1/chat/completions")
         .bearer_auth(api_key)
         .json(&body)
@@ -132,7 +131,7 @@ async fn call_gemini_tags(image_bytes: &[u8], api_key: &str, model: &str, max_di
     let resized = llm::resize_if_needed(image_bytes, max_dim);
     let b64 = general_purpose::STANDARD.encode(&resized);
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     );
     let body = json!({
         "contents": [{
@@ -143,11 +142,11 @@ async fn call_gemini_tags(image_bytes: &[u8], api_key: &str, model: &str, max_di
         }],
     });
 
-    let client = reqwest::Client::new();
     let max_attempts = 3u32;
     for attempt in 0..max_attempts {
-        let resp = client
+        let resp = CLIENT
             .post(&url)
+            .header("x-goog-api-key", api_key)
             .json(&body)
             .timeout(std::time::Duration::from_secs(30))
             .send()
@@ -179,7 +178,7 @@ async fn call_gemini_tags(image_bytes: &[u8], api_key: &str, model: &str, max_di
 // ── Cascade ───────────────────────────────────────────────────────────────────
 
 async fn try_ollama_tags(image_data: &[u8], model: &str, max_dim: u32) -> Result<TagResult, String> {
-    let effective_model = match vram::query_vram() {
+    let effective_model = match vram::query_vram().await {
         Some(info) => {
             let ratio = info.free_mb as f64 / info.total_mb as f64;
             if ratio < 0.25 {

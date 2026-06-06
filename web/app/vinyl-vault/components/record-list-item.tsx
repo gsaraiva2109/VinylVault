@@ -1,6 +1,7 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import { memo } from "react"
+import { cn, getPlaceholderColor } from "@/lib/utils"
 import type { VinylRecord } from "../types"
 import { ConditionBadge } from "./condition-badge"
 import { useVinylVault } from "../context"
@@ -11,7 +12,7 @@ interface RecordListItemProps {
   className?: string
 }
 
-export function RecordListItem({ record, className }: RecordListItemProps) {
+export const RecordListItem = memo(function RecordListItem({ record, className }: RecordListItemProps) {
   const { setSelectedRecord, setIsDetailOpen } = useVinylVault()
 
   const handleClick = () => {
@@ -75,19 +76,4 @@ export function RecordListItem({ record, className }: RecordListItemProps) {
       </div>
     </button>
   )
-}
-
-function getPlaceholderColor(id: string): string {
-  const colors = [
-    "#1a1a2e",
-    "#16213e",
-    "#0f3460",
-    "#533483",
-    "#4a0e4e",
-    "#2c3e50",
-    "#1e3a5f",
-    "#2d4059",
-  ]
-  const index = parseInt(id, 10) % colors.length
-  return colors[index]
-}
+})

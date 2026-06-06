@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::commands::{keyring, llm, settings::read_settings};
+use crate::http_client::CLIENT;
 use crate::{cache, vram};
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ async fn try_ollama(
     model: &str,
     max_dim: u32,
 ) -> Result<RecognitionResult, String> {
-    let effective_model = match vram::query_vram() {
+    let effective_model = match vram::query_vram().await {
         Some(info) => {
             let ratio = info.free_mb as f64 / info.total_mb as f64;
             if ratio < 0.25 {
@@ -169,8 +170,13 @@ where
 
 // ── Tauri command: recognize ─────────────────────────────────────────────────
 
+const MAX_IMAGE_BYTES: usize = 50 * 1024 * 1024; // 50 MB
+
 #[tauri::command]
 pub async fn recognize(app: AppHandle, image_data: Vec<u8>, force_provider: Option<String>) -> Result<RecognitionResult, String> {
+    if image_data.len() > MAX_IMAGE_BYTES {
+        return Err("image too large (max 50 MB)".into());
+    }
     if let Some(cached) = cache::lookup(&app, &image_data) {
         return Ok(cached);
     }
@@ -235,8 +241,7 @@ struct OllamaTagsResponse {
 
 #[tauri::command]
 pub async fn get_ollama_models() -> OllamaModelsResult {
-    let client = reqwest::Client::new();
-    match client
+    match CLIENT
         .get("http://localhost:11434/api/tags")
         .timeout(std::time::Duration::from_secs(5))
         .send()

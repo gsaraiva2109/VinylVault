@@ -24,12 +24,15 @@ const USER_AGENT = 'VinylVaultApp/0.1 +https://github.com/gsaraiva2109/VinylVaul
 // keep both in sync if changing retry strategy.
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
+const REQUEST_TIMEOUT_MS = 30_000
+
 function discogsGetOnce(path: string): Promise<{ status: number; body: unknown }> {
   const token = process.env.DISCOGS_TOKEN
   return new Promise((resolve, reject) => {
     const req = https.get(
       `${DISCOGS_BASE}${path}`,
       {
+        timeout: REQUEST_TIMEOUT_MS,
         headers: {
           ...(token ? { Authorization: `Discogs token=${token}` } : {}),
           'User-Agent': USER_AGENT
@@ -47,6 +50,10 @@ function discogsGetOnce(path: string): Promise<{ status: number; body: unknown }
         })
       }
     )
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error('Discogs request timed out'))
+    })
     req.on('error', reject)
   })
 }
@@ -99,6 +106,7 @@ export async function refreshStalePrices(
 
   let updated = 0
   let errors = 0
+  const updates: { id: number; price: number | null }[] = []
 
   for (const vinyl of stale) {
     try {
@@ -124,11 +132,7 @@ export async function refreshStalePrices(
         await sleep(1100) // extra delay for the second request
       }
 
-      await db
-        .update(schema.vinyls)
-        .set({ currentValue: conditionPrice, valueUpdatedAt: Date.now(), updatedAt: Date.now() })
-        .where(eq(schema.vinyls.id, vinyl.id))
-
+      updates.push({ id: vinyl.id, price: conditionPrice })
       updated++
     } catch (err) {
       log.error({ err }, `price refresh failed for vinyl ${vinyl.id} (${vinyl.discogsId})`)
@@ -137,6 +141,17 @@ export async function refreshStalePrices(
 
     // Discogs rate limit: 60 req/min authenticated, 25/min unauthenticated → 1 req/sec is safe
     await sleep(1100)
+  }
+
+  // Batch update all prices after HTTP requests complete
+  if (updates.length > 0) {
+    const now = Date.now()
+    for (const { id, price } of updates) {
+      await db
+        .update(schema.vinyls)
+        .set({ currentValue: price, valueUpdatedAt: now, updatedAt: now })
+        .where(eq(schema.vinyls.id, id))
+    }
   }
 
   log.info({ updated, errors }, 'price refresh complete')

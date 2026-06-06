@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { broadcast } from '../sse/broadcaster'
 import { requireWriteAccess } from '../middleware/requireWriteAccess'
@@ -70,16 +70,44 @@ export function validateCondition(condition: unknown): string | null {
  *     tags: [Vinyls]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
  *     responses:
  *       200:
  *         description: A list of vinyls
+ *         headers:
+ *           X-Total-Count:
+ *             schema:
+ *               type: integer
  */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 500)
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0)
+
+    const [total] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.vinyls)
+      .where(eq(schema.vinyls.isDeleted, false))
+
     const rows = await db
       .select()
       .from(schema.vinyls)
       .where(eq(schema.vinyls.isDeleted, false))
+      .limit(limit)
+      .offset(offset)
+
+    res.setHeader('X-Total-Count', Number(total.count))
+    res.setHeader('Cache-Control', 'private, max-age=15')
     res.json(rows)
   } catch (err) {
     log.error({ err }, 'GET / error')
@@ -100,12 +128,25 @@ router.get('/', async (_req, res) => {
  *         description: A list of trashed vinyls
  */
 // NOTE: must be registered before /:id to prevent 'trash' being parsed as an ID
-router.get('/trash', async (_req, res) => {
+router.get('/trash', async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 500)
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0)
+
+    const [total] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.vinyls)
+      .where(eq(schema.vinyls.isDeleted, true))
+
     const rows = await db
       .select()
       .from(schema.vinyls)
       .where(eq(schema.vinyls.isDeleted, true))
+      .limit(limit)
+      .offset(offset)
+
+    res.setHeader('X-Total-Count', Number(total.count))
+    res.setHeader('Cache-Control', 'private, max-age=15')
     res.json(rows)
   } catch (err) {
     log.error({ err }, 'GET /trash error')

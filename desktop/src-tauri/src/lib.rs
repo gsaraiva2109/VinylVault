@@ -1,6 +1,7 @@
 mod auth;
 mod cache;
 mod commands;
+mod http_client;
 mod updater;
 mod vram;
 

@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' http://localhost:3000; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' http://localhost:3000 http://localhost:8765 http://localhost:3001 https: ipc: http://ipc.localhost ws://localhost:3000"
+      "csp": "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' http://localhost:3000; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' http://localhost:3000 https://api-vinyl.gsaraiva.com.br https://auth.gsaraiva.com.br https://api.spotify.com https://api.discogs.com https://generativelanguage.googleapis.com https://api.openai.com ipc: http://ipc.localhost ws://localhost:3000"
     }
   },
   "bundle": {

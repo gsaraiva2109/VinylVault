@@ -10,6 +10,7 @@ use image::imageops::FilterType;
 use serde_json::json;
 
 use crate::commands::recognize::RecognitionResult;
+use crate::http_client::CLIENT;
 
 // ── Image resize helper ──────────────────────────────────────────────────────
 
@@ -104,8 +105,7 @@ pub async fn call_ollama(image_bytes: &[u8], model: &str, max_dim: u32) -> Resul
         "images": [b64],
         "stream": false
     });
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = CLIENT
         .post("http://localhost:11434/api/generate")
         .json(&body)
         .timeout(std::time::Duration::from_secs(60))
@@ -161,8 +161,7 @@ pub async fn call_openai(
             ]
         }],
     });
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = CLIENT
         .post("https://api.openai.com/v1/chat/completions")
         .bearer_auth(api_key)
         .json(&body)
@@ -199,7 +198,7 @@ pub async fn call_gemini(
     let resized = resize_if_needed(image_bytes, max_dim);
     let b64 = general_purpose::STANDARD.encode(&resized);
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     );
     let body = json!({
         "contents": [{
@@ -209,14 +208,14 @@ pub async fn call_gemini(
             ]
         }],
     });
-    let client = reqwest::Client::new();
 
     // Retry up to 3 times on transient errors (503/429). Same pattern as
     // api/src/services/discogs.ts discogsGet() — keep both in sync.
     let max_attempts = 3u32;
     for attempt in 0..max_attempts {
-        let resp = client
+        let resp = CLIENT
             .post(&url)
+            .header("x-goog-api-key", api_key)
             .json(&body)
             .timeout(std::time::Duration::from_secs(30))
             .send()
@@ -271,8 +270,6 @@ pub async fn call_gemini(
 pub async fn get_available_cloud_models(provider: String) -> Result<Vec<String>, String> {
     use serde::Deserialize;
 
-    let client = reqwest::Client::new();
-
     match provider.as_str() {
         "openai" => {
             let key = crate::commands::keyring::get_api_key("openai")
@@ -283,7 +280,7 @@ pub async fn get_available_cloud_models(provider: String) -> Result<Vec<String>,
             #[derive(Deserialize)]
             struct OAResp { data: Vec<OAModel> }
 
-            let resp = client
+            let resp = CLIENT
                 .get("https://api.openai.com/v1/models")
                 .bearer_auth(&key)
                 .timeout(std::time::Duration::from_secs(10))
@@ -324,11 +321,9 @@ pub async fn get_available_cloud_models(provider: String) -> Result<Vec<String>,
             #[derive(Deserialize)]
             struct GResp { models: Vec<GModel> }
 
-            let resp = client
-                .get(format!(
-                    "https://generativelanguage.googleapis.com/v1beta/models?key={}",
-                    key
-                ))
+            let resp = CLIENT
+                .get("https://generativelanguage.googleapis.com/v1beta/models")
+                .header("x-goog-api-key", &key)
                 .timeout(std::time::Duration::from_secs(10))
                 .send()
                 .await
