@@ -283,14 +283,18 @@ jobs:
       - name: Trigger Dokploy Deploy
         if: steps.check_skip.outputs.SKIP != 'true' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         env:
-          WEBHOOK_URL: ${{ matrix.image == 'vinyl-vault-api' && secrets.DOKPLOY_WEBHOOK_URL_API || secrets.DOKPLOY_WEBHOOK_URL_WEB }}
+          WEBHOOK_PATH: ${{ matrix.image == 'vinyl-vault-api' && secrets.DOKPLOY_WEBHOOK_URL_API || secrets.DOKPLOY_WEBHOOK_URL_WEB }}
           DOKPLOY_HOST: ${{ vars.INTERNAL_DOKPLOY_HOST }}
         run: |
-          if [ -n "$WEBHOOK_URL" ]; then
-            echo "Triggering Dokploy deploy for ${{ matrix.image }}..."
-            # Combine Host + Webhook Path if needed, or just use the full URL if it's already an IP
-            # We add -i to see response and -d '{}' to ensure POST body is present
-            # Added -L and --post301 to follow redirects (301) while maintaining POST
+          if [ -n "$WEBHOOK_PATH" ]; then
+            # If WEBHOOK_PATH is already a full URL, use it directly.
+            # Otherwise prepend DOKPLOY_HOST (internal Dokploy address).
+            if echo "$WEBHOOK_PATH" | grep -q '^https\?://'; then
+              WEBHOOK_URL="$WEBHOOK_PATH"
+            else
+              WEBHOOK_URL="${DOKPLOY_HOST}${WEBHOOK_PATH}"
+            fi
+            echo "Triggering Dokploy deploy for ${{ matrix.image }} → $WEBHOOK_URL"
             curl -i -L --post301 -X POST \
               -H "Content-Type: application/json" \
               -d "{}" \
