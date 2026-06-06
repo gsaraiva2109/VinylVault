@@ -9,17 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   # ── Change Detection ──────────────────────────────────────────────────────
   detect-changes:
     name: Detect Changes
     runs-on: light-node
-    # On a tag push the workflow fires once (correct).
-    # On a branch push caused by a release commit the workflow also fires — skip it
-    # here so the heavyweight jobs below are never duplicated.
-    if: |
-      startsWith(github.ref, 'refs/tags/') || 
-      !startsWith(github.event.head_commit.message, 'chore: release v')
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
@@ -169,10 +166,6 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.FGJ_TOKEN }}
           GITEA_URL: https://git.gsaraiva.com.br
-          GIT_AUTHOR_NAME: gsaraiva2109
-          GIT_AUTHOR_EMAIL: gsaraiva2109@gmail.com
-          GIT_COMMITTER_NAME: gsaraiva2109
-          GIT_COMMITTER_EMAIL: gsaraiva2109@gmail.com
         run: |
           BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           npx semantic-release
@@ -321,6 +314,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
         with:
           ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
+
+      - name: Set release version in workspace
+        if: needs.release.outputs.released == 'true'
+        run: bash scripts/sr-bump-version.sh ${{ needs.release.outputs.version }}
+
       - name: Install pnpm
         run: npm install -g pnpm@9
       - name: Get pnpm store directory
@@ -423,8 +421,8 @@ jobs:
           VERSION="${{ needs.release.outputs.version }}"
 
           GITEA_API_URL="https://git.gsaraiva.com.br/api/v1/repos/${{ github.repository }}/releases/tags/${TAG}"
-          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty' | head -80)
-          RELEASE_BODY=$(printf '## Changelog\n\n%s\n\n---\n\n## Install\n\n**Linux (x86_64)** \xe2\x80\x94 download the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n**macOS (Apple Silicon)** \xe2\x80\x94 download the `.dmg`, open it, drag to Applications.' "$RAW_CHANGELOG")
+          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty')
+          RELEASE_BODY=$(printf '# Vinyl Vault v%s\n\n%s\n\n---\n\n## 📥 Install\n\n### Linux (x86_64)\n\nDownload the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n### macOS (Apple Silicon)\n\nDownload the `.dmg` below, open it, and drag Vinyl Vault to your Applications folder. Then remove the quarantine flag so macOS allows the unsigned app to launch:\n\n```sh\nxattr -cr /Applications/Vinyl\\ Vault.app\n```\n' "$VERSION" "$RAW_CHANGELOG")
           CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
 
           FETCH_RESP=$(curl -s -w "\n%{http_code}" \
@@ -589,3 +587,20 @@ jobs:
           cat latest.json
 
           upload_asset latest.json "latest.json" "application/json"
+
+      - name: Update release body with SHA256 checksums
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+          RELEASE_ID: ${{ needs.mirror-github-release.outputs.release-id }}
+        run: |
+          CURRENT_BODY=$(curl -s -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            "https://api.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}" | jq -r '.body // ""')
+          SHA256_SECTION="### 🔐 SHA256 Checksums\n\n\`\`\`\n$(cat dist/SHA256SUMS.txt)\n\`\`\`"
+          UPDATED_BODY=$(printf "%s\n\n%s" "$CURRENT_BODY" "$SHA256_SECTION")
+          UPDATED_BODY_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$UPDATED_BODY")
+          curl -s -X PATCH \
+            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}" \
+            -d "{\"body\": ${UPDATED_BODY_JSON}}"

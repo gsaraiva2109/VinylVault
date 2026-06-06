@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-tauri-macos:
     name: Build & Upload macOS .dmg
@@ -155,3 +158,34 @@ jobs:
 
           echo "::error::Release ${TAG} not found. Check that semantic-release completed on Forgejo."
           exit 1
+
+      - name: Update release body with macOS SHA256 checksums
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || github.ref_name }}"
+
+          CURRENT_BODY=$(gh release view "$TAG" --json body --jq '.body' || echo "")
+          if [ -z "$CURRENT_BODY" ]; then
+            echo "::error::Could not fetch release body for ${TAG}"
+            exit 1
+          fi
+
+          BUNDLE_DIR="desktop/src-tauri/target/aarch64-apple-darwin/release/bundle"
+          SHA256_FILE=$(find "$BUNDLE_DIR" -name "SHA256SUMS-macos.txt" | head -1)
+
+          if [ -f "$SHA256_FILE" ]; then
+            SHA256_SECTION="### 🔐 SHA256 Checksums (macOS)\n\n\`\`\`\n$(cat "$SHA256_FILE")\n\`\`\`"
+            UPDATED_BODY=$(printf "%s\n\n%s" "$CURRENT_BODY" "$SHA256_SECTION")
+            UPDATED_BODY_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$UPDATED_BODY")
+            RELEASE_ID=$(gh release view "$TAG" --json id --jq '.id')
+
+            curl -s -X PATCH \
+              -H "Authorization: bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}" \
+              -d "{\"body\": ${UPDATED_BODY_JSON}}"
+          else
+            echo "::warning::SHA256SUMS-macos.txt not found"
+          fi
