@@ -19,7 +19,21 @@ declare module "next-auth/jwt" {
   }
 }
 
-const oidcIssuer = process.env.OIDC_ISSUER?.replace(/\/$/, "")
+const oidcIssuer = (() => {
+  const raw = process.env.OIDC_ISSUER?.replace(/\/$/, "")
+  if (!raw) {
+    console.warn("[auth] OIDC_ISSUER is not set — sign-in will be unavailable")
+    return undefined
+  }
+  if (!/^https?:\/\//.test(raw)) {
+    console.error("[auth] OIDC_ISSUER must start with http:// or https://, got:", raw)
+    return undefined
+  }
+  if (!process.env.NEXTAUTH_URL) {
+    console.warn("[auth] NEXTAUTH_URL is not set — OAuth callbacks will likely fail in production")
+  }
+  return raw
+})()
 
 async function getTokenEndpoint(issuer: string): Promise<string> {
   try {
@@ -140,6 +154,14 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  logger: {
+    error(code, metadata) {
+      console.error("[next-auth][error]", code, metadata)
+    },
+    warn(code) {
+      console.warn("[next-auth][warn]", code)
+    },
+  },
 };
 
 export default NextAuth(authOptions);

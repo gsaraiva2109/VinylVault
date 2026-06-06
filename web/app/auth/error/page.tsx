@@ -10,7 +10,8 @@ function ErrorContent() {
   const error = searchParams.get("error")
 
   const errorMessages: Record<string, string> = {
-    Configuration: "The authentication server is misconfigured. Check your OIDC environment variables.",
+    Configuration: "Authentication is not configured. Check OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, and NEXTAUTH_URL environment variables.",
+    undefined: "Authentication configuration error. Ensure OIDC_ISSUER starts with https:// and NEXTAUTH_URL is set to the public app URL.",
     AccessDenied: "You denied the sign-in request. Try again when ready.",
     Verification: "The sign-in link has expired or has already been used.",
     OAuthSignin: "Could not start the sign-in flow. Try again.",
