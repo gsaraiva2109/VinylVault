@@ -288,7 +288,7 @@ jobs:
               WEBHOOK_URL="${DOKPLOY_HOST}${WEBHOOK_PATH}"
             fi
             echo "Triggering Dokploy deploy for ${{ matrix.image }} → $WEBHOOK_URL"
-            curl -i -L --post301 -X POST \
+            curl -k -L --post301 -X POST \
               -H "Content-Type: application/json" \
               -d "{}" \
               "$WEBHOOK_URL"
