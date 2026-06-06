@@ -202,7 +202,7 @@ jobs:
       - name: Check if image needs building
         id: check_skip
         run: |
-          if [[ "${{ needs.detect-changes.outputs[matrix.filter] }}" != 'true' ]] && [[ "${{ needs.detect-changes.outputs.ci }}" != 'true' ]] && [[ "${{ needs.release.outputs.released }}" != 'true' ]]; then
+          if [[ "${{ needs.detect-changes.outputs[matrix.filter] }}" != 'true' ]] && [[ "${{ needs.release.outputs.released }}" != 'true' ]]; then
             echo "SKIP=true" >> $GITHUB_OUTPUT
           else
             echo "SKIP=false" >> $GITHUB_OUTPUT
