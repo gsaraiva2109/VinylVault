@@ -359,9 +359,9 @@ export function ScanScreen() {
         </div>
       </div>
 
-      {/* ── RIGHT: Info Panel ── */}
+      {/* ── RIGHT: Info Panel — hidden during fullscreen overlays ── */}
       <div
-        className="flex w-full max-w-[340px] shrink-0 flex-col overflow-y-auto"
+        className={`flex w-full max-w-[340px] shrink-0 flex-col overflow-y-auto ${scanState.status === "selecting" || scanState.status === "success" ? "hidden" : ""}`}
         style={{
           background: "var(--app-glass)",
           backdropFilter: "blur(28px) saturate(200%)",

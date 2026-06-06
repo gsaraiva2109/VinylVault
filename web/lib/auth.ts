@@ -19,6 +19,8 @@ declare module "next-auth/jwt" {
   }
 }
 
+const oidcIssuer = process.env.OIDC_ISSUER?.replace(/\/$/, "")
+
 async function getTokenEndpoint(issuer: string): Promise<string> {
   try {
     const discoveryUrl = `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
@@ -35,7 +37,7 @@ async function getTokenEndpoint(issuer: string): Promise<string> {
 
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
-    const tokenEndpoint = await getTokenEndpoint(process.env.OIDC_ISSUER!);
+    const tokenEndpoint = await getTokenEndpoint(oidcIssuer ?? process.env.OIDC_ISSUER!);
 
     const res = await fetch(tokenEndpoint, {
       method: "POST",
@@ -65,30 +67,32 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 }
 
 export const authOptions: NextAuthOptions = {
-  providers: [
-    {
-      id: "oidc",
-      name: "OIDC",
-      type: "oauth",
-      clientId: process.env.OIDC_CLIENT_ID!,
-      clientSecret: process.env.OIDC_CLIENT_SECRET!,
-      wellKnown: `${process.env.OIDC_ISSUER!}/.well-known/openid-configuration`,
-      authorization: { params: { scope: "openid email profile" } },
-      checks: ["pkce", "state"],
-      client: {
-        token_endpoint_auth_method: "client_secret_post",
-      },
-      idToken: true,
-      profile(profile) {
-        return {
-          id: profile.sub,
-          name: profile.name ?? profile.preferred_username,
-          email: profile.email,
-          image: profile.picture,
-        };
-      },
-    },
-  ],
+  providers: oidcIssuer
+    ? [
+        {
+          id: "oidc",
+          name: "OIDC",
+          type: "oauth",
+          clientId: process.env.OIDC_CLIENT_ID!,
+          clientSecret: process.env.OIDC_CLIENT_SECRET!,
+          wellKnown: `${oidcIssuer}/.well-known/openid-configuration`,
+          authorization: { params: { scope: "openid email profile" } },
+          checks: ["pkce", "state"],
+          client: {
+            token_endpoint_auth_method: "client_secret_post",
+          },
+          idToken: true,
+          profile(profile) {
+            return {
+              id: profile.sub,
+              name: profile.name ?? profile.preferred_username,
+              email: profile.email,
+              image: profile.picture,
+            };
+          },
+        },
+      ]
+    : [],
   pages: {
     signIn: "/auth/signin",
     error: "/auth/error",

@@ -73,7 +73,7 @@ export function SettingsScreen() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 pb-28">
         <div className="mx-auto max-w-2xl">
           {activeTab === "integrations" && <IntegrationsSettings />}
           {activeTab === "notifications" && <NotificationsSettings />}

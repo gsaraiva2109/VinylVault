@@ -40,7 +40,7 @@ export function StatsScreen() {
   }
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto p-6 pb-28">
       <div className="mx-auto max-w-6xl">
 
         {/* Header */}
