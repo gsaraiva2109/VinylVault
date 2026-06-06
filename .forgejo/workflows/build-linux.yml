@@ -246,7 +246,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ needs.release.outputs.released == 'true' && !contains(steps.version.outputs.version, '-') }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=${{ steps.version.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
 
       - name: Resolve build args
@@ -596,7 +596,7 @@ jobs:
         run: |
           CURRENT_BODY=$(curl -s -H "Authorization: Bearer ${MIRROR_TOKEN}" \
             "https://api.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}" | jq -r '.body // ""')
-          SHA256_SECTION="### 🔐 SHA256 Checksums\n\n\`\`\`\n$(cat SHA256SUMS.txt)\n\`\`\`"
+                    SHA256_SECTION=$(printf '### 🔐 SHA256 Checksums\n\n```\n%s\n```' "$(cat SHA256SUMS.txt)")
           UPDATED_BODY=$(printf "%s\n\n%s" "$CURRENT_BODY" "$SHA256_SECTION")
           UPDATED_BODY_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$UPDATED_BODY")
           curl -s -X PATCH \
