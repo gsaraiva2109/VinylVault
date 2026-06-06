@@ -7,7 +7,7 @@ const options = {
     openapi: '3.0.0',
     info: {
       title: 'Vinyl Vault API',
-      version: '1.3.3',
+      version: '1.3.4',
       description: 'API documentation for Vinyl Vault',
     },
     components: {
