@@ -36,7 +36,7 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 class TauriRecognitionTransport implements RecognitionTransport {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async recognize(imageBase64: string, provider: string, _model?: string): Promise<RecognitionResult> {
     // Convert base64 to byte array for the Rust backend
     const binary = atob(imageBase64);
@@ -69,7 +69,7 @@ class TauriRecognitionTransport implements RecognitionTransport {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async deleteApiKey(_provider: string): Promise<void> {
     // Desktop OS keyring — no explicit delete, overwrite via save instead
   }

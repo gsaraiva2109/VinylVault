@@ -143,7 +143,7 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
       setGroups([])
       setIsDemo(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [nextAuthStatus, session]) // Only re-create when NextAuth state changes, NOT on local state
 
   // Stable ref so the Tauri IPC listener (registered once) always calls the
@@ -191,7 +191,7 @@ export function TauriAuthProvider({ children }: { children: ReactNode }) {
     return () => {
       unlisten?.()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []) // intentionally empty — Tauri IPC listener registered once; uses ref for latest state
 
   const signIn = useCallback(async () => {
