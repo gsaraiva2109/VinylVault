@@ -1,7 +1,7 @@
-FROM node:24-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Install pnpm globally
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@11.5.1
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 COPY . .
 RUN pnpm run bundle
 
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs && \
