@@ -28,8 +28,8 @@ serde_json = "1"
 log        = "0.4"
 tokio      = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 reqwest    = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls", "rustls-native-certs"] }
-keyring    = { version = "3", features = ["apple-native", "linux-native"] }
-openidconnect = { version = "3", default-features = false, features = ["reqwest", "rustls-tls"] }
+keyring    = { version = "4" }
+openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
 url        = "2"
 base64     = "0.22"
 urlencoding = "2"

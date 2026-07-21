@@ -13,10 +13,10 @@
  */
 
 use openidconnect::{
-    core::{CoreClient, CoreProviderMetadata, CoreResponseType},
-    AuthenticationFlow, AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce,
-    OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl, RefreshToken, Scope,
-    reqwest::async_http_client,
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet, EndpointNotSet,
+    EndpointSet, IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl,
+    RefreshToken, Scope,
 };
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -68,9 +68,19 @@ impl AuthState {
     }
 }
 
-async fn build_client(redirect_uri: &str) -> Result<CoreClient, String> {
+/// ponytail: CoreClient endpoint generics from from_provider_metadata (set_auth_uri + token_uri_option + userinfo from metadata)
+type ProviderClient = CoreClient<
+    EndpointSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointMaybeSet,
+    EndpointMaybeSet,
+>;
+
+async fn build_client(redirect_uri: &str, http_client: &openidconnect::reqwest::Client) -> Result<ProviderClient, String> {
     let issuer = IssuerUrl::new(OIDC_ISSUER.into()).map_err(|e| e.to_string())?;
-    let meta = CoreProviderMetadata::discover_async(issuer, async_http_client)
+    let meta = CoreProviderMetadata::discover_async(issuer, http_client)
         .await
         .map_err(|e| e.to_string())?;
     let client = CoreClient::from_provider_metadata(
@@ -113,12 +123,13 @@ pub async fn start_auth_flow(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("Could not start the auth callback server (port {CALLBACK_PORT} may already be in use). Please close any other Vinyl Vault instances and try again. Details: {e}"))?;
 
-    let client = build_client(&redirect_uri).await?;
+    let http_client = openidconnect::reqwest::Client::new();
+    let client = build_client(&redirect_uri, &http_client).await?;
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
     let (auth_url, _csrf, _nonce) = client
         .authorize_url(
-            AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
+            CoreAuthenticationFlow::AuthorizationCode,
             CsrfToken::new_random,
             Nonce::new_random,
         )
@@ -201,11 +212,13 @@ async fn run_callback_server(
     }
     .ok_or("no pending auth flow")?;
 
-    let client = build_client(&redirect_uri).await?;
+    let http_client = openidconnect::reqwest::Client::new();
+    let client = build_client(&redirect_uri, &http_client).await?;
     let token_resp = client
         .exchange_code(AuthorizationCode::new(code))
+        .map_err(|e| e.to_string())?
         .set_pkce_verifier(verifier)
-        .request_async(async_http_client)
+        .request_async(&http_client)
         .await
         .map_err(|e| format!("{e:?}"))?;
 
@@ -231,10 +244,12 @@ pub fn sign_out(app: AppHandle) -> Result<(), String> {
 
 /// Attempts to silently refresh the access token using the stored refresh token.
 async fn try_refresh(refresh_token: &str) -> Result<(String, Option<String>), String> {
-    let client = build_client("http://127.0.0.1/callback").await?;
+    let http_client = openidconnect::reqwest::Client::new();
+    let client = build_client("http://127.0.0.1/callback", &http_client).await?;
     let resp = client
         .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
-        .request_async(async_http_client)
+        .map_err(|e| e.to_string())?
+        .request_async(&http_client)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let new_access = resp.access_token().secret().to_string();
