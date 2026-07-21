@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import type { VinylRecord, ScanState } from "../app/vinyl-vault/types"
 import { api } from "@/lib/api"
 import { useTauriAuth } from "@/lib/tauri-auth"
@@ -10,10 +10,10 @@ export function useRecognition(onScanError?: (message: string, provider?: string
   const { accessToken: token, isDemo } = useTauriAuth()
 
   const tokenRef = useRef(token)
-  tokenRef.current = token
+  useEffect(() => { tokenRef.current = token }, [token])
 
   const isDemoRef = useRef(isDemo)
-  isDemoRef.current = isDemo
+  useEffect(() => { isDemoRef.current = isDemo }, [isDemo])
 
   const performRecognition = useCallback(async (blob: Blob, capturedImage: string, rawImageUrl?: string, forceProvider?: string) => {
     try {
