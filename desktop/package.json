@@ -33,7 +33,7 @@
     "@tanstack/react-query": "^5.101.4",
     "@tauri-apps/cli": "^2.11.4",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.20.1",
+    "@types/node": "^26.1.2",
     "drizzle-kit": "^0.31.10",
     "typescript": "^7.0.2"
   }
