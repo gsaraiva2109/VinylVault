@@ -197,7 +197,7 @@ push to main / dev, PRs, workflow_dispatch
   │     vinyl-vault-api      (ubuntu-latest)       → ghcr.io/gsaraiva2109/vinyl-vault-api
   │     vinyl-vault-web      (self-hosted homelab) → ghcr.io/gsaraiva2109/vinyl-vault-web
   │     tags: branch / nightly / vX.Y.Z / latest
-  │     → Dokploy webhook → auto-redeploy
+  │     (Dokploy polls GHCR for new tags — no CI-triggered deploy)
   ├─ build-tauri-linux       (self-hosted homelab, inside builder container)
   │     container: localhost:5000/vinyl-vault-builder:latest
   │     → AppImage artifact → publish-linux-assets uploads to the GitHub Release
@@ -223,11 +223,7 @@ on the homelab runner host to evict the local layer cache.
 - `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — Tauri updater signing
 - `NEXT_PUBLIC_API_URL` — injected at Docker build time (web image only)
 - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — Tauri builds
-- `DOKPLOY_WEBHOOK_URL_API`, `DOKPLOY_WEBHOOK_URL_WEB` — per-app Dokploy deploy webhook
 - `GITHUB_TOKEN` is automatic (used for GHCR push, semantic-release, and release asset uploads — no PAT needed)
-
-**Variables required on GitHub** (`gh variable set`):
-- `INTERNAL_DOKPLOY_HOST` — internal Dokploy host for webhook delivery (only if `DOKPLOY_WEBHOOK_URL_*` is a path, not a full URL)
 
 ---
 
