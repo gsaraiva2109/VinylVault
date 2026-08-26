@@ -1,4 +1,4 @@
-name: CI
+name: Verify
 
 # Verification pipeline (lint/build/secret-scan), migrated off Forgejo Actions.
 # Forgejo remains the git source of truth — this runs off the push-mirror
