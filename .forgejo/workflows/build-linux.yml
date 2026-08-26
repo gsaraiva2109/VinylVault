@@ -3,11 +3,13 @@ name: Build Linux
 on:
   push:
     branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
   workflow_dispatch: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -48,6 +50,24 @@ jobs:
               - '**/Dockerfile'
               - '.dockerignore'
               - '**/ .dockerignore'
+
+  # ── Secret Scan ───────────────────────────────────────────────────────────
+  # forgejo doesn't mirror the marketplace, so actions are pulled straight
+  # from their GitHub source URL (same trick used for dorny/paths-filter
+  # above) and pinned by commit SHA.
+  secret-scan:
+    name: Secret Scan
+    runs-on: light-node
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Trivy filesystem secret scan
+        uses: https://github.com/aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scanners: 'secret'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
 
   # ── Quality Gate: Frontend ────────────────────────────────────────────────
   check-frontend:
