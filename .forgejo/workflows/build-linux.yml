@@ -3,11 +3,13 @@ name: Build Linux
 on:
   push:
     branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
   workflow_dispatch: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -48,6 +50,22 @@ jobs:
               - '**/Dockerfile'
               - '.dockerignore'
               - '**/ .dockerignore'
+
+  # ── Secret Scan ───────────────────────────────────────────────────────────
+  # aquasecurity/trivy-action's composite wrapper assumes GitHub-hosted
+  # runner internals (its own actions/cache step, bundled installer) that
+  # don't work under forgejo's act-based runners ("trivy: command not
+  # found"). Install the static binary directly instead — no wrapper, no
+  # cache dependency.
+  secret-scan:
+    name: Secret Scan
+    runs-on: light-node
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.74.0
+      - name: Trivy filesystem secret scan
+        run: trivy fs --scanners secret --severity HIGH,CRITICAL --exit-code 1 .
 
   # ── Quality Gate: Frontend ────────────────────────────────────────────────
   check-frontend:

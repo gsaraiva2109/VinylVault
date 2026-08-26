@@ -1,0 +1,178 @@
+name: Verify
+
+# Verification pipeline (lint/build/secret-scan), migrated off Forgejo Actions.
+# Forgejo remains the git source of truth — this runs off the push-mirror
+# (same commit SHA on both sides) and reports back to Forgejo as a commit
+# status, so PRs opened on Forgejo still show these checks natively.
+on:
+  push:
+    tags-ignore: ['**']
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORGEJO_URL: https://git.gsaraiva.com.br
+  FORGEJO_REPO: gsaraiva2109/vinylvault
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      rust: ${{ steps.filter.outputs.rust }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'web/**'
+              - 'pnpm-lock.yaml'
+            backend:
+              - 'api/**'
+              - 'pnpm-lock.yaml'
+            rust:
+              - 'desktop/src-tauri/**'
+              - 'desktop/sidecar/**'
+              - 'desktop/package.json'
+            ci:
+              - '.forgejo/workflows/**'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'Dockerfile'
+              - '**/Dockerfile'
+              - '.dockerignore'
+              - '**/.dockerignore'
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Trivy filesystem secret scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: 'v0.74.0'
+          scan-type: 'fs'
+          scanners: 'secret'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  check-frontend:
+    name: Check Frontend
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        working-directory: web
+        run: pnpm run lint
+      - name: TypeScript check
+        working-directory: web
+        run: pnpm exec tsc --noEmit
+
+  check-backend:
+    name: Check Backend
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
+      - name: Install deps
+        working-directory: api
+        run: pnpm install --frozen-lockfile
+      - name: Backend typecheck
+        working-directory: api
+        run: pnpm exec tsc --noEmit
+      - name: Backend build
+        working-directory: api
+        run: pnpm run build
+
+  check-rust:
+    name: Check Rust
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    # Needs the prebaked builder image off the homelab-local registry
+    # (localhost:5000) — only reachable from the homelab runner.
+    runs-on: [self-hosted, homelab, linux, amd64]
+    container: localhost:5000/vinyl-vault-builder:latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Cache cargo registry
+        uses: actions/cache@v4.2.2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-check-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-reg-
+      - name: Cache cargo target
+        uses: actions/cache@v4.2.2
+        with:
+          path: /tmp/cargo-target
+          key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-target-
+      - name: Cargo check
+        working-directory: desktop/src-tauri
+        env:
+          OIDC_ISSUER: ${{ secrets.OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          CARGO_TARGET_DIR: /tmp/cargo-target
+          CARGO_BUILD_JOBS: '16'
+        run: cargo check --no-default-features
+
+  report-status:
+    name: Report status to Forgejo
+    runs-on: ubuntu-latest
+    needs: [detect-changes, secret-scan, check-frontend, check-backend, check-rust]
+    if: always()
+    steps:
+      - name: Post commit status
+        env:
+          FGJ_TOKEN: ${{ secrets.FGJ_TOKEN }}
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            STATE=failure
+          elif [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            STATE=error
+          else
+            STATE=success
+          fi
+          curl -s -X POST \
+            -H "Authorization: token ${FGJ_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/statuses/${{ github.sha }}" \
+            -d "{\"state\":\"${STATE}\",\"target_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"description\":\"GitHub Actions CI\",\"context\":\"github-actions/ci\"}"
