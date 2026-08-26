@@ -8,8 +8,10 @@ echo "$NEW" > "$ROOT/VERSION"
 # GNU and BSD sed disagree on -i (BSD requires an explicit, even if empty,
 # backup suffix); -i.bak works portably on both. Also "0,/re/" (match from
 # before line 1) is a GNU-only extension that errors on BSD sed — "1,/re/"
-# is the portable equivalent for "replace only the first occurrence".
-sed -i.bak "1,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
+# is the portable equivalent for "replace only the first occurrence". BSD
+# sed also requires a ';' before a block's closing '}' — GNU accepts it
+# glued to the command, BSD errors with "bad flag in substitute command".
+sed -i.bak "1,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/;}" \
   "$ROOT/desktop/src-tauri/Cargo.toml"
 rm -f "$ROOT/desktop/src-tauri/Cargo.toml.bak"
 

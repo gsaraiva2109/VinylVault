@@ -522,6 +522,9 @@ jobs:
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # publish-*-assets jobs never check out the repo, so gh has no
+          # .git to infer the repo from — tell it explicitly.
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
           VERSION="${{ needs.release.outputs.version }}"
@@ -579,6 +582,9 @@ jobs:
       - name: Add install instructions & checksums to release body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # publish-*-assets jobs never check out the repo, so gh has no
+          # .git to infer the repo from — tell it explicitly.
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
           VERSION="${{ needs.release.outputs.version }}"
@@ -607,6 +613,9 @@ jobs:
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # publish-*-assets jobs never check out the repo, so gh has no
+          # .git to infer the repo from — tell it explicitly.
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
 
@@ -646,6 +655,9 @@ jobs:
       - name: Add macOS checksums to release body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # publish-*-assets jobs never check out the repo, so gh has no
+          # .git to infer the repo from — tell it explicitly.
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
           CURRENT_BODY=$(gh release view "$TAG" --json body --jq '.body')
