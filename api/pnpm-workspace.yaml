@@ -1,5 +1,7 @@
 # pnpm 11 moved build-script approval out of package.json's "pnpm" field
 # (silently ignored there — see `pnpm approve-builds`) into this file.
+packages:
+  - '.'
 allowBuilds:
   '@scarf/scarf': true
   esbuild: true
