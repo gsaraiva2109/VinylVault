@@ -24,8 +24,7 @@ Family vinyl record catalog. Members scan record covers with a camera; OCR + LLM
 │   └── package.json            Tauri workspace root (pnpm)
 ├── scripts/
 │   └── release.sh              Version bump script (single source of truth)
-├── .forgejo/workflows/         Forgejo CI (primary — Linux builds, Docker, GHCR)
-├── .github/workflows/          GitHub Actions (macOS .dmg build only)
+├── .github/workflows/          GitHub Actions CI (primary — Linux + macOS builds, Docker, GHCR)
 ├── VERSION                     Root version file — ALL manifests read from here
 └── llms.txt -> docs/project-architecture.md
 ```
@@ -43,7 +42,7 @@ Family vinyl record catalog. Members scan record covers with a camera; OCR + LLM
 | OCR — Linux/Windows | Ollama / OpenAI / Gemini (with Rust fallback planned) | No native OCR yet, depends on AI models |
 | Auth | Authentik (OIDC), NextAuth.js, Traefik Forward Auth | OIDC + JWT bearer |
 | Proxy | Traefik | Internal only; Cloudflare Tunnel is the edge |
-| Registry | GHCR (`ghcr.io/gsaraiva2109/vinyl-vault-*`) | Pushed by Forgejo CI |
+| Registry | GHCR (`ghcr.io/gsaraiva2109/vinyl-vault-*`) | Pushed by GitHub Actions |
 | Deployment | Dokploy on Proxmox VM | Watches GHCR for new tags |
 | Package managers | pnpm (frontend + tauri), npm (backend) | Do NOT mix |
 
@@ -183,51 +182,52 @@ Key fields: `id` (int), `coverImageUrl`, `discogsId`, `currentValue`, `spotifyUr
 
 ## CI/CD Pipeline
 
-**Primary CI: Forgejo (homelab)**
+**Primary CI: GitHub Actions** (`.github/workflows/release.yml`) — Forgejo is no
+longer involved in release/deploy; it remains only as a secondary git remote.
 
 ```
-push to main / tag push
-  ├─ detect-changes          (light-node) — path filter, controls downstream skips
-  ├─ check-frontend          (light-node) — lint + tsc
-  ├─ check-backend           (light-node) — tsc + build
-  ├─ check-rust              (heavy-ubuntu) — cargo check; apt packages cached
-  ├─ build-tauri-linux       (heavy-ubuntu, inside builder container)
-  │     container: localhost:5000/vinyl-vault-builder:latest
-  │     → cargo registry/target cache
-  │     → AppImage artifact (30-day retention)
+push to main / dev, PRs, workflow_dispatch
+  ├─ detect-changes          (ubuntu-latest) — path filter, controls downstream skips
+  ├─ secret-scan              (ubuntu-latest) — trivy fs secret scan
+  ├─ check-frontend          (ubuntu-latest) — lint + tsc
+  ├─ check-backend           (ubuntu-latest) — tsc + build
+  ├─ check-rust              (self-hosted homelab) — cargo check; inside builder container
+  ├─ release                 (ubuntu-latest, main only) — semantic-release → GitHub Release + tag
   ├─ build-and-push-images
-  │     vinyl-vault-api      (light-ubuntu) → git.gsaraiva.com.br registry
-  │     vinyl-vault-web      (heavy-ubuntu) → git.gsaraiva.com.br registry
+  │     vinyl-vault-api      (ubuntu-latest)       → ghcr.io/gsaraiva2109/vinyl-vault-api
+  │     vinyl-vault-web      (self-hosted homelab) → ghcr.io/gsaraiva2109/vinyl-vault-web
   │     tags: branch / nightly / vX.Y.Z / latest
   │     → Dokploy webhook → auto-redeploy
-  └─ push-to-github          (light-ubuntu) — on tag only
-        └─ GitHub Actions: release-macos.yml
-              macOS runner → Tauri .dmg → GitHub Release
+  ├─ build-tauri-linux       (self-hosted homelab, inside builder container)
+  │     container: localhost:5000/vinyl-vault-builder:latest
+  │     → AppImage artifact → publish-linux-assets uploads to the GitHub Release
+  └─ build-tauri-macos       (macos-latest, needs release)
+        → .dmg + updater bundle → publish-macos-assets uploads to the GitHub Release
+              (runs after publish-linux-assets so latest.json merges don't race)
 
-build-builder-image (separate workflow — .forgejo/workflows/build-builder-image.yml)
+build-builder-image (separate workflow — .github/workflows/build-builder-image.yml)
   triggers on: push to docker/builder.Dockerfile
-  → builds & pushes localhost:5000/vinyl-vault-builder:latest
+  → builds & pushes localhost:5000/vinyl-vault-builder:latest (self-hosted homelab runner)
   → caches layers at localhost:5000/vinyl-vault-builder:cache
 ```
 
 **Builder image** (`docker/builder.Dockerfile`):
 Pre-bakes Rust stable, Node 20, build-essential, binutils, webkit2gtk, and all Tauri
-Linux deps into a Docker image stored at `localhost:5000` on the heavy runner host
-(bypasses Cloudflare 413 limit on `git.gsaraiva.com.br`). Eliminates the ~40s
-apt-get + ~75s Rust install on every build.
+Linux deps into a Docker image stored at `localhost:5000` on the homelab runner host.
+Eliminates the ~40s apt-get + ~75s Rust install on every build.
 After rebuilding the image, run `docker pull localhost:5000/vinyl-vault-builder:latest`
-on the heavy runner host to evict the local layer cache.
+on the homelab runner host to evict the local layer cache.
 
-**Secrets required on Forgejo:**
-- `REGISTRY_TOKEN` — Forgejo registry push access (falls back to `GITHUB_TOKEN`)
-- `MIRROR_TOKEN` — GitHub PAT with `repo` + `workflow` scopes
-- `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` — for cargo check
+**Secrets required on GitHub** (`gh secret set`):
+- `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` — for cargo check + Tauri builds
 - `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — Tauri updater signing
 - `NEXT_PUBLIC_API_URL` — injected at Docker build time (web image only)
+- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — Tauri builds
+- `DOKPLOY_WEBHOOK_URL_API`, `DOKPLOY_WEBHOOK_URL_WEB` — per-app Dokploy deploy webhook
+- `GITHUB_TOKEN` is automatic (used for GHCR push, semantic-release, and release asset uploads — no PAT needed)
 
-**Variables required on Forgejo:**
-- `MIRROR_REPO` — `gsaraiva2109/vinylvault`
-- `INTERNAL_DOKPLOY_HOST` — internal Dokploy host for webhook delivery
+**Variables required on GitHub** (`gh variable set`):
+- `INTERNAL_DOKPLOY_HOST` — internal Dokploy host for webhook delivery (only if `DOKPLOY_WEBHOOK_URL_*` is a path, not a full URL)
 
 ---
 
@@ -251,7 +251,7 @@ on the heavy runner host to evict the local layer cache.
 git push && git push origin vX.Y.Z
 ```
 The release commit includes `[skip ci]` → skips CI on branch push.
-Tag push triggers the full Forgejo pipeline.
+`semantic-release` on GitHub Actions creates the tag + GitHub Release directly.
 
 ---
 

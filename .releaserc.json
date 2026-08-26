@@ -46,9 +46,8 @@
       { "prepareCmd": "scripts/sr-bump-version.sh ${nextRelease.version}" }
     ],
     [
-      "@saithodev/semantic-release-gitea",
+      "@semantic-release/github",
       {
-        "gitea_url": "https://git.gsaraiva.com.br",
         "assets": []
       }
     ]

@@ -1,4 +1,8 @@
-name: Build Linux
+name: Release
+
+# GitHub is the source of truth for CI/CD: quality gates, semantic-release,
+# GHCR image push, Dokploy deploy trigger, and Tauri (Linux + macOS) builds
+# all run here. Forgejo is no longer involved in release/deploy.
 
 on:
   push:
@@ -11,6 +15,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -18,17 +26,17 @@ jobs:
   # ── Change Detection ──────────────────────────────────────────────────────
   detect-changes:
     name: Detect Changes
-    runs-on: light-node
+    runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
       rust: ${{ steps.filter.outputs.rust }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: https://github.com/dorny/paths-filter@v3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -43,56 +51,50 @@ jobs:
               - 'desktop/sidecar/**'
               - 'desktop/package.json'
             ci:
-              - '.forgejo/workflows/**'
               - '.github/workflows/**'
               - 'scripts/**'
               - 'Dockerfile'
               - '**/Dockerfile'
               - '.dockerignore'
-              - '**/ .dockerignore'
+              - '**/.dockerignore'
 
   # ── Secret Scan ───────────────────────────────────────────────────────────
-  # aquasecurity/trivy-action's composite wrapper assumes GitHub-hosted
-  # runner internals (its own actions/cache step, bundled installer) that
-  # don't work under forgejo's act-based runners ("trivy: command not
-  # found"). Install the static binary directly instead — no wrapper, no
-  # cache dependency.
   secret-scan:
     name: Secret Scan
-    runs-on: light-node
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
-      - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.74.0
-      - name: Trivy filesystem secret scan
-        run: trivy fs --scanners secret --severity HIGH,CRITICAL --exit-code 1 .
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: 'v0.74.0'
+          scan-type: 'fs'
+          scanners: 'secret'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
 
   # ── Quality Gate: Frontend ────────────────────────────────────────────────
   check-frontend:
     name: Check Frontend
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: light-node
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
-      - name: Install pnpm
-        run: npm install -g pnpm@9
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-      - name: Cache pnpm store
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-frontend-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-frontend-
-      - name: Install Next.js deps
+          version: 9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install deps
         working-directory: web
         run: pnpm install --frozen-lockfile
       - name: Lint
         working-directory: web
-        run: pnpm lint
+        run: pnpm run lint
       - name: TypeScript check
         working-directory: web
         run: pnpm exec tsc --noEmit
@@ -102,12 +104,18 @@ jobs:
     name: Check Backend
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: light-node
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
-      - name: Install pnpm
-        run: npm install -g pnpm@9
-      - name: Install backend deps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: 9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
+      - name: Install deps
         working-directory: api
         run: pnpm install --frozen-lockfile
       - name: Backend typecheck
@@ -122,12 +130,12 @@ jobs:
     name: Check Rust
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: heavy-ubuntu
+    runs-on: [self-hosted, homelab, linux, amd64]
     container: localhost:5000/vinyl-vault-builder:latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Cache cargo registry
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ~/.cargo/registry
@@ -136,7 +144,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-check-reg-
       - name: Cache cargo target
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: /tmp/cargo-target
           key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
@@ -150,12 +158,16 @@ jobs:
           OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
           CARGO_TARGET_DIR: /tmp/cargo-target
           CARGO_BUILD_JOBS: '16'
+          # Container jobs mount HOME=/github/home, overriding the image's
+          # /root where rustup's toolchain config actually lives.
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
         run: cargo check --no-default-features
 
   # ── Semantic Release ─────────────────────────────────────────────────────
   release:
     name: Semantic Release
-    runs-on: light-node
+    runs-on: ubuntu-latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     if: |
       always() &&
@@ -167,23 +179,19 @@ jobs:
       released: ${{ steps.sr.outputs.new_release_published }}
       version: ${{ steps.sr.outputs.new_release_version }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Cache npm store
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-semantic-release-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-semantic-release-
+          node-version: 24
+          cache: npm
       - name: Install semantic-release deps
         run: npm install
       - name: Run semantic-release
         id: sr
         env:
-          GITEA_TOKEN: ${{ secrets.FGJ_TOKEN }}
-          GITEA_URL: https://git.gsaraiva.com.br
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           npx semantic-release
@@ -210,12 +218,12 @@ jobs:
             image: vinyl-vault-api
             filter: backend
             has_api_url: 'false'
-            runner: light-ubuntu
+            runner: ubuntu-latest
           - context: web
             image: vinyl-vault-web
             filter: frontend
             has_api_url: 'true'
-            runner: heavy-ubuntu
+            runner: [self-hosted, homelab, linux, amd64]
     steps:
       - name: Check if image needs building
         id: check_skip
@@ -226,7 +234,7 @@ jobs:
             echo "SKIP=false" >> $GITHUB_OUTPUT
           fi
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.check_skip.outputs.SKIP != 'true'
         with:
           ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
@@ -243,24 +251,24 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.check_skip.outputs.SKIP != 'true'
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
         with:
           driver: docker
 
-      - name: Login to Forgejo Registry
+      - name: Login to GHCR
         if: steps.check_skip.outputs.SKIP != 'true'
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
-          registry: git.gsaraiva.com.br
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract image metadata
         if: steps.check_skip.outputs.SKIP != 'true'
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: git.gsaraiva.com.br/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=ref,event=branch
             type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/main' }}
@@ -280,7 +288,7 @@ jobs:
       - name: Build and push
         if: steps.check_skip.outputs.SKIP != 'true'
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
           push: true
@@ -299,7 +307,8 @@ jobs:
         run: |
           if [ -n "$WEBHOOK_PATH" ]; then
             # If WEBHOOK_PATH is already a full URL, use it directly.
-            # Otherwise prepend DOKPLOY_HOST (internal Dokploy address).
+            # Otherwise prepend DOKPLOY_HOST (internal Dokploy address) —
+            # the runner is on the homelab network, GHCR isn't.
             if echo "$WEBHOOK_PATH" | grep -q '^https\?://'; then
               WEBHOOK_URL="$WEBHOOK_PATH"
             else
@@ -317,7 +326,7 @@ jobs:
   # ── Tauri Linux AppImage ──────────────────────────────────────────────────
   build-tauri-linux:
     name: Build Tauri Linux AppImage
-    runs-on: heavy-ubuntu
+    runs-on: [self-hosted, homelab, linux, amd64]
     # Rust, system libs, and Python are pre-baked in the builder image stored
     # on the local homelab registry (bypasses Cloudflare 413 limit).
     container: localhost:5000/vinyl-vault-builder:latest
@@ -329,7 +338,7 @@ jobs:
       !contains(needs.*.result, 'cancelled') &&
       (needs.release.outputs.released == 'true' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
 
@@ -337,14 +346,16 @@ jobs:
         if: needs.release.outputs.released == 'true'
         run: bash scripts/sr-bump-version.sh ${{ needs.release.outputs.version }}
 
-      - name: Install pnpm
-        run: npm install -g pnpm@9
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: 9
+
       - name: Get pnpm store directory
         id: pnpm-cache
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm store
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-build-${{ hashFiles('web/pnpm-lock.yaml', 'desktop/pnpm-lock.yaml') }}
@@ -353,7 +364,7 @@ jobs:
 
       # Rust and system libs are in the builder image — only compiled artefacts need caching.
       - name: Cache cargo registry
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ~/.cargo/registry
@@ -363,7 +374,7 @@ jobs:
             ${{ runner.os }}-cargo-build-reg-
 
       - name: Cache cargo target
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: desktop/src-tauri/target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
@@ -400,11 +411,10 @@ jobs:
 
       - name: Verify build artifacts
         run: |
-          echo "Checking build output directory..."
           find desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ -type f \( -name "*.AppImage" -o -name "*.tar.gz" -o -name "*.sig" \)
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vinyl-vault-linux-appimage
           path: |
@@ -413,113 +423,109 @@ jobs:
             desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
 
-  # ── Mirror Release to GitHub ────────────────────────────────────────────
-  # Runs immediately after semantic-release so every version gets a GitHub
-  # release even if Tauri build fails or the workflow is delayed.
-  mirror-github-release:
-    name: Mirror Release to GitHub
-    runs-on: light-ubuntu
+  # ── Tauri macOS .dmg ───────────────────────────────────────────────────────
+  build-tauri-macos:
+    name: Build Tauri macOS .dmg
+    runs-on: macos-latest
     needs: [release]
-    if: ${{ needs.release.outputs.released == 'true' }}
-    outputs:
-      release-id: ${{ steps.mirror.outputs.release_id }}
+    if: ${{ needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          ref: refs/tags/v${{ needs.release.outputs.version }}
+          ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
 
-      - name: Create GitHub release
-        id: mirror
+      - name: Set release version in workspace
+        if: needs.release.outputs.released == 'true'
+        run: bash scripts/sr-bump-version.sh ${{ needs.release.outputs.version }}
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: 9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            desktop/pnpm-lock.yaml
+            web/pnpm-lock.yaml
+
+      # aarch64-apple-darwin targets Apple Silicon (macos-latest is arm64).
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo registry
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-build-macos-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-macos-
+
+      - name: Install Next.js deps
+        working-directory: web
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
+          HUSKY: "0"
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Tauri CLI deps
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Fix Next.js static export for Tauri
         run: |
-          TAG="v${{ needs.release.outputs.version }}"
-          VERSION="${{ needs.release.outputs.version }}"
+          # macOS uses BSD sed, which requires an empty backup string (-i '') for in-place edits.
+          sed -i '' 's/force-dynamic/force-static/' web/app/api/auth/\[...nextauth\]/route.ts
 
-          GITEA_API_URL="https://git.gsaraiva.com.br/api/v1/repos/${{ github.repository }}/releases/tags/${TAG}"
-          RAW_CHANGELOG=$(curl -s "$GITEA_API_URL" | jq -r '.body // empty')
-          RELEASE_BODY=$(printf '# Vinyl Vault v%s\n\n%s\n\n---\n\n## 📥 Install\n\n### Linux (x86_64)\n\nDownload the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n### macOS (Apple Silicon)\n\nDownload the `.dmg` below, open it, and drag Vinyl Vault to your Applications folder. Then remove the quarantine flag so macOS allows the unsigned app to launch:\n\n```sh\nxattr -cr /Applications/Vinyl\\ Vault.app\n```\n' "$VERSION" "$RAW_CHANGELOG")
-          CHANGELOG_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$RELEASE_BODY")
+      - name: Install create-dmg
+        run: brew install create-dmg
 
-          FETCH_RESP=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases/tags/${TAG}")
-          FETCH_HTTP=$(echo "$FETCH_RESP" | tail -1)
-          FETCH_BODY=$(echo "$FETCH_RESP" | head -n -1)
-          RELEASE_ID=$(echo "$FETCH_BODY" | jq -r '.id // empty')
-
-          if [ -z "$RELEASE_ID" ]; then
-            echo "GitHub release ${TAG} not found (HTTP $FETCH_HTTP) — creating it..."
-            CREATE_RESP=$(curl -s -w "\n%{http_code}" \
-              -X POST \
-              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${MIRROR_REPO}/releases" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"Vinyl Vault ${TAG}\",\"target_commitish\":\"main\",\"body\":${CHANGELOG_JSON},\"draft\":false,\"prerelease\":false}")
-            CREATE_HTTP=$(echo "$CREATE_RESP" | tail -1)
-            CREATE_BODY=$(echo "$CREATE_RESP" | head -n -1)
-            RELEASE_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
-            echo "Create release HTTP $CREATE_HTTP — body: $CREATE_BODY"
-          fi
-
-          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "::error::Failed to get or create GitHub release ${TAG}"
-            exit 1
-          fi
-          echo "Release ID: $RELEASE_ID"
-          echo "release_id=${RELEASE_ID}" >> $GITHUB_OUTPUT
-
-      - name: Dispatch macOS build
+      - name: Build Tauri macOS .dmg
+        working-directory: desktop
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
-        run: |
-          TAG="v${{ needs.release.outputs.version }}"
-          echo "Dispatching release-macos workflow for tag ${TAG}..."
-          DISPATCH_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${MIRROR_REPO}/dispatches" \
-            -d "{\"event_type\":\"release-macos\",\"client_payload\":{\"tag\":\"${TAG}\"}}")
-          echo "Dispatch response: HTTP $DISPATCH_RESP"
-          if [ "$DISPATCH_RESP" != "204" ]; then
-            echo "::warning::macOS dispatch returned HTTP $DISPATCH_RESP — check MIRROR_TOKEN has workflow scope"
-          fi
+          OIDC_ISSUER: ${{ secrets.OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          APPLE_SIGNING_IDENTITY: "-"
+        run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg,app
 
-  # ── Upload Tauri Assets to GitHub Release ───────────────────────────────
-  # Depends on the Tauri build completing. Uploads AppImage, updater bundle,
-  # signature, and latest.json to the GitHub release created above.
-  upload-release-assets:
-    name: Upload Tauri Assets
-    runs-on: light-ubuntu
-    needs: [build-tauri-linux, release, mirror-github-release]
-    if: ${{ needs.build-tauri-linux.result == 'success' && needs.mirror-github-release.result == 'success' }}
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vinyl-vault-macos-dmg
+          path: |
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          retention-days: 30
+
+  # ── Publish Release Assets (Linux) ────────────────────────────────────────
+  publish-linux-assets:
+    name: Publish Linux Release Assets
+    runs-on: ubuntu-latest
+    needs: [build-tauri-linux, release]
+    if: ${{ needs.build-tauri-linux.result == 'success' && needs.release.outputs.released == 'true' }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
-        with:
-          fetch-depth: 0
-          ref: refs/tags/v${{ needs.release.outputs.version }}
-
       - name: Download AppImage artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: vinyl-vault-linux-appimage
           path: dist/
 
       - name: Upload assets to GitHub release
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
-          RELEASE_ID: ${{ needs.mirror-github-release.outputs.release-id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ needs.release.outputs.version }}"
           VERSION="${{ needs.release.outputs.version }}"
-
-          echo "DEBUG: Listing files in dist/:"
-          ls -R dist/
 
           # Rename: "Vinyl Vault_*" → "Vinyl.Vault_*" (spaces → dots)
           find dist/ -type f | while IFS= read -r f; do
@@ -544,81 +550,106 @@ jobs:
             exit 1
           fi
 
-          APPIMAGE_NAME=$(basename "$APPIMAGE")
-          UPDATER_NAME=$(basename "$UPDATER_BUNDLE")
-          SIG_NAME=$(basename "$SIG_FILE")
-
           sha256sum "$APPIMAGE" > SHA256SUMS.txt
           if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
             sha256sum "$UPDATER_BUNDLE" >> SHA256SUMS.txt
           fi
 
-          # URL-encode asset name (productName is "Vinyl Vault" — contains a space)
-          upload_asset() {
-            local file="$1" display_name="$2" content_type="$3"
-            local encoded_name
-            encoded_name=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$display_name")
-            RESP=$(curl -s -w "\n%{http_code}" \
-              -X POST \
-              -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-              -H "Content-Type: ${content_type}" \
-              "https://uploads.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}/assets?name=${encoded_name}" \
-              --data-binary @"${file}")
-            HTTP=$(echo "$RESP" | tail -1)
-            echo "Uploaded ${display_name}: HTTP $HTTP"
-            if [ "$HTTP" -lt 200 ] || [ "$HTTP" -ge 300 ]; then
-              echo "::error::Upload failed for ${display_name}: $(echo "$RESP" | head -n -1)"
-              return 1
-            fi
-          }
-          upload_asset "$APPIMAGE" "$APPIMAGE_NAME" "application/octet-stream"
+          gh release upload "$TAG" "$APPIMAGE" SHA256SUMS.txt --clobber
           if [ "$UPDATER_BUNDLE" != "$APPIMAGE" ]; then
-            upload_asset "$UPDATER_BUNDLE" "$UPDATER_NAME" "application/gzip"
+            gh release upload "$TAG" "$UPDATER_BUNDLE" "$SIG_FILE" --clobber
+          else
+            gh release upload "$TAG" "$SIG_FILE" --clobber
           fi
-          upload_asset "$SIG_FILE" "$SIG_NAME" "text/plain"
-          upload_asset SHA256SUMS.txt "SHA256SUMS.txt" "text/plain"
 
-          # ── Generate latest.json for Tauri auto-updater ───────────────────
+          # ── Merge linux-x86_64 entry into latest.json for the Tauri auto-updater ──
+          UPDATER_NAME=$(basename "$UPDATER_BUNDLE")
           SIGNATURE=$(cat "$SIG_FILE")
-          DOWNLOAD_URL="https://github.com/${MIRROR_REPO}/releases/download/${TAG}/${UPDATER_NAME}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${UPDATER_NAME}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          jq -n \
-            --arg version   "$VERSION" \
-            --arg notes     "See release notes on GitHub" \
-            --arg pub_date  "$PUB_DATE" \
-            --arg url       "$DOWNLOAD_URL" \
-            --arg signature "$SIGNATURE" \
-            '{
-              version: $version,
-              notes: $notes,
-              pub_date: $pub_date,
-              platforms: {
-                "linux-x86_64": {
-                  signature: $signature,
-                  url: $url
-                }
-              }
-            }' > latest.json
+          gh release download "$TAG" --pattern "latest.json" --output latest.json 2>/dev/null || echo '{}' > latest.json
+          jq --arg version "$VERSION" --arg notes "See release notes on GitHub" --arg pub_date "$PUB_DATE" \
+             --arg url "$DOWNLOAD_URL" --arg sig "$SIGNATURE" \
+            '.version = $version | .notes = $notes | .pub_date = $pub_date |
+             .platforms["linux-x86_64"] = {signature: $sig, url: $url}' \
+            latest.json > latest.json.tmp && mv latest.json.tmp latest.json
 
-          echo "--- latest.json ---"
-          cat latest.json
+          gh release upload "$TAG" latest.json --clobber
 
-          upload_asset latest.json "latest.json" "application/json"
-
-      - name: Update release body with SHA256 checksums
+      - name: Add install instructions & checksums to release body
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_REPO: ${{ vars.MIRROR_REPO }}
-          RELEASE_ID: ${{ needs.mirror-github-release.outputs.release-id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CURRENT_BODY=$(curl -s -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}" | jq -r '.body // ""')
-                    SHA256_SECTION=$(printf '### 🔐 SHA256 Checksums\n\n```\n%s\n```' "$(cat SHA256SUMS.txt)")
-          UPDATED_BODY=$(printf "%s\n\n%s" "$CURRENT_BODY" "$SHA256_SECTION")
-          UPDATED_BODY_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$UPDATED_BODY")
-          curl -s -X PATCH \
-            -H "Authorization: Bearer ${MIRROR_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${MIRROR_REPO}/releases/${RELEASE_ID}" \
-            -d "{\"body\": ${UPDATED_BODY_JSON}}"
+          TAG="v${{ needs.release.outputs.version }}"
+          VERSION="${{ needs.release.outputs.version }}"
+
+          CURRENT_BODY=$(gh release view "$TAG" --json body --jq '.body')
+          INSTALL_SECTION=$(printf '## 📥 Install\n\n### Linux (x86_64)\n\nDownload the `.AppImage` below:\n\n```sh\nchmod +x Vinyl.Vault_*.AppImage\n./Vinyl.Vault_*.AppImage\n```\n\n### macOS (Apple Silicon)\n\nDownload the `.dmg` below, open it, and drag Vinyl Vault to your Applications folder. Then remove the quarantine flag so macOS allows the unsigned app to launch:\n\n```sh\nxattr -cr /Applications/Vinyl\\ Vault.app\n```')
+          SHA256_SECTION=$(printf '### 🔐 SHA256 Checksums (Linux)\n\n```\n%s\n```' "$(cat SHA256SUMS.txt)")
+          NEW_BODY=$(printf '%s\n\n%s\n\n%s' "$CURRENT_BODY" "$INSTALL_SECTION" "$SHA256_SECTION")
+
+          gh release edit "$TAG" --notes "$NEW_BODY"
+
+  # ── Publish Release Assets (macOS) ────────────────────────────────────────
+  publish-macos-assets:
+    name: Publish macOS Release Assets
+    runs-on: macos-latest
+    # Depends on publish-linux-assets so latest.json merges are never racing.
+    needs: [build-tauri-macos, publish-linux-assets, release]
+    if: ${{ needs.build-tauri-macos.result == 'success' && needs.release.outputs.released == 'true' }}
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: vinyl-vault-macos-dmg
+          path: dist/
+
+      - name: Upload assets to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.release.outputs.version }}"
+
+          find dist/ -type f | while IFS= read -r f; do
+            new="$(echo "$f" | sed 's/ /./g')"
+            [ "$f" != "$new" ] && mv "$f" "$new"
+          done
+
+          DMG=$(find dist/ -name "*.dmg" | head -1)
+          UPDATER_TGZ=$(find dist/ -name "*.app.tar.gz" | head -1)
+          UPDATER_SIG=$(find dist/ -name "*.app.tar.gz.sig" | head -1)
+
+          if [ -z "$DMG" ]; then
+            echo "::error::No .dmg found in dist/"
+            exit 1
+          fi
+
+          shasum -a 256 "$DMG" > SHA256SUMS-macos.txt
+          gh release upload "$TAG" "$DMG" SHA256SUMS-macos.txt --clobber
+
+          if [ -n "$UPDATER_TGZ" ] && [ -n "$UPDATER_SIG" ]; then
+            gh release upload "$TAG" "$UPDATER_TGZ" "$UPDATER_SIG" --clobber
+
+            TGZ_NAME=$(basename "$UPDATER_TGZ")
+            SIGNATURE=$(cat "$UPDATER_SIG")
+            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${TGZ_NAME}"
+
+            gh release download "$TAG" --pattern "latest.json" --output latest.json 2>/dev/null || echo '{}' > latest.json
+            jq --arg sig "$SIGNATURE" --arg url "$DOWNLOAD_URL" \
+              '.platforms["darwin-aarch64"] = {signature: $sig, url: $url}' \
+              latest.json > latest.json.tmp && mv latest.json.tmp latest.json
+            gh release upload "$TAG" latest.json --clobber
+          else
+            echo "::warning::Updater artifacts (.app.tar.gz / .sig) not found — skipping darwin-aarch64 latest.json entry"
+          fi
+
+      - name: Add macOS checksums to release body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.release.outputs.version }}"
+          CURRENT_BODY=$(gh release view "$TAG" --json body --jq '.body')
+          SHA256_SECTION=$(printf '### 🔐 SHA256 Checksums (macOS)\n\n```\n%s\n```' "$(cat SHA256SUMS-macos.txt)")
+          NEW_BODY=$(printf '%s\n\n%s' "$CURRENT_BODY" "$SHA256_SECTION")
+          gh release edit "$TAG" --notes "$NEW_BODY"

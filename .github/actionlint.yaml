@@ -1,0 +1,5 @@
+self-hosted-runner:
+  # Homelab self-hosted runner labels used across .github/workflows/*.yml
+  labels:
+    - homelab
+    - amd64
