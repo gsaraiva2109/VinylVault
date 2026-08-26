@@ -103,12 +103,9 @@ docker/               Docker build files
 
 ## CI/CD
 
-Vinyl Vault uses a two-platform CI/CD strategy:
-
-| Platform    | Role                                                          |
-| ----------- | ------------------------------------------------------------- |
-| **Forgejo** | Primary remote. Quality gates, Docker builds, Linux AppImage. |
-| **GitHub**  | macOS builds only. Triggered on release tags.                 |
+GitHub Actions is the source of truth for CI/CD (`.github/workflows/release.yml`):
+quality gates, semantic-release, GHCR image push, and Tauri builds (Linux +
+macOS) all run there. Forgejo is no longer involved.
 
 ## License
 

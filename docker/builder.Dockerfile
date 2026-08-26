@@ -2,9 +2,10 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Node.js 26 via NodeSource
+# Install Node.js 24 via NodeSource (26.x tracked an unpublished alpha with
+# no node-gyp headers available, breaking native module builds)
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_26.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
