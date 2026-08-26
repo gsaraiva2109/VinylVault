@@ -394,6 +394,10 @@ jobs:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           APPIMAGE_BUNDLE_GSTREAMER: '0'
+          # Container jobs mount HOME=/github/home, overriding the image's
+          # /root where rustup's toolchain config actually lives.
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
       - name: Verify build artifacts
