@@ -6,7 +6,7 @@ RUN npm install -g pnpm@11.5.1
 WORKDIR /app
 
 # Copy lock file and package manifest first for layer caching
-COPY pnpm-lock.yaml package.json ./
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 

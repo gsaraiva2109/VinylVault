@@ -46,13 +46,6 @@
   "overrides": {
     "esbuild": "^0.25.12"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@scarf/scarf",
-      "esbuild",
-      "unrs-resolver"
-    ]
-  },
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
