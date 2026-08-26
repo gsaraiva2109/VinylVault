@@ -152,6 +152,11 @@ jobs:
           OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
           CARGO_TARGET_DIR: /tmp/cargo-target
           CARGO_BUILD_JOBS: '16'
+          # GitHub Actions mounts HOME=/github/home for container jobs,
+          # overriding the image's /root where rustup's toolchain config
+          # actually lives — pin these so rustup finds it regardless.
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
         run: cargo check --no-default-features
 
   report-status:
