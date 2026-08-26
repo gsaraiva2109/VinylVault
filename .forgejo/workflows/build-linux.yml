@@ -52,22 +52,20 @@ jobs:
               - '**/ .dockerignore'
 
   # ── Secret Scan ───────────────────────────────────────────────────────────
-  # forgejo doesn't mirror the marketplace, so actions are pulled straight
-  # from their GitHub source URL (same trick used for dorny/paths-filter
-  # above) and pinned by commit SHA.
+  # aquasecurity/trivy-action's composite wrapper assumes GitHub-hosted
+  # runner internals (its own actions/cache step, bundled installer) that
+  # don't work under forgejo's act-based runners ("trivy: command not
+  # found"). Install the static binary directly instead — no wrapper, no
+  # cache dependency.
   secret-scan:
     name: Secret Scan
     runs-on: light-node
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6.0.2
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.74.0
       - name: Trivy filesystem secret scan
-        uses: https://github.com/aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'fs'
-          scanners: 'secret'
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '1'
+        run: trivy fs --scanners secret --severity HIGH,CRITICAL --exit-code 1 .
 
   # ── Quality Gate: Frontend ────────────────────────────────────────────────
   check-frontend:
