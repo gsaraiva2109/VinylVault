@@ -6,7 +6,6 @@ name: CI
 # status, so PRs opened on Forgejo still show these checks natively.
 on:
   push:
-    branches-ignore: []
     tags-ignore: ['**']
   workflow_dispatch: {}
 
