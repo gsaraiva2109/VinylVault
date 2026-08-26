@@ -164,6 +164,17 @@ jobs:
           CARGO_HOME: /root/.cargo
         run: cargo check --no-default-features
 
+      # Container jobs run as root, so files they write (e.g. Tauri's
+      # generated gen/schemas/*.json) end up root-owned in the workspace
+      # bind-mount. The next job's checkout runs as the plain runner user
+      # and can't clean/delete them — hand ownership back before exiting.
+      - name: Fix workspace ownership for next job
+        if: always()
+        # Reference the parent dir, not GITHUB_WORKSPACE itself — the container
+        # (running as root) owns the workspace dir by now, but its parent was
+        # created by the runner service (saraivalab) before any container ran.
+        run: chown -R "$(stat -c '%u:%g' "$(dirname "$GITHUB_WORKSPACE")")" "$GITHUB_WORKSPACE"
+
   # ── Semantic Release ─────────────────────────────────────────────────────
   release:
     name: Semantic Release
@@ -398,6 +409,14 @@ jobs:
             desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.tar.gz
             desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.sig
           retention-days: 30
+
+      # Container runs as root; pnpm/cargo/tauri write root-owned files (e.g.
+      # gen/schemas/*.json) into the workspace bind-mount. The next job's
+      # checkout runs as the plain runner user and can't clean/delete them —
+      # hand ownership back before exiting.
+      - name: Fix workspace ownership for next job
+        if: always()
+        run: chown -R "$(stat -c '%u:%g' "$(dirname "$GITHUB_WORKSPACE")")" "$GITHUB_WORKSPACE"
 
   # ── Tauri macOS .dmg ───────────────────────────────────────────────────────
   build-tauri-macos:
