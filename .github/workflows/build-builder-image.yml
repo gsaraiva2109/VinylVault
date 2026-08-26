@@ -1,20 +1,20 @@
 name: Build Builder Image
 
 # Rebuilds the CI builder image when the Dockerfile changes.
-# After this runs, build-linux.yml can use:
-#   container: git.gsaraiva.com.br/gsaraiva2109/vinyl-vault-builder:latest
-# in build-tauri-linux to skip apt-get and Rust install entirely.
+# After this runs, release.yml can use:
+#   container: localhost:5000/vinyl-vault-builder:latest
+# in check-rust / build-tauri-linux to skip apt-get and Rust install entirely.
 on:
   push:
+    branches: [main, dev]
     paths:
       - 'docker/builder.Dockerfile'
-    branches: [main, dev]
   workflow_dispatch: {}
 
 jobs:
   build-builder-image:
     name: Build & Push Builder Image
-    runs-on: heavy-ubuntu
+    runs-on: [self-hosted, homelab, linux, amd64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -31,6 +31,6 @@ jobs:
           file: docker/builder.Dockerfile
           push: true
           tags: localhost:5000/vinyl-vault-builder:latest
-          # Layer cache stored locally — no Cloudflare in the path
+          # Layer cache stored locally — no external registry in the path
           cache-from: type=registry,ref=localhost:5000/vinyl-vault-builder:cache
           cache-to: type=registry,ref=localhost:5000/vinyl-vault-builder:cache,mode=max
