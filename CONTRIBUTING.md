@@ -108,9 +108,9 @@ Then push:
 git push && git push origin vX.Y.Z
 ```
 
-The `[skip ci]` commit skips the Forgejo pipeline on the branch push. The tag push triggers the full pipeline:
-- Docker images built and pushed to GHCR → Dokploy auto-deploys
-- Tag mirrored to GitHub → macOS `.dmg` build via GitHub Actions
+The `[skip ci]` commit skips the GitHub Actions pipeline on the branch push. The tag push triggers the full pipeline:
+- Docker images built and pushed to GHCR → Dokploy polls GHCR and auto-deploys
+- Linux AppImage and macOS `.dmg` built and attached to the GitHub Release
 
 ## Version Bump Guidance
 

@@ -5,8 +5,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "$NEW" > "$ROOT/VERSION"
 
-sed -i "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
+# GNU and BSD sed disagree on -i (BSD requires an explicit, even if empty,
+# backup suffix); -i.bak works portably on both.
+sed -i.bak "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
   "$ROOT/desktop/src-tauri/Cargo.toml"
+rm -f "$ROOT/desktop/src-tauri/Cargo.toml.bak"
 
 node -e "
   const fs = require('fs');
@@ -16,8 +19,9 @@ node -e "
   fs.writeFileSync(f, JSON.stringify(obj, null, 2) + '\n');
 "
 
-sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
+sed -i.bak "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '${NEW}'/" \
   "$ROOT/api/src/swagger.ts"
+rm -f "$ROOT/api/src/swagger.ts.bak"
 
 for pkg in web/package.json desktop/package.json api/package.json; do
   node -e "
