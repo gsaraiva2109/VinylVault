@@ -6,8 +6,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "$NEW" > "$ROOT/VERSION"
 
 # GNU and BSD sed disagree on -i (BSD requires an explicit, even if empty,
-# backup suffix); -i.bak works portably on both.
-sed -i.bak "0,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
+# backup suffix); -i.bak works portably on both. Also "0,/re/" (match from
+# before line 1) is a GNU-only extension that errors on BSD sed — "1,/re/"
+# is the portable equivalent for "replace only the first occurrence".
+sed -i.bak "1,/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/{s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"${NEW}\"/}" \
   "$ROOT/desktop/src-tauri/Cargo.toml"
 rm -f "$ROOT/desktop/src-tauri/Cargo.toml.bak"
 
