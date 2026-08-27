@@ -77,6 +77,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: [detect-changes, release]
     if: ${{ github.event_name == 'workflow_dispatch' || needs.release.outputs.released == 'true' }}
+    permissions:
+      contents: write
+      packages: write
+      security-events: write
+      # Keyless (OIDC) Cosign signing.
+      id-token: write
     strategy:
       # Unrelated matrix legs (api / web) shouldn't die together on one leg's failure.
       fail-fast: false
@@ -180,6 +186,58 @@ jobs:
             ${{ steps.build_args.outputs.args }}
             VERSION=${{ steps.version.outputs.version }}
             COMMIT_SHA=${{ github.sha }}
+
+      - name: Run Trivy image vulnerability scan
+        if: steps.check_skip.outputs.SKIP != 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: 'v0.74.0'
+          image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          scan-type: 'image'
+          format: 'sarif'
+          output: trivy-image-${{ matrix.image }}.sarif
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF to Security tab
+        if: always() && steps.check_skip.outputs.SKIP != 'true'
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: trivy-image-${{ matrix.image }}.sarif
+          category: trivy-image-${{ matrix.image }}
+
+      - name: Install Cosign
+        if: steps.check_skip.outputs.SKIP != 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign image (keyless)
+        if: steps.check_skip.outputs.SKIP != 'true'
+        run: cosign sign --yes "ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+
+      - name: Generate SBOM (CycloneDX)
+        if: steps.check_skip.outputs.SKIP != 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: 'v0.74.0'
+          image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          scan-type: 'image'
+          format: 'cyclonedx'
+          output: sbom-${{ matrix.image }}.cdx.json
+
+      - name: Upload SBOM artifact
+        if: steps.check_skip.outputs.SKIP != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-${{ matrix.image }}
+          path: sbom-${{ matrix.image }}.cdx.json
+          retention-days: 90
+
+      - name: Attach SBOM to GitHub Release
+        if: steps.check_skip.outputs.SKIP != 'true' && needs.release.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${{ needs.release.outputs.version }}" "sbom-${{ matrix.image }}.cdx.json" --clobber
 
   # ── Tauri Linux AppImage ──────────────────────────────────────────────────
   build-tauri-linux:

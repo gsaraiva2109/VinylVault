@@ -59,6 +59,9 @@ jobs:
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -66,9 +69,16 @@ jobs:
           version: 'v0.74.0'
           scan-type: 'fs'
           scanners: 'secret'
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-secret-scan.sarif'
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
+      - name: Upload Trivy SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        if: always()
+        with:
+          sarif_file: trivy-secret-scan.sarif
+          category: trivy-secret-scan
 
   # ── Quality Gate: Frontend ────────────────────────────────────────────────
   check-frontend:
