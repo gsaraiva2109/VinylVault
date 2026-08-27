@@ -209,11 +209,18 @@ jobs:
             filter: backend
             has_api_url: 'false'
             runner: ubuntu-latest
+            # ubuntu-latest is a fresh VM every run, so there's no host daemon
+            # cache to reuse — docker-container driver + gha cache persists layers.
+            buildx_driver: docker-container
           - context: web
             image: vinyl-vault-web
             filter: frontend
             has_api_url: 'true'
             runner: [self-hosted, homelab, linux, amd64]
+            # Self-hosted has a persistent daemon — the "docker" driver builds
+            # straight against it and reuses its already-warm local layer cache.
+            # (It doesn't support cache-to/cache-from export, so those stay unset below.)
+            buildx_driver: docker
     steps:
       - name: Check if image needs building
         id: check_skip
@@ -246,7 +253,7 @@ jobs:
         if: steps.check_skip.outputs.SKIP != 'true'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
         with:
-          driver: docker
+          driver: ${{ matrix.buildx_driver }}
 
       - name: Login to GHCR
         if: steps.check_skip.outputs.SKIP != 'true'
@@ -287,10 +294,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # The api leg runs on an ephemeral ubuntu-latest runner, so the Dockerfile's
-          # BuildKit --mount=type=cache is cold every run; gha cache persists it.
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # gha cache export needs the docker-container driver (see matrix above) —
+          # the "docker" driver (web leg) doesn't support cache-to at all and errors
+          # if it's set, so only pass these on the docker-container leg.
+          cache-from: ${{ matrix.buildx_driver == 'docker-container' && format('type=gha,scope={0}', matrix.image) || '' }}
+          cache-to: ${{ matrix.buildx_driver == 'docker-container' && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
           build-args: |
             ${{ steps.build_args.outputs.args }}
             VERSION=${{ steps.version.outputs.version }}
