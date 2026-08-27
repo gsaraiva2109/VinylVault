@@ -162,3 +162,27 @@ jobs:
         # (running as root) owns the workspace dir by now, but its parent was
         # created by the runner service (saraivalab) before any container ran.
         run: chown -R "$(stat -c '%u:%g' "$(dirname "$GITHUB_WORKSPACE")")" "$GITHUB_WORKSPACE"
+
+  # ── CI Status Gate ─────────────────────────────────────────────────────────
+  # Single required check for branch protection — rolls every required job's
+  # result into one pass/fail so protection rules (and new quality jobs) only
+  # need to reference this job, not each one individually. A "skipped" result
+  # (detect-changes said that path didn't change) is not a failure; only an
+  # actual "failure" trips the gate.
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [detect-changes, secret-scan, check-frontend, check-backend, check-rust]
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          if [[ "${{ needs.detect-changes.result }}" == "failure" ||
+                "${{ needs.secret-scan.result }}" == "failure" ||
+                "${{ needs.check-frontend.result }}" == "failure" ||
+                "${{ needs.check-backend.result }}" == "failure" ||
+                "${{ needs.check-rust.result }}" == "failure" ]]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All required jobs passed or were skipped (no relevant changes)."
