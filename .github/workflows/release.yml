@@ -1,6 +1,6 @@
 name: Release
 
-# GitHub is the source of truth for CI/CD: quality gates, semantic-release,
+# GitHub is the source of truth for CI/CD: quality gates, release-please,
 # GHCR image push, and Tauri (Linux + macOS) builds
 # all run here. Forgejo is no longer involved in release/deploy.
 
@@ -18,6 +18,8 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
+  issues: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -81,13 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: 9
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install deps
         working-directory: web
@@ -107,21 +104,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: 9
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
           cache-dependency-path: api/pnpm-lock.yaml
       - name: Install deps
         working-directory: api
         run: pnpm install --frozen-lockfile
-      - name: Backend typecheck
-        working-directory: api
-        run: pnpm exec tsc --noEmit
       - name: Backend build
+        # tsc (no --noEmit) already type-checks and fails the job on errors —
+        # a separate `tsc --noEmit` pass first would recompile the same files twice.
         working-directory: api
         run: pnpm run build
 
@@ -135,14 +126,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Cache cargo registry
+        # Shared key with build-tauri-linux's registry cache below — same
+        # Cargo.lock, same registry; only the target dir needs to differ.
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-check-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-check-reg-
+            ${{ runner.os }}-cargo-reg-
       - name: Cache cargo target
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
@@ -175,9 +168,9 @@ jobs:
         # created by the runner service (saraivalab) before any container ran.
         run: chown -R "$(stat -c '%u:%g' "$(dirname "$GITHUB_WORKSPACE")")" "$GITHUB_WORKSPACE"
 
-  # ── Semantic Release ─────────────────────────────────────────────────────
+  # ── Release Please ────────────────────────────────────────────────────────
   release:
-    name: Semantic Release
+    name: Release Please
     runs-on: ubuntu-latest
     needs: [detect-changes, check-frontend, check-backend, check-rust]
     if: |
@@ -187,33 +180,18 @@ jobs:
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     outputs:
-      released: ${{ steps.sr.outputs.new_release_published }}
-      version: ${{ steps.sr.outputs.new_release_version }}
+      released: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+      # Hoisted here once so build-and-push-images / build-tauri-linux /
+      # build-tauri-macos don't each repeat this released-tag-or-current-ref ternary.
+      checkout-ref: ${{ steps.release.outputs.release_created == 'true' && format('refs/tags/v{0}', steps.release.outputs.version) || github.ref }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install semantic-release deps
-        run: npm install
-      - name: Run semantic-release
-        id: sr
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          npx semantic-release
-          git fetch --tags
-          AFTER=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$AFTER" ] && [ "$BEFORE" != "$AFTER" ]; then
-            echo "new_release_published=true" >> $GITHUB_OUTPUT
-            echo "new_release_version=${AFTER#v}" >> $GITHUB_OUTPUT
-          else
-            echo "new_release_published=false" >> $GITHUB_OUTPUT
-          fi
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   # ── Docker Build & Push ───────────────────────────────────────────────────
   build-and-push-images:
@@ -222,7 +200,8 @@ jobs:
     needs: [detect-changes, check-frontend, check-backend, check-rust, release]
     if: ${{ always() && needs.detect-changes.result != 'skipped' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/dev' && needs.detect-changes.outputs.ci == 'true')) && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     strategy:
-      fail-fast: true
+      # Unrelated matrix legs (api / web) shouldn't die together on one leg's failure.
+      fail-fast: false
       matrix:
         include:
           - context: api
@@ -248,7 +227,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.check_skip.outputs.SKIP != 'true'
         with:
-          ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
+          ref: ${{ needs.release.outputs.checkout-ref }}
 
       - name: Read version
         if: steps.check_skip.outputs.SKIP != 'true'
@@ -257,7 +236,10 @@ jobs:
           if [[ "${{ needs.release.outputs.released }}" == "true" ]]; then
             echo "version=${{ needs.release.outputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+            # VERSION now carries an "# x-release-please-version" marker line above
+            # the number (release-please's "generic" extra-file format) — read the
+            # last line instead of the whole file.
+            echo "version=$(tail -1 VERSION)" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up Docker Buildx
@@ -305,6 +287,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The api leg runs on an ephemeral ubuntu-latest runner, so the Dockerfile's
+          # BuildKit --mount=type=cache is cold every run; gha cache persists it.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
           build-args: |
             ${{ steps.build_args.outputs.args }}
             VERSION=${{ steps.version.outputs.version }}
@@ -327,11 +313,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
-
-      - name: Set release version in workspace
-        if: needs.release.outputs.released == 'true'
-        run: bash scripts/sr-bump-version.sh ${{ needs.release.outputs.version }}
+          ref: ${{ needs.release.outputs.checkout-ref }}
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
         with:
@@ -350,15 +332,16 @@ jobs:
             ${{ runner.os }}-pnpm-build-
 
       # Rust and system libs are in the builder image — only compiled artefacts need caching.
+      # Shared registry cache key with check-rust — same Cargo.lock, same registry.
       - name: Cache cargo registry
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-build-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-build-reg-
+            ${{ runner.os }}-cargo-reg-
 
       - name: Cache cargo target
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
@@ -431,20 +414,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.released == 'true' && format('refs/tags/v{0}', needs.release.outputs.version) || github.ref }}
+          ref: ${{ needs.release.outputs.checkout-ref }}
 
-      - name: Set release version in workspace
-        if: needs.release.outputs.released == 'true'
-        run: bash scripts/sr-bump-version.sh ${{ needs.release.outputs.version }}
-
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: 9
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
           cache-dependency-path: |
             desktop/pnpm-lock.yaml
             web/pnpm-lock.yaml
