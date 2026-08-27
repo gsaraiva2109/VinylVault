@@ -1,0 +1,41 @@
+name: Dependency Audit
+
+# Scheduled vulnerability rescan, independent of pushes — catches newly
+# disclosed CVEs in dependencies that haven't changed since the last push
+# (equivalent of DietDaemon's weekly govulncheck, for this repo's pnpm +
+# cargo stack). See #209.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  pnpm-audit:
+    name: pnpm audit — ${{ matrix.workspace }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [web, api, desktop]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          cache-dependency-path: ${{ matrix.workspace }}/pnpm-lock.yaml
+      - name: pnpm audit
+        working-directory: ${{ matrix.workspace }}
+        run: pnpm audit --audit-level=high
+
+  cargo-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: desktop/src-tauri
