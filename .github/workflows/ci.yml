@@ -1,0 +1,164 @@
+name: CI
+
+# PR-validation only: change detection, secret scan, and quality gates.
+# Runs on every push/PR to main and dev. The release build/publish pipeline
+# (docker images, Tauri builds, asset publish) lives in release.yml and only
+# fires on push to main, gated on an actual release-please release (#208).
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Change Detection ──────────────────────────────────────────────────────
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      rust: ${{ steps.filter.outputs.rust }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'web/**'
+              - 'pnpm-lock.yaml'
+            backend:
+              - 'api/**'
+              - 'pnpm-lock.yaml'
+            rust:
+              - 'desktop/src-tauri/**'
+              - 'desktop/sidecar/**'
+              - 'desktop/package.json'
+            ci:
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'Dockerfile'
+              - '**/Dockerfile'
+              - '.dockerignore'
+              - '**/.dockerignore'
+
+  # ── Secret Scan ───────────────────────────────────────────────────────────
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: 'v0.74.0'
+          scan-type: 'fs'
+          scanners: 'secret'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  # ── Quality Gate: Frontend ────────────────────────────────────────────────
+  check-frontend:
+    name: Check Frontend
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        working-directory: web
+        run: pnpm run lint
+      - name: TypeScript check
+        working-directory: web
+        run: pnpm exec tsc --noEmit
+
+  # ── Quality Gate: Backend ─────────────────────────────────────────────────
+  check-backend:
+    name: Check Backend
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          cache-dependency-path: api/pnpm-lock.yaml
+      - name: Install deps
+        working-directory: api
+        run: pnpm install --frozen-lockfile
+      - name: Backend build
+        # tsc (no --noEmit) already type-checks and fails the job on errors —
+        # a separate `tsc --noEmit` pass first would recompile the same files twice.
+        working-directory: api
+        run: pnpm run build
+
+  # ── Quality Gate: Rust / Tauri ────────────────────────────────────────────
+  check-rust:
+    name: Check Rust
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.ci == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: [self-hosted, homelab, linux, amd64]
+    container: localhost:5000/vinyl-vault-builder:latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Cache cargo registry
+        # Shared key with build-tauri-linux's registry cache in release.yml —
+        # same Cargo.lock, same registry; only the target dir needs to differ.
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-reg-
+      - name: Cache cargo target
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: /tmp/cargo-target
+          key: ${{ runner.os }}-cargo-check-target-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-target-
+      - name: Cargo check
+        working-directory: desktop/src-tauri
+        env:
+          OIDC_ISSUER: ${{ secrets.OIDC_ISSUER }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          CARGO_TARGET_DIR: /tmp/cargo-target
+          CARGO_BUILD_JOBS: '16'
+          # Container jobs mount HOME=/github/home, overriding the image's
+          # /root where rustup's toolchain config actually lives.
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
+        run: cargo check --no-default-features
+
+      # Container jobs run as root, so files they write (e.g. Tauri's
+      # generated gen/schemas/*.json) end up root-owned in the workspace
+      # bind-mount. The next job's checkout runs as the plain runner user
+      # and can't clean/delete them — hand ownership back before exiting.
+      - name: Fix workspace ownership for next job
+        if: always()
+        # Reference the parent dir, not GITHUB_WORKSPACE itself — the container
+        # (running as root) owns the workspace dir by now, but its parent was
+        # created by the runner service (saraivalab) before any container ran.
+        run: chown -R "$(stat -c '%u:%g' "$(dirname "$GITHUB_WORKSPACE")")" "$GITHUB_WORKSPACE"
