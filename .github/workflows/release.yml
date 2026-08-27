@@ -575,3 +575,16 @@ jobs:
           SHA256_SECTION=$(printf '### 🔐 SHA256 Checksums (macOS)\n\n```\n%s\n```' "$(cat SHA256SUMS-macos.txt)")
           NEW_BODY=$(printf '%s\n\n%s' "$CURRENT_BODY" "$SHA256_SECTION")
           gh release edit "$TAG" --notes "$NEW_BODY"
+
+      # Last job in the chain (needs: build-tauri-macos, publish-linux-assets,
+      # release) — only un-draft once Linux assets, macOS assets, and the
+      # merged latest.json are all in place. release-please-config.json sets
+      # "draft": true so the release starts hidden from watchers/the Tauri
+      # auto-updater until this runs.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="v${{ needs.release.outputs.version }}"
+          gh release edit "$TAG" --draft=false

@@ -1,9 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "simple",
+  "draft": true,
   "packages": {
     ".": {
       "release-type": "simple",
+      "draft": true,
       "extra-files": [
         { "type": "json", "path": "api/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
