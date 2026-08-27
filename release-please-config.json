@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "extra-files": [
+        { "type": "json", "path": "api/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "desktop/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "desktop/src-tauri/tauri.conf.json", "jsonpath": "$.version" },
+        { "type": "toml", "path": "desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" },
+        { "type": "generic", "path": "api/src/swagger.ts" },
+        { "type": "generic", "path": "VERSION" }
+      ]
+    }
+  },
+  "changelog-sections": [
+    { "type": "feat", "section": "✨ Features" },
+    { "type": "fix", "section": "🐛 Bug Fixes" },
+    { "type": "perf", "section": "⚡ Performance" },
+    { "type": "refactor", "section": "♻️ Code Refactoring" },
+    { "type": "revert", "section": "⏪ Reverts" },
+    { "type": "docs", "section": "📝 Documentation", "hidden": true },
+    { "type": "style", "section": "🎨 Styles", "hidden": true },
+    { "type": "chore", "section": "🔧 Miscellaneous", "hidden": true },
+    { "type": "test", "section": "🧪 Tests", "hidden": true },
+    { "type": "build", "section": "📦 Build System", "hidden": true },
+    { "type": "ci", "section": "👷 CI/CD", "hidden": true }
+  ]
+}
