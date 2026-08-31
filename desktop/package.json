@@ -20,7 +20,7 @@
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-updater": "^2.10.1",
-    "better-sqlite3": "^13.0.1",
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2"
   },
   "pnpm": {
@@ -30,10 +30,10 @@
     ]
   },
   "devDependencies": {
-    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-query": "^5.102.8",
     "@tauri-apps/cli": "^2.11.4",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.20.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.0",
     "drizzle-kit": "^0.31.10",
     "typescript": "^7.0.2"
   }
