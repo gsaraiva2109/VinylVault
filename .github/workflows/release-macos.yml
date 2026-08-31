@@ -28,7 +28,7 @@ jobs:
         with:
           ref: ${{ github.event.client_payload.tag || github.ref }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: latest
 
@@ -46,7 +46,7 @@ jobs:
           targets: aarch64-apple-darwin
 
       - name: Cache cargo registry
-        uses: actions/cache@v4.2.2
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cargo/registry
