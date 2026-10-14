@@ -28,11 +28,11 @@ jobs:
         with:
           ref: ${{ github.event.client_payload.tag || github.ref }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
         with:
           version: latest
 
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -46,7 +46,7 @@ jobs:
           targets: aarch64-apple-darwin
 
       - name: Cache cargo registry
-        uses: actions/cache@v4.2.2
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload macOS App Artifact (Manual Triggers)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: macOS-Tauri-App
           path: |
